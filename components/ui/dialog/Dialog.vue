@@ -1,0 +1,58 @@
+<script setup lang="ts">
+import { DialogRoot, type DialogRootEmits, type DialogRootProps, useForwardPropsEmits } from 'radix-vue'
+import { watch, onMounted, onUnmounted, nextTick } from 'vue'
+
+const props = defineProps<DialogRootProps>()
+const emits = defineEmits<DialogRootEmits>()
+
+const forwarded = useForwardPropsEmits(props, emits)
+
+// More aggressive cleanup function
+const cleanupOverlays = () => {
+  // Reset all possible body styles
+  document.body.style.overflow = ''
+  document.body.style.paddingRight = ''
+  document.body.style.pointerEvents = ''
+  document.body.style.touchAction = ''
+  document.body.classList.remove('overflow-hidden')
+  
+  // Target all possible overlay elements
+  const selectors = [
+    '.fixed.inset-0.z-50.bg-black\\/80',
+    '.fixed.inset-0',
+    '[data-radix-portal]',
+    '[data-radix-focus-guard]',
+    '[role="dialog"]'
+  ]
+  
+  selectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(el => {
+      if (!el.getAttribute('data-state') || el.getAttribute('data-state') === 'closed') {
+        el.remove()
+      }
+    })
+  })
+}
+
+// Watch for dialog closing
+watch(() => props.open, (isOpen, oldIsOpen) => {
+  if (oldIsOpen && !isOpen) {
+    // Run cleanup after animation finishes
+    setTimeout(cleanupOverlays, 300)
+  }
+}, { immediate: true })
+
+// Run cleanup on mount to handle any leftover elements
+onMounted(() => {
+  nextTick(cleanupOverlays)
+})
+
+// Run cleanup on unmount
+onUnmounted(cleanupOverlays)
+</script>
+
+<template>
+  <DialogRoot v-bind="forwarded">
+    <slot />
+  </DialogRoot>
+</template>
