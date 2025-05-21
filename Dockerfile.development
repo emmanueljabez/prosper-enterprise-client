@@ -1,0 +1,48 @@
+# ---- Build Stage ----
+FROM node:18-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Development environment
+ENV NODE_ENV=development
+ENV NUXT_PUBLIC_NODE_ENV=development
+
+# Copy package files first (for better caching)
+COPY package.json package-lock.json ./
+
+# Install all dependencies
+RUN npm ci
+
+# Copy application code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# ---- Runtime Stage ----
+FROM node:18-alpine AS runtime
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables
+ENV NODE_ENV=development
+ENV PORT=3001
+ENV NUXT_PUBLIC_NODE_ENV=development
+
+# Install curl for healthchecks
+RUN apk add --no-cache curl
+
+# Copy only the built application
+COPY --from=builder /app/.output /app/.output
+COPY --from=builder /app/package.json /app/package-lock.json ./
+
+# Install only production dependencies
+RUN npm ci --omit=dev --ignore-scripts
+
+# Expose the port
+EXPOSE 3001
+
+# Start the application
+CMD ["node", ".output/server/index.mjs"]
