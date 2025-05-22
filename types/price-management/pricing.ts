@@ -94,12 +94,31 @@ export interface PriceCalculationContext {
   date?: Date | string;
 }
 
+export interface PricingRule {
+  id: string;
+  customerId: string;
+  customerName: string;
+  productId: string;
+  productName: string;
+  productPrice: number;
+  discountType: 'percentage' | 'fixed' | 'override';
+  amount: number;
+  calculatedPrice: number;
+  startDate: string;
+  endDate: string | null;
+  status: 'active' | 'inactive' | 'scheduled';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PricingState {
   customerGroups: CustomerGroup[];
   salesChannels: SalesChannel[];
   promotions: Promotion[];
-  regions: Region[];
-  currencies: Currency[];
+  regions: any[];
+  currencies: any[];
+  pricingRules: PricingRule[];
   loading: boolean;
   error: string | null;
   useMockData: boolean;

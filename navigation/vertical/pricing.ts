@@ -25,7 +25,7 @@ const pricing: NavigationItem[] = [
       },
       {
         title: "Promotions & Discounts",
-        url: "/app/price-management/promotions",
+        url: "/app/price-management/discounts-and-promotions",
         icon: BadgePercentIcon,
       },     
     ],

@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-3xl font-bold tracking-tight">Customer-Based Pricing</h2>
-        <p class="text-muted-foreground">Manage pricing rules and discounts for specific customers and groups</p>
+        <p class="text-muted-foreground">Manage special prices and discounts for specific customers</p>
       </div>
       <div class="flex items-center space-x-2">
         <DropdownMenu>
@@ -24,369 +24,179 @@
               <Table2 class="h-4 w-4 mr-2" />
               Import Excel
             </DropdownMenuItem>
+            <DropdownMenuItem @click="openImportSheet('api')">
+              <Webhook class="h-4 w-4 mr-2" />
+              Import via API
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button @click="openPricingRuleEditor()">
+        <Button @click="openPricingWizard">
           <PlusIcon class="h-4 w-4 mr-2" />
-          New Pricing Rule
+          New Price Rule
         </Button>
       </div>
     </div>
 
-    <!-- Tabs for different views -->
-    <Tabs defaultValue="rules" class="w-full">
-      <TabsList class="grid grid-cols-3 w-full max-w-lg">
-        <TabsTrigger value="rules">
-          <TagIcon class="h-4 w-4 mr-2" />
-          Pricing Rules
-        </TabsTrigger>
-        <TabsTrigger value="groups">
-          <Users2Icon class="h-4 w-4 mr-2" />
-          Customer Groups
-        </TabsTrigger>
-        <TabsTrigger value="customers">
-          <UserIcon class="h-4 w-4 mr-2" />
-          Individual Customers
-        </TabsTrigger>
-      </TabsList>
+    <!-- Customer Pricing Table -->
+    <CustomerPricingTable
+      :pricing-rules="pricingRules"
+      :customers="customers"
+      :products="products"
+      :loading="isLoading"
+      @view-pricing="openPricingDetails"
+      @edit-pricing="openPricingEditor"
+      @duplicate-pricing="handleDuplicatePricing"
+      @delete-pricing="openDeletePricingDialog"
+      @update-status="openUpdateStatusDialog"
+      @refresh="fetchPricingRules"
+      @bulk-edit="openBulkEditDialog"
+    />
 
-      <!-- Pricing Rules Tab -->
-      <TabsContent value="rules" class="space-y-6">
-        <CustomerPricingRulesTable
-          :pricingRules="filteredPricingRules"
-          :customerGroups="customerGroups"
-          :loading="isLoading"
-          @edit-rule="openPricingRuleEditor"
-          @delete-rule="openDeletePricingRuleDialog"
-          @duplicate-rule="handleDuplicatePricingRule"
-          @toggle-rule-status="togglePricingRuleStatus"
-          @refresh="fetchPricingData"
-        />
-      </TabsContent>
+    <!-- Pricing Rule Wizard Dialog -->
+    <Sheet v-model:open="showPricingWizard" position="right" size="lg">
+      <PricingCreationWizard
+        v-if="showPricingWizard"
+        :customers="customers"
+        :products="products"
+        @pricing-created="handlePricingCreated"
+        @close="showPricingWizard = false"
+      />
+    </Sheet>
 
-      <!-- Customer Groups Tab -->
-      <TabsContent value="groups" class="space-y-6">
-        <CustomerGroupPricingTable
-          :customerGroups="customerGroups"
-          :loading="isLoading"
-          @edit-group="openCustomerGroupEditor"
-          @edit-group-pricing="openGroupPricingEditor"
-          @delete-group="openDeleteCustomerGroupDialog"
-          @refresh="fetchCustomerGroups"
-        />
-      </TabsContent>
+    <!-- Pricing Details Dialog -->
+    <Dialog v-model:open="showPricingDetailsDialog">
+      <PricingDetailsDialog
+        v-if="showPricingDetailsDialog"
+        :pricing-rule="selectedPricing"
+        @edit-pricing="openPricingEditor"
+        @close="showPricingDetailsDialog = false"
+      />
+    </Dialog>
 
-      <!-- Individual Customers Tab -->
-      <TabsContent value="customers" class="space-y-6">
-        <CustomerSpecificPricingTable
-          :customerPricing="customerSpecificPricing"
-          :customers="customers"
-          :products="products"
-          :loading="isLoading"
-          @edit-pricing="openCustomerPricingEditor"
-          @delete-pricing="openDeleteCustomerPricingDialog"
-          @refresh="fetchCustomerSpecificPricing"
-        />
-      </TabsContent>
-    </Tabs>
-  </div>
+    <!-- Pricing Editor Sheet -->
+    <Sheet v-model:open="showPricingEditorSheet" position="right" size="lg">
+      <PricingEditorSheet
+        v-if="showPricingEditorSheet"
+        :pricing-rule="selectedPricing"
+        :customers="customers"
+        :products="products"
+        @pricing-updated="handlePricingUpdated"
+        @close="showPricingEditorSheet = false"
+      />
+    </Sheet>
 
-  <!-- Dialogs and Sheets -->
-  <!-- Pricing Rule Editor Sheet -->
-  <CustomerPricingRuleEditorSheet
-    :isOpen="showPricingRuleEditorSheet"
-    :editingRule="selectedRule"
-    :customers="customers"
-    :customerGroups="customerGroups"
-    :products="products"
-    :productCategories="productCategories"
-    :isProcessing="isProcessing"
-    @update:isOpen="showPricingRuleEditorSheet = $event"
-    @rule-saved="handlePricingRuleSaved"
-  />
+    <!-- Update Status Dialog -->
+    <Dialog v-model:open="showStatusDialog">
+      <UpdatePricingStatusDialog
+        v-if="showStatusDialog"
+        :pricing-rule="selectedPricing"
+        @status-updated="handleStatusUpdated"
+        @close="showStatusDialog = false"
+      />
+    </Dialog>
 
-  <!-- Delete Pricing Rule Dialog -->
-  <DeletePricingRuleDialog
-    :isOpen="showDeletePricingRuleDialog"
-    :rule="selectedRule"
-    :isProcessing="isProcessing"
-    @update:isOpen="showDeletePricingRuleDialog = $event"
-    @confirm-delete="handlePricingRuleDeleted"
-  />
+    <Dialog v-model:open="showDeletePricingDialog">
+      <DeletePricingDialog
+        v-if="showDeletePricingDialog"
+        :pricing-rule="selectedPricing"
+        @delete="handlePricingDeleted"
+        @close="showDeletePricingDialog = false"
+      />
+    </Dialog>
+    
+    <!-- Bulk Edit Dialog -->
+    <Dialog v-model:open="showBulkEditDialog" class="sm:max-w-[900px]">
+      <BulkEditPricingDialog
+        v-if="showBulkEditDialog"
+        :selected-pricing-rules="selectedBulkPricing"
+        :customers="customers"
+        :products="products"
+        @pricing-updated="handleBulkUpdate"
+        @close="showBulkEditDialog = false"
+      />
+    </Dialog>
 
-  <!-- Customer Group Editor Sheet -->
-  <CustomerGroupEditorSheet
-    :isOpen="showCustomerGroupEditorSheet"
-    :editingGroup="selectedCustomerGroup"
-    :customers="customers"
-    :isProcessing="isProcessing"
-    @update:isOpen="showCustomerGroupEditorSheet = $event"
-    @group-saved="handleCustomerGroupSaved"
-  />
-
-  <!-- Delete Customer Group Dialog -->
-  <DeleteCustomerGroupDialog
-    :isOpen="showDeleteCustomerGroupDialog"
-    :group="selectedCustomerGroup"
-    :isProcessing="isProcessing"
-    @update:isOpen="showDeleteCustomerGroupDialog = $event"
-    @confirm-delete="handleCustomerGroupDeleted"
-  />
-
-  <!-- Group Pricing Editor Sheet -->
-  <GroupPricingEditorSheet
-    :isOpen="showGroupPricingEditorSheet"
-    :group="selectedCustomerGroup"
-    :products="products"
-    :isProcessing="isProcessing"
-    @update:isOpen="showGroupPricingEditorSheet = $event"
-    @pricing-saved="handleGroupPricingSaved"
-  />
-
-  <!-- Customer Pricing Editor Sheet -->
-  <CustomerPricingEditorSheet
-    :isOpen="showCustomerPricingEditorSheet"
-    :editingPricing="selectedCustomerPricing"
-    :customers="customers"
-    :products="products"
-    :isProcessing="isProcessing"
-    @update:isOpen="showCustomerPricingEditorSheet = $event"
-    @pricing-saved="handleCustomerPricingSaved"
-  />
-
-  <!-- Delete Customer Pricing Dialog -->
-  <DeleteCustomerPricingDialog
-    :isOpen="showDeleteCustomerPricingDialog"
-    :pricing="selectedCustomerPricing"
-    :customers="customers"
-    :products="products"
-    :isProcessing="isProcessing"
-    @update:isOpen="showDeleteCustomerPricingDialog = $event"
-    @confirm-delete="handleCustomerPricingDeleted"
-  />
-
-  <!-- Import Sheet -->
-  <CustomerPricingImportSheet
-    :isOpen="showImportSheet"
-    :customers="customers"
-    :products="products"
-    :customerGroups="customerGroups"
-    :isProcessing="isProcessing"
-    @update:isOpen="showImportSheet = $event"
-    @import-complete="handleImportComplete"
-  />
-  
-  <!-- Debug element - remove after fixing -->
-  <div class="fixed bottom-4 right-4 p-2 bg-black/80 text-white rounded-md z-50 text-xs">
-    <div>Rule Editor: {{ showPricingRuleEditorSheet }}</div>
-    <div>Delete Rule: {{ showDeletePricingRuleDialog }}</div>
-    <div>Customer Pricing: {{ showCustomerPricingEditorSheet }}</div>
-    <div>Delete Pricing: {{ showDeleteCustomerPricingDialog }}</div>
+    <!-- Import Sheet -->
+    <Sheet v-model:open="showImportSheet" position="right">
+      <PricingImportSheet
+        v-if="showImportSheet"
+        :import-type="importType"
+        @import-complete="handleImportComplete"
+        @close="showImportSheet = false"
+      />
+    </Sheet>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { 
-  PlusIcon, FileUp, ChevronDown, FileSpreadsheet, Table2,
-  TagIcon, Users2Icon, UserIcon
+  PlusIcon, FileUp, ChevronDown, FileSpreadsheet,
+  Table2, Webhook
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import { Sheet } from '@/components/ui/sheet'
+import { Dialog } from '@/components/ui/dialog'
 import { 
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem
 } from '@/components/ui/dropdown-menu'
-import { 
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/components/ui/tabs'
 import { useToast } from '@/components/ui/toast'
 
 // Components
-import CustomerPricingRulesTable from '@/components/price-management/customer-based-pricing/CustomerPricingRulesTable.vue'
-import CustomerGroupPricingTable from '@/components/price-management/customer-based-pricing/CustomerGroupPricingTable.vue'
-import CustomerSpecificPricingTable from '@/components/price-management/customer-based-pricing/CustomerSpecificPricingTable.vue'
-import CustomerPricingRuleEditorSheet from '@/components/price-management/customer-based-pricing/CustomerPricingRuleEditorSheet.vue'
-import DeletePricingRuleDialog from '@/components/price-management/customer-based-pricing/DeletePricingRuleDialog.vue'
-import CustomerGroupEditorSheet from '@/components/price-management/customer-based-pricing/CustomerGroupEditorSheet.vue'
-import DeleteCustomerGroupDialog from '@/components/price-management/customer-based-pricing/DeleteCustomerGroupDialog.vue'
-import GroupPricingEditorSheet from '@/components/price-management/customer-based-pricing/GroupPricingEditorSheet.vue'
-import CustomerPricingEditorSheet from '@/components/price-management/customer-based-pricing/CustomerPricingEditorSheet.vue'
-import DeleteCustomerPricingDialog from '@/components/price-management/customer-based-pricing/DeleteCustomerPricingDialog.vue'
-import CustomerPricingImportSheet from '@/components/price-management/customer-based-pricing/CustomerPricingImportSheet.vue'
+import CustomerPricingTable from '@/components/price-management/customer-pricing/CustomerPricingTable.vue'
+import PricingCreationWizard from '@/components/price-management/customer-pricing/PricingCreationWizard.vue'
+import PricingDetailsDialog from '@/components/price-management/customer-pricing/PricingDetailsDialog.vue'
+import PricingEditorSheet from '@/components/price-management/customer-pricing/PricingEditorSheet.vue'
+import UpdatePricingStatusDialog from '@/components/price-management/customer-pricing/UpdatePricingStatusDialog.vue'
+import DeletePricingDialog from '@/components/price-management/customer-pricing/DeletePricingDialog.vue'
+import BulkEditPricingDialog from '@/components/price-management/customer-pricing/BulkEditPricingDialog.vue'
+import PricingImportSheet from '@/components/price-management/customer-pricing/PricingImportSheet.vue'
 
 // Stores
 import { usePricingStore } from '@/store/modules/price-mangement/pricing'
 import { useCustomersStore } from '@/store/modules/price-mangement/customers'
+import { useProductsStore } from '@/store/modules/catalog/products'
 
 // Initialize stores
 const pricingStore = usePricingStore()
 const customersStore = useCustomersStore()
+const productsStore = useProductsStore()
 const { toast } = useToast()
 
 // Access store state through computed properties
-const customerGroups = computed(() => pricingStore.getCustomerGroups)
-const salesChannels = computed(() => pricingStore.getSalesChannels)
-const promotions = computed(() => pricingStore.getPromotions)
+const pricingRules = computed(() => pricingStore.getPricingRules)
+const customers = computed(() => customersStore.getCustomers)
+const products = computed(() => productsStore.getProducts)
 const isLoading = computed(() => pricingStore.getIsLoading)
-const customers = computed(() => customersStore.getCustomers || [])
+const error = computed(() => pricingStore.getError)
 
-// Additional state variables
-const products = ref([])
-const productCategories = ref([])
-const isProcessing = ref(false)
-
-// State for customer-specific pricing (this would be in your pricing store in a real app)
-const customerSpecificPricing = ref([])
-
-// Filter promotions that are customer-based
-const filteredPricingRules = computed(() => {
-  return promotions.value.filter(promo => 
-    promo.type === 'customer_based' || 
-    promo.type === 'customer_group'
-  );
-})
-
-// Selection state
-const selectedRule = ref(null)
-const selectedCustomerGroup = ref(null)
-const selectedCustomerPricing = ref(null)
+// State management
+const selectedPricing = ref(null)
+const selectedBulkPricing = ref([])
 
 // UI control
-const showPricingRuleEditorSheet = ref(false)
-const showDeletePricingRuleDialog = ref(false)
-const showCustomerGroupEditorSheet = ref(false)
-const showDeleteCustomerGroupDialog = ref(false)
-const showGroupPricingEditorSheet = ref(false)
-const showCustomerPricingEditorSheet = ref(false)
-const showDeleteCustomerPricingDialog = ref(false)
+const showPricingWizard = ref(false)
+const showPricingDetailsDialog = ref(false)
+const showPricingEditorSheet = ref(false)
+const showStatusDialog = ref(false)
+const showDeletePricingDialog = ref(false)
+const showBulkEditDialog = ref(false)
 const showImportSheet = ref(false)
 const importType = ref('csv')
 
-// Utility functions for form data conversion
-const formatForForm = (data) => {
-  if (!data) return null;
-  
-  // Create a deep copy to avoid mutations
-  const formattedData = JSON.parse(JSON.stringify(data));
-  
-  // Convert numeric values to strings for all properties
-  const convertObject = (obj) => {
-    if (!obj || typeof obj !== 'object') return;
-    
-    Object.keys(obj).forEach(key => {
-      // Convert numbers to strings for form inputs
-      if (typeof obj[key] === 'number') {
-        obj[key] = String(obj[key]);
-      }
-      
-      // Handle nested objects and arrays
-      if (obj[key] && typeof obj[key] === 'object') {
-        if (Array.isArray(obj[key])) {
-          obj[key].forEach(item => {
-            if (item && typeof item === 'object') {
-              convertObject(item);
-            }
-          });
-        } else {
-          convertObject(obj[key]);
-        }
-      }
-    });
-  };
-  
-  convertObject(formattedData);
-  return formattedData;
-};
-
-// Function to convert string values back to numbers for saving
-const prepareForSave = (data) => {
-  if (!data) return data;
-  
-  // Create a deep copy to avoid mutations
-  const preparedData = JSON.parse(JSON.stringify(data));
-  
-  // Fields that should be converted back to numbers
-  const numericFields = [
-    'price', 'compareAtPrice', 'discountValue', 'amount', 
-    'percentage', 'minQuantity', 'maxQuantity'
-  ];
-  
-  const convertObject = (obj) => {
-    if (!obj || typeof obj !== 'object') return;
-    
-    Object.keys(obj).forEach(key => {
-      // Convert strings back to numbers for numeric fields
-      if (numericFields.includes(key) && typeof obj[key] === 'string' && !isNaN(obj[key])) {
-        obj[key] = parseFloat(obj[key]);
-      }
-      
-      // Handle nested objects and arrays
-      if (obj[key] && typeof obj[key] === 'object') {
-        if (Array.isArray(obj[key])) {
-          obj[key].forEach(item => {
-            if (item && typeof item === 'object') {
-              convertObject(item);
-            }
-          });
-        } else {
-          convertObject(obj[key]);
-        }
-      }
-    });
-  };
-  
-  convertObject(preparedData);
-  return preparedData;
-};
-
-// Data fetching
-const fetchPricingData = async () => {
+// Fetch data from APIs
+const fetchPricingRules = async () => {
   try {
-    await Promise.all([
-      pricingStore.fetchPromotions(),
-      pricingStore.fetchCustomerGroups(),
-      pricingStore.fetchSalesChannels()
-    ])
+    await pricingStore.fetchPricingRules()
   } catch (error) {
-    console.error('Error fetching pricing data:', error)
+    console.error('Error fetching pricing rules:', error)
+    const errorMessage = error.response?.data?.message || 'An unexpected error occurred'
     toast({
       title: 'Error',
-      description: 'Failed to load pricing data',
-      variant: 'destructive'
-    })
-  }
-}
-
-const fetchProducts = async () => {
-  try {
-    // Mock data with string values for numeric properties
-    products.value = [
-      { id: 'prod1', name: 'Product 1', sku: 'SKU001', price: '99.99' },
-      { id: 'prod2', name: 'Product 2', sku: 'SKU002', price: '49.99' },
-    ]
-    
-    productCategories.value = [
-      { id: 'cat1', name: 'Category 1' },
-      { id: 'cat2', name: 'Category 2' }
-    ]
-  } catch (error) {
-    console.error('Error fetching products:', error)
-  }
-}
-
-const fetchCustomerGroups = async () => {
-  try {
-    await pricingStore.fetchCustomerGroups()
-  } catch (error) {
-    console.error('Error fetching customer groups:', error)
-    toast({
-      title: 'Error',
-      description: 'Failed to load customer groups',
+      description: errorMessage,
       variant: 'destructive'
     })
   }
@@ -405,370 +215,210 @@ const fetchCustomers = async () => {
   }
 }
 
-const fetchCustomerSpecificPricing = async () => {
+const fetchProducts = async () => {
   try {
-    // Mock data with string values for numeric properties
-    customerSpecificPricing.value = [
-      { id: 'csp1', customerId: 'cust1', customerName: 'Acme Inc.', discountType: 'percentage', discountValue: '10' },
-      { id: 'csp2', customerId: 'cust2', customerName: 'Beta Corp', discountType: 'fixed', discountValue: '15' }
-    ]
+    await productsStore.fetchProducts()
   } catch (error) {
-    console.error('Error fetching customer specific pricing:', error)
+    console.error('Error fetching products:', error)
     toast({
       title: 'Error',
-      description: 'Failed to load customer pricing data',
+      description: 'Failed to load products',
       variant: 'destructive'
     })
   }
 }
 
 // Dialog and sheet handlers
-const openPricingRuleEditor = (rule = null) => {
-  console.log("Opening pricing rule editor with rule:", rule)
-  selectedRule.value = formatForForm(rule)
-  showPricingRuleEditorSheet.value = true
-  console.log("Dialog state after:", showPricingRuleEditorSheet.value)
+const openPricingWizard = () => {
+  showPricingWizard.value = true
 }
 
-const openDeletePricingRuleDialog = (rule) => {
-  console.log("Opening delete rule dialog with rule:", rule)
-  selectedRule.value = formatForForm(rule)
-  showDeletePricingRuleDialog.value = true
-  console.log("Dialog state after:", showDeletePricingRuleDialog.value)
+const openPricingDetails = (pricing) => {
+  selectedPricing.value = pricing
+  showPricingDetailsDialog.value = true
 }
 
-const openCustomerGroupEditor = (group = null) => {
-  console.log("Opening customer group editor with group:", group)
-  selectedCustomerGroup.value = formatForForm(group)
-  showCustomerGroupEditorSheet.value = true
-  console.log("Dialog state after:", showCustomerGroupEditorSheet.value)
+const openPricingEditor = (pricing) => {
+  selectedPricing.value = pricing
+  showPricingEditorSheet.value = true
 }
 
-const openDeleteCustomerGroupDialog = (group) => {
-  console.log("Opening delete group dialog with group:", group)
-  selectedCustomerGroup.value = formatForForm(group)
-  showDeleteCustomerGroupDialog.value = true
-  console.log("Dialog state after:", showDeleteCustomerGroupDialog.value)
+const openUpdateStatusDialog = (pricing) => {
+  selectedPricing.value = pricing
+  showStatusDialog.value = true
 }
 
-const openGroupPricingEditor = (group) => {
-  console.log("Opening group pricing editor with group:", group)
-  selectedCustomerGroup.value = formatForForm(group)
-  showGroupPricingEditorSheet.value = true
-  console.log("Dialog state after:", showGroupPricingEditorSheet.value)
+const openDeletePricingDialog = (pricing) => {
+  selectedPricing.value = pricing
+  showDeletePricingDialog.value = true
 }
 
-const openCustomerPricingEditor = (pricing = null) => {
-  console.log("Opening customer pricing editor with pricing:", pricing)
-  selectedCustomerPricing.value = formatForForm(pricing)
-  showCustomerPricingEditorSheet.value = true
-  console.log("Dialog state after:", showCustomerPricingEditorSheet.value)
-}
-
-const openDeleteCustomerPricingDialog = (pricing) => {
-  console.log("Opening delete pricing dialog with pricing:", pricing)
-  selectedCustomerPricing.value = formatForForm(pricing)
-  showDeleteCustomerPricingDialog.value = true
-  console.log("Dialog state after:", showDeleteCustomerPricingDialog.value)
+const openBulkEditDialog = (pricingRules) => {
+  selectedBulkPricing.value = pricingRules
+  showBulkEditDialog.value = true
 }
 
 const openImportSheet = (type) => {
-  console.log("Opening import sheet with type:", type)
   importType.value = type
   showImportSheet.value = true
-  console.log("Sheet state after:", showImportSheet.value)
 }
 
-// Action handlers
-const handlePricingRuleSaved = async (rule, isNew = false) => {
+// CRUD operation handlers
+const handlePricingCreated = async (newPricing) => {
   try {
-    isProcessing.value = true
-    // Convert string values back to numbers before saving
-    const processedRule = prepareForSave(rule)
-    
-    if (isNew) {
-      await pricingStore.createPromotion(processedRule)
-      toast({
-        title: 'Rule Created',
-        description: 'Pricing rule has been created successfully',
-        variant: 'success'
-      })
-    } else {
-      await pricingStore.updatePromotion(processedRule.id, processedRule)
-      toast({
-        title: 'Rule Updated',
-        description: 'Pricing rule has been updated successfully',
-        variant: 'success'
-      })
-    }
-    showPricingRuleEditorSheet.value = false
-    await fetchPricingData()
-  } catch (error) {
-    console.error('Error saving pricing rule:', error)
-    toast({
-      title: 'Error',
-      description: 'Failed to save pricing rule',
-      variant: 'destructive'
-    })
-  } finally {
-    isProcessing.value = false
-  }
-}
-
-const handlePricingRuleDeleted = async (ruleId) => {
-  try {
-    isProcessing.value = true
-    await pricingStore.deletePromotion(ruleId)
-    toast({
-      title: 'Rule Deleted',
-      description: 'Pricing rule has been deleted successfully',
-      variant: 'success'
-    })
-    showDeletePricingRuleDialog.value = false
-    await fetchPricingData()
-  } catch (error) {
-    console.error('Error deleting pricing rule:', error)
-    toast({
-      title: 'Error',
-      description: 'Failed to delete pricing rule',
-      variant: 'destructive'
-    })
-  } finally {
-    isProcessing.value = false
-  }
-}
-
-const handleDuplicatePricingRule = async (rule) => {
-  try {
-    isProcessing.value = true
-    const duplicatedRule = { 
-      ...rule,
-      id: undefined, 
-      name: `${rule.name} (Copy)`,
-      createdAt: new Date().toISOString()
-    }
-    await pricingStore.createPromotion(duplicatedRule)
-    toast({
-      title: 'Rule Duplicated',
-      description: 'Pricing rule has been duplicated successfully',
-      variant: 'success'
-    })
-    await fetchPricingData()
-  } catch (error) {
-    console.error('Error duplicating pricing rule:', error)
-    toast({
-      title: 'Error',
-      description: 'Failed to duplicate pricing rule',
-      variant: 'destructive'
-    })
-  } finally {
-    isProcessing.value = false
-  }
-}
-
-const togglePricingRuleStatus = async (rule) => {
-  try {
-    isProcessing.value = true
-    const updatedRule = { 
-      ...rule,
-      isActive: !rule.isActive 
-    }
-    await pricingStore.updatePromotion(rule.id, updatedRule)
-    toast({
-      title: updatedRule.isActive ? 'Rule Activated' : 'Rule Deactivated',
-      description: `Pricing rule has been ${updatedRule.isActive ? 'activated' : 'deactivated'} successfully`,
-      variant: 'success'
-    })
-    await fetchPricingData()
-  } catch (error) {
-    console.error('Error toggling pricing rule status:', error)
-    toast({
-      title: 'Error',
-      description: 'Failed to update pricing rule status',
-      variant: 'destructive'
-    })
-  } finally {
-    isProcessing.value = false
-  }
-}
-
-const handleCustomerGroupSaved = async (group, isNew = false) => {
-  try {
-    isProcessing.value = true
-    if (isNew) {
-      await pricingStore.createCustomerGroup(group)
-      toast({
-        title: 'Group Created',
-        description: 'Customer group has been created successfully',
-        variant: 'success'
-      })
-    } else {
-      await pricingStore.updateCustomerGroup(group.id, group)
-      toast({
-        title: 'Group Updated',
-        description: 'Customer group has been updated successfully',
-        variant: 'success'
-      })
-    }
-    showCustomerGroupEditorSheet.value = false
-    await fetchCustomerGroups()
-  } catch (error) {
-    console.error('Error saving customer group:', error)
-    toast({
-      title: 'Error',
-      description: 'Failed to save customer group',
-      variant: 'destructive'
-    })
-  } finally {
-    isProcessing.value = false
-  }
-}
-
-const handleCustomerGroupDeleted = async (groupId) => {
-  try {
-    isProcessing.value = true
-    await pricingStore.deleteCustomerGroup(groupId)
-    toast({
-      title: 'Group Deleted',
-      description: 'Customer group has been deleted successfully',
-      variant: 'success'
-    })
-    showDeleteCustomerGroupDialog.value = false
-    await fetchCustomerGroups()
-  } catch (error) {
-    console.error('Error deleting customer group:', error)
-    toast({
-      title: 'Error',
-      description: 'Failed to delete customer group',
-      variant: 'destructive'
-    })
-  } finally {
-    isProcessing.value = false
-  }
-}
-
-const handleGroupPricingSaved = async (groupPricing) => {
-  try {
-    isProcessing.value = true
-    // In a real app, this would be updating the customer group with pricing data
-    await pricingStore.updateCustomerGroup(groupPricing.groupId, { 
-      pricingRules: groupPricing.pricingRules 
-    })
-    toast({
-      title: 'Group Pricing Updated',
-      description: 'Group pricing has been updated successfully',
-      variant: 'success'
-    })
-    showGroupPricingEditorSheet.value = false
-    await fetchCustomerGroups()
-  } catch (error) {
-    console.error('Error saving group pricing:', error)
-    toast({
-      title: 'Error',
-      description: 'Failed to save group pricing',
-      variant: 'destructive'
-    })
-  } finally {
-    isProcessing.value = false
-  }
-}
-
-const handleCustomerPricingSaved = async (customerPricing, isNew = false) => {
-  try {
-    isProcessing.value = true
-    // Convert string values back to numbers before saving
-    const processedPricing = prepareForSave(customerPricing)
-    
-    if (isNew) {
-      customerSpecificPricing.value.push({
-        ...processedPricing,
-        id: `csp${Date.now()}`
-      })
-    } else {
-      const index = customerSpecificPricing.value.findIndex(cp => cp.id === processedPricing.id)
-      if (index !== -1) {
-        customerSpecificPricing.value[index] = processedPricing
-      }
-    }
+    await pricingStore.createPricingRule(newPricing)
+    showPricingWizard.value = false
     
     toast({
-      title: isNew ? 'Customer Pricing Created' : 'Customer Pricing Updated',
-      description: `Customer pricing has been ${isNew ? 'created' : 'updated'} successfully`,
+      title: 'Price Rule Created',
+      description: `Price rule for ${newPricing.customerName} has been created successfully.`,
       variant: 'success'
     })
-    showCustomerPricingEditorSheet.value = false
+    
+    await fetchPricingRules()
   } catch (error) {
-    console.error('Error saving customer pricing:', error)
+    console.error('Error creating price rule:', error)
     toast({
       title: 'Error',
-      description: 'Failed to save customer pricing',
+      description: 'Failed to create price rule. Please try again.',
       variant: 'destructive'
     })
-  } finally {
-    isProcessing.value = false
   }
 }
 
-const handleCustomerPricingDeleted = async (pricingId) => {
+const handlePricingUpdated = async (updatedPricing) => {
   try {
-    isProcessing.value = true
-    // Simulate API call - in a real app, this would interact with a store
-    customerSpecificPricing.value = customerSpecificPricing.value.filter(
-      cp => cp.id !== pricingId
-    )
+    await pricingStore.updatePricingRule(updatedPricing)
+    showPricingEditorSheet.value = false
     
     toast({
-      title: 'Customer Pricing Deleted',
-      description: 'Customer pricing has been deleted successfully',
+      title: 'Price Rule Updated',
+      description: `Price rule for ${updatedPricing.customerName} has been updated successfully.`,
       variant: 'success'
     })
-    showDeleteCustomerPricingDialog.value = false
+    
+    await fetchPricingRules()
   } catch (error) {
-    console.error('Error deleting customer pricing:', error)
+    console.error('Error updating price rule:', error)
     toast({
       title: 'Error',
-      description: 'Failed to delete customer pricing',
+      description: 'Failed to update price rule. Please try again.',
       variant: 'destructive'
     })
-  } finally {
-    isProcessing.value = false
+  }
+}
+
+const handleStatusUpdated = async ({ pricingRule, status, reason }) => {
+  try {
+    await pricingStore.updatePricingStatus(pricingRule.id, status, reason)
+    showStatusDialog.value = false
+    
+    toast({
+      title: 'Status Updated',
+      description: `Price rule status changed to ${status}.`,
+      variant: 'success'
+    })
+    
+    await fetchPricingRules()
+  } catch (error) {
+    console.error('Error updating price rule status:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to update price rule status. Please try again.',
+      variant: 'destructive'
+    })
+  }
+}
+
+const handlePricingDeleted = async (pricingRule) => {
+  try {
+    await pricingStore.deletePricingRule(pricingRule.id)
+    showDeletePricingDialog.value = false
+    
+    toast({
+      title: 'Price Rule Deleted',
+      description: `Price rule for ${pricingRule.customerName} has been deleted.`,
+      variant: 'success'
+    })
+    
+    await fetchPricingRules()
+  } catch (error) {
+    console.error('Error deleting price rule:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to delete price rule. Please try again.',
+      variant: 'destructive'
+    })
+  }
+}
+
+const handleDuplicatePricing = async (pricingRule) => {
+  try {
+    await pricingStore.duplicatePricingRule(pricingRule.id)
+    
+    toast({
+      title: 'Price Rule Duplicated',
+      description: `A copy of price rule for ${pricingRule.customerName} has been created.`,
+      variant: 'success'
+    })
+    
+    await fetchPricingRules()
+  } catch (error) {
+    console.error('Error duplicating price rule:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to duplicate price rule. Please try again.',
+      variant: 'destructive'
+    })
+  }
+}
+
+const handleBulkUpdate = async (pricingRules, updates) => {
+  try {
+    await pricingStore.bulkUpdatePricingRules(pricingRules.map(p => p.id), updates)
+    showBulkEditDialog.value = false
+    
+    toast({
+      title: 'Price Rules Updated',
+      description: `${pricingRules.length} price rules have been updated.`,
+      variant: 'success'
+    })
+    
+    await fetchPricingRules()
+  } catch (error) {
+    console.error('Error bulk updating price rules:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to update price rules. Please try again.',
+      variant: 'destructive'
+    })
   }
 }
 
 const handleImportComplete = async (result) => {
-  try {
-    isProcessing.value = true
-    if (result.success) {
-      showImportSheet.value = false
-      
-      toast({
-        title: 'Import Complete',
-        description: `${result.importedCount} pricing rules have been imported successfully`,
-        variant: 'success'
-      })
-      
-      await fetchPricingData()
-    } else {
-      toast({
-        title: 'Import Failed',
-        description: result.error || 'Failed to import pricing data',
-        variant: 'destructive'
-      })
-    }
-  } catch (error) {
-    console.error('Error handling import completion:', error)
-  } finally {
-    isProcessing.value = false
+  if (result.success) {
+    showImportSheet.value = false
+    
+    toast({
+      title: 'Import Complete',
+      description: `${result.count} price rules have been imported successfully.`,
+      variant: 'success'
+    })
+    
+    await fetchPricingRules()
+  } else {
+    toast({
+      title: 'Import Failed',
+      description: result.error || 'Failed to import price rules. Please try again.',
+      variant: 'destructive'
+    })
   }
 }
 
 // Initialize component
-onMounted(async () => {
-  await Promise.all([
-    fetchPricingData(),
-    fetchCustomers(),
-    fetchProducts(),
-    fetchCustomerSpecificPricing()
-  ])
+onMounted(() => {
+  fetchPricingRules()
+  fetchCustomers()
+  fetchProducts()
 })
 </script>

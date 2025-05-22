@@ -50,6 +50,7 @@
     "vue3-country-region-select": "^1.0.0",
     "vue3-emoji-picker": "^1.1.7",
     "vue3-google-map": "^0.22.0",
+    "xlsx": "^0.18.5",
     "yup": "^1.6.1"
   },
   "devDependencies": {
