@@ -6,7 +6,9 @@ import type { InventoryState } from '@/types/inventory/items';
 
 
 // Determine if we're in development environment
-const isDev = process.env.NODE_ENV === 'development';
+const config = useRuntimeConfig() 
+const environment = config.public.nodeEnv
+const isDev = environment === 'development';
 
 export const useInventoryStore = defineStore('inventory', {
   state: (): InventoryState => ({

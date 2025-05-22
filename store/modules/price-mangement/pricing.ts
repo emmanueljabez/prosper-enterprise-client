@@ -12,7 +12,9 @@ import type {
 } from '@/types/price-management/pricing';
 
 // Determine if we're in development environment
-const isDev = process.env.NODE_ENV === 'development';
+const config = useRuntimeConfig() 
+const environment = config.public.nodeEnv
+const isDev = environment === 'development';
 
 export const usePricingStore = defineStore('pricing', {
   state: (): PricingState => ({

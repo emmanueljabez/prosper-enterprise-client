@@ -4,7 +4,9 @@ import auditApi from '~/http/requests/app/inventory/audit';
 import type { AuditLog, AuditState, AuditFilters } from '@/types/inventory/audit';
 
 // Determine if we're in development environment
-const isDev = process.env.NODE_ENV === 'development';
+const config = useRuntimeConfig() 
+const environment = config.public.nodeEnv
+const isDev = environment === 'development';
 
 export const useAuditStore = defineStore('audit', {
   state: (): AuditState => ({

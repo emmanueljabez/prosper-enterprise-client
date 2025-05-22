@@ -5,7 +5,9 @@ import type { Bundle, BundlesState, BundleItem, BundleInventory } from '@/types/
 import { useProductsStore } from './products';
 
 // Determine if we're in development environment
-const isDev = process.env.NODE_ENV === 'development';
+const config = useRuntimeConfig() 
+const environment = config.public.nodeEnv
+const isDev = environment === 'development';
 
 // Mock API implementation
 const mockBundlesApi = {

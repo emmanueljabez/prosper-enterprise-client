@@ -24,7 +24,9 @@ import { v4 as uuidv4 } from 'uuid';
 
 
 // Determine if we're in development environment
-const isDev = process.env.NODE_ENV === 'development';
+const config = useRuntimeConfig() 
+const environment = config.public.nodeEnv
+const isDev = environment === 'development';
 
 export const useAttributesStore = defineStore('attributes', {
   state: (): AttributesState => ({

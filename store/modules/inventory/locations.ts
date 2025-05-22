@@ -4,7 +4,9 @@ import locationsApi from '~/http/requests/app/inventory/locations';
 import type { Location, LocationState } from '@/types/inventory/location';
 
 // Determine if we're in development environment
-const isDev = process.env.NODE_ENV === 'development';
+const config = useRuntimeConfig() 
+const environment = config.public.nodeEnv
+const isDev = environment === 'development';
 
 export const useLocationsStore = defineStore('locations', {
   state: (): LocationState => ({

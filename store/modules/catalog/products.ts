@@ -4,7 +4,9 @@ import { mockProductsApi } from '@/mock/mockProducts';
 import type { Product, ProductsState } from '@/types/catalog/products';
 
 // Determine if we're in development environment
-const isDev = process.env.NODE_ENV === 'development';
+const config = useRuntimeConfig() 
+const environment = config.public.nodeEnv
+const isDev = environment === 'development';
 
 export const useProductsStore = defineStore('products', {
   state: (): ProductsState => ({
