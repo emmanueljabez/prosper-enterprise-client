@@ -27,11 +27,6 @@ const warehouse: NavigationItem[] = [
         icon: ClipboardList,
       },
       {
-        title: "Product Variants",
-        url: "/app/warehouse/product-variants",
-        icon: GitBranch,
-      },
-      {
         title: "Shipping Panel",
         url: "/app/warehouse/shipping-panel",
         icon: Send,
