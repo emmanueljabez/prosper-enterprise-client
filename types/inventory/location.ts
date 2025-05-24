@@ -4,14 +4,24 @@
 export enum LocationType {
   WAREHOUSE = 'warehouse',
   ZONE = 'zone',
-  SHELF = 'shelf',
+  AISLE = 'aisle',
   BIN = 'bin',
-  STORE = 'store',
-  OFFICE = 'office',
+  RETAIL = 'retail',
+  MANUFACTURING = 'manufacturing',
   SUPPLIER = 'supplier',
   CUSTOMER = 'customer',
   VEHICLE = 'vehicle',
   OTHER = 'other'
+}
+
+/**
+ * Location status enum
+ */
+export enum LocationStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  MAINTENANCE = 'maintenance',
+  RESTRICTED = 'restricted'
 }
 
 /**
@@ -24,58 +34,46 @@ export interface Location {
   /** Human-readable name of the location */
   name: string;
   
-  /** Type of location (warehouse, shelf, bin, etc.) */
+  /** Type of location (warehouse, zone, aisle, bin, etc.) */
   type: string;
+  
+  /** Status of the location */
+  status: string;
   
   /** Optional parent location ID, if this is a child location */
   parentId?: string | null;
-  
-  /** Whether this location is active and available for use */
-  isActive: boolean;
   
   /** Optional code for the location (e.g., warehouse code, bin code) */
   code?: string;
   
   /** Optional address for the location */
   address?: {
-    street1?: string;
-    street2?: string;
+    street?: string;
     city?: string;
     state?: string;
-    postalCode?: string;
+    zip?: string;
     country?: string;
   };
   
-  /** Geographic coordinates if available */
-  coordinates?: {
-    latitude?: number;
-    longitude?: number;
+  /** Physical dimensions of the location */
+  dimensions?: {
+    length?: number;
+    width?: number;
+    height?: number;
+    unit?: 'ft' | 'm' | 'in' | 'cm';
   };
   
-  /** Optional capacity in terms of weight */
-  weightCapacity?: {
-    value: number;
-    unit: 'kg' | 'lb' | 'g' | 'oz' | 't';
-  };
+  /** Maximum capacity (number of items) */
+  capacity?: number;
   
-  /** Optional capacity in terms of volume */
-  volumeCapacity?: {
-    value: number;
-    unit: 'm3' | 'ft3' | 'l' | 'gal';
-  };
+  /** Current number of items stored in this location */
+  itemCount?: number;
   
   /** Optional notes or description */
   description?: string;
   
-  /** Optional contact information */
-  contact?: {
-    name?: string;
-    email?: string;
-    phone?: string;
-  };
-  
-  /** Optional custom fields for additional flexibility */
-  customFields?: Record<string, any>;
+  /** Optional additional attributes */
+  attributes?: Record<string, string>;
   
   /** Creation timestamp */
   createdAt: string;
@@ -85,6 +83,38 @@ export interface Location {
   
   /** Optional array of child locations, used for hierarchical display */
   children?: Location[];
+}
+
+/**
+ * Location statistics interface
+ */
+export interface LocationStats {
+  /** Number of active warehouses */
+  warehouses: number;
+  
+  /** Total number of zones */
+  zones: number;
+  
+  /** Number of zones currently in use (with items) */
+  zonesInUse: number;
+  
+  /** Total number of aisles */
+  aisles: number;
+  
+  /** Total number of bins */
+  bins: number;
+  
+  /** Number of bins currently in use (with items) */
+  binsInUse: number;
+  
+  /** Total storage capacity across all locations */
+  totalCapacity: number;
+  
+  /** Total number of items currently stored */
+  itemsStored: number;
+  
+  /** Number of unique sites (cities with warehouses) */
+  sites: number;
 }
 
 /**
@@ -102,6 +132,9 @@ export interface LocationState {
   
   /** Flag to use mock data instead of API calls */
   useMockData: boolean;
+  
+  /** Location statistics */
+  locationStats: LocationStats;
 }
 
 /**
@@ -119,11 +152,12 @@ export type LocationUpdateInput = Partial<Omit<Location, 'createdAt' | 'updatedA
  * Interface for bulk location updates
  */
 export interface BulkLocationUpdate {
-  isActive?: boolean;
+  status?: string;
   type?: string;
   parentId?: string | null;
   description?: string;
-  customFields?: Record<string, any>;
+  capacity?: number;
+  attributes?: Record<string, any>;
 }
 
 /**
@@ -132,7 +166,7 @@ export interface BulkLocationUpdate {
 export interface LocationFilters {
   search?: string;
   types?: string[];
-  isActive?: boolean;
+  status?: string;
   parentId?: string | null;
   createdAfter?: string;
   createdBefore?: string;

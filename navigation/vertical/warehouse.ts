@@ -11,7 +11,7 @@ import {
 
 const warehouse: NavigationItem[] = [
   {
-    title: "warehouse",
+    title: "Warehouse",
     url: "",
     icon: Warehouse,
     isActive: false,

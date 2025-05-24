@@ -1,9 +1,14 @@
 import { defineStore } from 'pinia';
-import { mockItems } from '@/mock/mockInventoryData';
+import { mockItems, mockMappings, mockSyncConflicts } from '@/mock/mockInventoryData';
 import inventoryApi from '~/http/requests/app/inventory/items';
-import type { InventoryItem, StockAdjustment, ItemLocation } from '@/types/inventory/items';
-import type { InventoryState } from '@/types/inventory/items';
-
+import type { 
+  InventoryItem, 
+  StockAdjustment, 
+  ItemLocation, 
+  ItemProductMapping, 
+  SyncConflict,
+  ExtendedInventoryState 
+} from '@/types/inventory/items';
 
 // Determine if we're in development environment
 const config = useRuntimeConfig() 
@@ -11,10 +16,14 @@ const environment = config.public.nodeEnv
 const isDev = environment === 'development';
 
 export const useInventoryStore = defineStore('inventory', {
-  state: (): InventoryState => ({
+  state: (): ExtendedInventoryState => ({
     items: [],
+    mappings: [],
+    syncConflicts: [],
     isLoading: false,
+    mappingsLoading: false,
     error: null,
+    mappingsError: null,
     useMockData: isDev // Default to mock data in development
   }),
   
@@ -40,7 +49,17 @@ export const useInventoryStore = defineStore('inventory', {
     getItemsByStatus: (state) => (status: string) => state.items.filter(item => item.status === status),
     getTotalStockValue: (state) => {
       return state.items.reduce((total, item) => total + (item.cost * item.stockOnHand), 0);
-    }
+    },
+    
+    // Mapping getters
+    getMappings: (state) => state.mappings,
+    getMappingById: (state) => (id: string) => state.mappings.find(mapping => mapping.id === id),
+    getMappingsByItemId: (state) => (itemId: string) => state.mappings.filter(mapping => mapping.itemId === itemId),
+    getMappingsByProductId: (state) => (productId: string) => state.mappings.filter(mapping => mapping.productId === productId),
+    getSyncedMappings: (state) => state.mappings.filter(mapping => mapping.syncStatus === 'synced'),
+    getOutOfSyncMappings: (state) => state.mappings.filter(mapping => mapping.syncStatus === 'out_of_sync'),
+    getErrorMappings: (state) => state.mappings.filter(mapping => mapping.syncStatus === 'error'),
+    getSyncConflicts: (state) => state.syncConflicts
   },
   
   actions: {
@@ -48,6 +67,7 @@ export const useInventoryStore = defineStore('inventory', {
       this.useMockData = useMock;
     },
     
+    // Existing item actions
     async fetchItems(params = {}) {
       this.isLoading = true;
       this.error = null;
@@ -528,6 +548,397 @@ export const useInventoryStore = defineStore('inventory', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       }).format(cost);
+    },
+    
+    // New mapping actions
+    async fetchMappings(params = {}) {
+      this.mappingsLoading = true;
+      this.mappingsError = null;
+      
+      try {
+        let response;
+        if (this.useMockData) {
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          response = { success: true, mappings: [...mockMappings] };
+        } else {
+          // Real API call would go here
+          response = await inventoryApi.fetchMappings(params);
+        }
+        
+        if (response.success) {
+          this.mappings = response.mappings;
+        }
+        
+        this.mappingsLoading = false;
+        return response;
+      } catch (error: any) {
+        this.mappingsLoading = false;
+        this.mappingsError = error.response?.data?.message || 'Failed to fetch item-product mappings';
+        throw error;
+      }
+    },
+    
+    async createMapping(newMapping: Partial<ItemProductMapping>) {
+      this.mappingsLoading = true;
+      this.mappingsError = null;
+      
+      try {
+        let response;
+        if (this.useMockData) {
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Find item and product details
+          const item = this.items.find(i => i.id === newMapping.itemId);
+          const product = { id: newMapping.productId }; // In a real implementation, fetch from products store
+          
+          if (!item) {
+            throw new Error('Item not found');
+          }
+          
+          // Generate new ID and timestamps
+          const createdMapping = {
+            ...newMapping,
+            id: `map-${Math.floor(Math.random() * 10000).toString().padStart(3, '0')}`,
+            itemName: item.name,
+            itemSku: item.sku,
+            itemDescription: item.description,
+            productName: newMapping.productName || 'Product Name',
+            productSku: newMapping.productSku || 'PROD-SKU',
+            syncStatus: 'pending',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          } as ItemProductMapping;
+          
+          response = { success: true, mapping: createdMapping };
+        } else {
+          // Real API call would go here
+          response = await inventoryApi.createMapping(newMapping);
+        }
+        
+        if (response.success && response.mapping) {
+          this.mappings.push(response.mapping);
+        }
+        
+        this.mappingsLoading = false;
+        return response;
+      } catch (error: any) {
+        this.mappingsLoading = false;
+        this.mappingsError = error.response?.data?.message || 'Failed to create mapping';
+        throw error;
+      }
+    },
+    
+    async updateMapping(updatedMapping: Partial<ItemProductMapping> & { id: string }) {
+      this.mappingsLoading = true;
+      this.mappingsError = null;
+      
+      try {
+        let response;
+        if (this.useMockData) {
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Find the mapping in the array
+          const index = this.mappings.findIndex(mapping => mapping.id === updatedMapping.id);
+          if (index === -1) throw new Error('Mapping not found');
+          
+          // Update with new data
+          const updatedMappingObj = {
+            ...this.mappings[index],
+            ...updatedMapping,
+            updatedAt: new Date().toISOString()
+          };
+          
+          response = { success: true, mapping: updatedMappingObj };
+        } else {
+          // Real API call would go here
+          response = await inventoryApi.updateMapping(updatedMapping.id, updatedMapping);
+        }
+        
+        if (response.success && response.mapping) {
+          const index = this.mappings.findIndex(mapping => mapping.id === updatedMapping.id);
+          if (index !== -1) {
+            this.mappings[index] = response.mapping;
+          }
+        }
+        
+        this.mappingsLoading = false;
+        return response;
+      } catch (error: any) {
+        this.mappingsLoading = false;
+        this.mappingsError = error.response?.data?.message || 'Failed to update mapping';
+        throw error;
+      }
+    },
+    
+    async deleteMapping(mappingId: string) {
+      this.mappingsLoading = true;
+      this.mappingsError = null;
+      
+      try {
+        let response;
+        if (this.useMockData) {
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Remove the mapping from the array
+          const index = this.mappings.findIndex(mapping => mapping.id === mappingId);
+          if (index === -1) throw new Error('Mapping not found');
+          
+          response = { success: true };
+        } else {
+          // Real API call would go here
+          response = await inventoryApi.deleteMapping(mappingId);
+        }
+        
+        if (response.success) {
+          this.mappings = this.mappings.filter(mapping => mapping.id !== mappingId);
+        }
+        
+        this.mappingsLoading = false;
+        return response;
+      } catch (error: any) {
+        this.mappingsLoading = false;
+        this.mappingsError = error.response?.data?.message || 'Failed to delete mapping';
+        throw error;
+      }
+    },
+    
+    async syncMapping(mappingId: string) {
+      this.mappingsLoading = true;
+      this.mappingsError = null;
+      
+      try {
+        let response;
+        if (this.useMockData) {
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Find the mapping
+          const mappingIndex = this.mappings.findIndex(mapping => mapping.id === mappingId);
+          if (mappingIndex === -1) throw new Error('Mapping not found');
+          
+          const mapping = this.mappings[mappingIndex];
+          
+          // For demonstration, sometimes return conflicts
+          let conflicts = [];
+          if (mapping.id === 'map-003' || mapping.id === 'map-004') {
+            conflicts = mockSyncConflicts.filter(conflict => conflict.mappingId === mappingId);
+            response = { 
+              success: true, 
+              conflicts,
+              mapping: {
+                ...mapping,
+                syncStatus: 'error',
+                lastSyncTime: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }
+            };
+          } else {
+            response = { 
+              success: true, 
+              conflicts: [],
+              mapping: {
+                ...mapping,
+                syncStatus: 'synced',
+                lastSyncTime: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }
+            };
+          }
+          
+          // Update the mapping
+          if (response.mapping) {
+            this.mappings[mappingIndex] = response.mapping;
+          }
+          
+          // Update conflicts
+          if (conflicts.length > 0) {
+            this.syncConflicts = [...this.syncConflicts.filter(c => c.mappingId !== mappingId), ...conflicts];
+          }
+          
+        } else {
+          // Real API call would go here
+          response = await inventoryApi.syncMapping(mappingId);
+          
+          // Update the mapping if successful
+          if (response.success && response.mapping) {
+            const index = this.mappings.findIndex(mapping => mapping.id === mappingId);
+            if (index !== -1) {
+              this.mappings[index] = response.mapping;
+            }
+            
+            // Update conflicts
+            if (response.conflicts && response.conflicts.length > 0) {
+              this.syncConflicts = [...this.syncConflicts.filter(c => c.mappingId !== mappingId), ...response.conflicts];
+            }
+          }
+        }
+        
+        this.mappingsLoading = false;
+        return response.conflicts || [];
+      } catch (error: any) {
+        this.mappingsLoading = false;
+        this.mappingsError = error.response?.data?.message || 'Failed to sync mapping';
+        throw error;
+      }
+    },
+    
+    async resolveSyncConflict(mappingId: string, resolution: any) {
+      this.mappingsLoading = true;
+      this.mappingsError = null;
+      
+      try {
+        let response;
+        if (this.useMockData) {
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Find the mapping
+          const mappingIndex = this.mappings.findIndex(mapping => mapping.id === mappingId);
+          if (mappingIndex === -1) throw new Error('Mapping not found');
+          
+          // Mark conflicts as resolved
+          const updatedConflicts = this.syncConflicts
+            .filter(conflict => conflict.mappingId === mappingId)
+            .map(conflict => ({
+              ...conflict,
+              status: 'resolved'
+            }));
+          
+          // Update mapping status
+          const updatedMapping = {
+            ...this.mappings[mappingIndex],
+            syncStatus: 'synced',
+            lastSyncTime: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          
+          response = { 
+            success: true, 
+            mapping: updatedMapping,
+            conflicts: updatedConflicts
+          };
+          
+          // Update state
+          this.mappings[mappingIndex] = updatedMapping;
+          this.syncConflicts = [
+            ...this.syncConflicts.filter(c => c.mappingId !== mappingId),
+            ...updatedConflicts
+          ];
+          
+        } else {
+          // Real API call would go here
+          response = await inventoryApi.resolveSyncConflict(mappingId, resolution);
+          
+          // Update the mapping and conflicts if successful
+          if (response.success) {
+            if (response.mapping) {
+              const index = this.mappings.findIndex(mapping => mapping.id === mappingId);
+              if (index !== -1) {
+                this.mappings[index] = response.mapping;
+              }
+            }
+            
+            if (response.conflicts) {
+              this.syncConflicts = [
+                ...this.syncConflicts.filter(c => c.mappingId !== mappingId),
+                ...response.conflicts
+              ];
+            }
+          }
+        }
+        
+        this.mappingsLoading = false;
+        return response;
+      } catch (error: any) {
+        this.mappingsLoading = false;
+        this.mappingsError = error.response?.data?.message || 'Failed to resolve sync conflict';
+        throw error;
+      }
+    },
+    
+    async bulkUpdateMappings(mappingIds: string[], updates: any) {
+      this.mappingsLoading = true;
+      this.mappingsError = null;
+      
+      try {
+        let response;
+        if (this.useMockData) {
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Update each mapping
+          const updatedMappings = this.mappings.map(mapping => {
+            if (mappingIds.includes(mapping.id)) {
+              return {
+                ...mapping,
+                ...updates,
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return mapping;
+          });
+          
+          response = { 
+            success: true, 
+            updatedCount: mappingIds.length,
+            updatedIds: mappingIds
+          };
+          
+          // Update the state
+          this.mappings = updatedMappings;
+        } else {
+          // Real API call would go here
+          response = await inventoryApi.bulkUpdateMappings(mappingIds, updates);
+          
+          // If successful, refresh the mappings list
+          if (response.success) {
+            await this.fetchMappings();
+          }
+        }
+        
+        this.mappingsLoading = false;
+        return response;
+      } catch (error: any) {
+        this.mappingsLoading = false;
+        this.mappingsError = error.response?.data?.message || 'Failed to bulk update mappings';
+        throw error;
+      }
+    },
+    
+    async exportMappings(format: string = 'csv', filters = {}) {
+      this.mappingsLoading = true;
+      this.mappingsError = null;
+      
+      try {
+        let response;
+        if (this.useMockData) {
+          // For mock data, we'll just simulate the API call
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Create a dummy blob for download
+          const jsonData = JSON.stringify(this.mappings.filter(mapping => {
+            // Apply filters if needed
+            return true;
+          }));
+          
+          const blob = new Blob([jsonData], { type: 'application/json' });
+          response = { success: true, data: blob };
+        } else {
+          // Real API call would go here
+          response = await inventoryApi.exportMappings(format, filters);
+        }
+        
+        this.mappingsLoading = false;
+        return response;
+      } catch (error: any) {
+        this.mappingsLoading = false;
+        this.mappingsError = error.response?.data?.message || 'Failed to export mappings';
+        throw error;
+      }
     }
   }
 });
