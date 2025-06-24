@@ -6,7 +6,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       // mapboxToken: process.env.NUXT_PUBLIC_MAPBOX_TOKEN
-      nodeEnv: process.env.NODE_ENV
+      nodeEnv: process.env.NODE_ENV,
     }
   },
   ssr: false,

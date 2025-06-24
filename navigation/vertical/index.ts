@@ -8,6 +8,7 @@ import warehouse from './warehouse';
 import locations from './locations';
 import sync from './sync';
 import integration from './integration';
+import settings from './settings';
 import type { NavigationItem } from './navigation';
 
 export const navigation: NavigationItem[] = [
@@ -20,5 +21,6 @@ export const navigation: NavigationItem[] = [
   ...warehouse,
   ...locations,
   ...sync,
-  ...integration
+  ...integration,
+  ...settings,
 ];
