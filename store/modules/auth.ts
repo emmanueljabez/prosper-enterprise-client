@@ -3,7 +3,7 @@ import jwt from '@/http/requests/auth/jwt'
 import type { AuthState, RegistrationData, LoginData, JwtPayload } from '@/types/auth'
 import { useRouter } from 'vue-router'
 import { navigateTo } from 'nuxt/app'
-import {jwtDecode} from 'jwt-decode'
+import { jwtDecode } from 'jwt-decode'
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
@@ -30,16 +30,16 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     initializeFromStorage() {
       try {
-        if (typeof window !== 'undefined') { 
+        if (typeof window !== 'undefined') {
           const token = localStorage.getItem('token')
           if (!token) {
             this.loggedInUser = null
             return false
           }
-    
+
           const decoded = jwtDecode<JwtPayload>(token)
           const currentTime = Date.now() / 1000
-    
+
           if (decoded.exp && decoded.exp > currentTime) {
             this.loggedInUser = decoded.sub
             return true
@@ -171,21 +171,23 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this.loading = false
       }
-    },
-
+    }, 
+    
     login(loginData: LoginData) {
       this.loading = true
       return new Promise((resolve, reject) => {
         jwt.login(loginData)
           .then((response) => {
-            if (response && response.data) {
-              if (response.data.data) {
-                this.loggedInUser = response.data.data.name || response.data.data.tenantId
 
-                if (response.data.data.token && typeof window !== 'undefined') {
-                  localStorage.setItem('token', response.data.data.token)
-                  localStorage.setItem('tenantId', response.data.data.tenantId)
-                }
+            if (response && response.data) {
+              // Handle the decrypted response structure
+              const responseData = response.data.data || response.data
+              console.log('Decrypted response data:', responseData)
+              this.loggedInUser = responseData.name || responseData.tenantId
+
+              if (responseData.jwtToken&& typeof window !== 'undefined') {
+                localStorage.setItem('token', responseData.jwtToken)
+                // localStorage.setItem('tenantId', responseData.tenantId)
               }
 
               resolve(response.data)
@@ -220,23 +222,23 @@ export const useAuthStore = defineStore('auth', {
             this.loading = false
           })
       })
-    },
-
+    }, 
+    
     register(userData: RegistrationData) {
       this.loading = true
 
       return new Promise((resolve, reject) => {
         jwt.register(userData)
           .then((response) => {
+            // Since axios interceptor handles decryption, response.data is already decrypted
             if (response && response.data) {
-              if (response.data.data) {
+              const responseData = response.data.data || response.data
+              this.loggedInUser = responseData.name || responseData.tenantId
 
-                this.loggedInUser = response.data.data.name || response.data.data.tenantId
-
-                // if (response.data.data.authToken && typeof window !== 'undefined') {
-                //   localStorage.setItem('token', response.data.data.authToken)
-                // }
-              }
+              // Token handling can be uncommented if needed
+              // if (responseData.authToken && typeof window !== 'undefined') {
+              //   localStorage.setItem('token', responseData.authToken)
+              // }
 
               resolve(response.data)
             } else {
@@ -270,8 +272,7 @@ export const useAuthStore = defineStore('auth', {
             this.loading = false
           })
       })
-    },
-
+    }, 
     async confirmEmail(token: string) {
       this.loading = true;
       let confirmEmailResponse: any = null;
@@ -279,6 +280,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         confirmEmailResponse = await jwt.confirmEmail(token)
           .then((response) => {
+            // Since axios interceptor handles decryption, response.data is already decrypted
             return response.data;
           })
           .catch((error) => {
@@ -329,6 +331,7 @@ export const useAuthStore = defineStore('auth', {
     signOut() {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token')
+        localStorage.removeItem('tenantId')
         navigateTo('/auth/login')
       }
       this.setLogout()
