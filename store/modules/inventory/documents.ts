@@ -35,10 +35,9 @@ export const useDocumentsStore = defineStore('documents', {
         const end = new Date(endDate);
         return documentDate >= start && documentDate <= end;
       });
-    },
-    getDocumentsByLocation: (state) => (locationId: string) => 
+    },    getDocumentsByLocation: (state) => (locationId: string) => 
       state.documents.filter(document => document.locationId === locationId),
-    getDocumentsByType: (state) => {
+    getDocumentsGroupedByType: (state) => {
       // Group documents by their type
       const groupedDocuments: Record<string, Document[]> = {};
       
