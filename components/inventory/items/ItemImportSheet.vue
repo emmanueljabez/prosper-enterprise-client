@@ -1,371 +1,318 @@
 <template>
-  <div class="flex h-full flex-col">
-    <!-- Header -->
-    <div class="border-b p-4">
-      <div class="flex items-center justify-between">
-        <h2 class="text-xl font-semibold">{{ importTypeTitle }}</h2>
-        <Button variant="ghost" size="icon" @click="$emit('close')">
-          <XIcon class="h-4 w-4" />
-          <span class="sr-only">Close</span>
-        </Button>
-      </div>
-      <p class="text-sm text-muted-foreground">
-        {{ importTypeDescription }}
-      </p>
-    </div>
+  <div class="w-full h-full flex flex-col">
+    <div class="flex-1 overflow-auto p-6">
+      <div class="max-w-2xl mx-auto space-y-6">
+        <!-- Import Type Info -->
+        <div class="text-center">
+          <h2 class="text-2xl font-bold mb-2">Import Inventory Items</h2>
+          <p class="text-muted-foreground">
+            Import items from {{ importType.toUpperCase() }} file
+          </p>
+        </div>
 
-    <!-- Content -->
-    <div class="flex-1 overflow-y-auto p-6 space-y-6">
-      <!-- CSV Import -->
-      <template v-if="importType === 'csv'">
-        <div class="space-y-4">
-          <div class="space-y-2">
-            <Label>Upload CSV File</Label>
+        <!-- Step 1: File Upload -->
+        <Card v-if="currentStep === 1">
+          <CardHeader>
+            <CardTitle>Step 1: Upload File</CardTitle>
+            <CardDescription>
+              Select your {{ importType.toUpperCase() }} file containing inventory items
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <!-- File Upload Area -->
             <div 
-              class="border-2 border-dashed rounded-md p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+              class="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-muted-foreground/50 transition-colors cursor-pointer"
               @click="triggerFileInput"
-              @dragover.prevent="dragOver = true"
-              @dragleave.prevent="dragOver = false"
-              @drop.prevent="handleFileDrop"
-              :class="{ 'border-primary bg-primary/5': dragOver }"
+              @drop="handleFileDrop"
+              @dragover.prevent
+              @dragenter.prevent
             >
-              <input 
-                type="file" 
-                ref="fileInput" 
-                accept=".csv" 
-                class="hidden" 
-                @change="handleFileSelected"
+              <input
+                ref="fileInput"
+                type="file"
+                :accept="importType === 'csv' ? '.csv' : '.xlsx,.xls'"
+                class="hidden"
+                @change="handleFileSelect"
               />
               
-              <div v-if="!selectedFile">
-                <UploadIcon class="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-                <div class="text-sm font-medium">
-                  Drag and drop a CSV file here, or click to browse
-                </div>
-                <div class="text-xs text-muted-foreground mt-1">
-                  File must be properly formatted. <Button variant="link" class="p-0 h-auto" @click.stop="downloadTemplate">Download template</Button>
+              <div v-if="!selectedFile" class="space-y-2">
+                <FileUp class="h-12 w-12 mx-auto text-muted-foreground" />
+                <div>
+                  <p class="font-medium">Click to upload or drag and drop</p>
+                  <p class="text-sm text-muted-foreground">
+                    {{ importType.toUpperCase() }} files only
+                  </p>
                 </div>
               </div>
               
-              <div v-else class="text-left">
-                <div class="flex items-center gap-2">
-                  <FileTextIcon class="h-8 w-8 text-primary" />
-                  <div class="flex-1">
-                    <div class="font-medium">{{ selectedFile.name }}</div>
-                    <div class="text-xs text-muted-foreground">
-                      {{ formatFileSize(selectedFile.size) }} · {{ formatFileDate(selectedFile.lastModified) }}
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="icon" @click.stop="removeFile">
-                    <XIcon class="h-4 w-4" />
+              <div v-else class="space-y-2">
+                <FileCheck class="h-12 w-12 mx-auto text-green-600" />
+                <div>
+                  <p class="font-medium">{{ selectedFile.name }}</p>
+                  <p class="text-sm text-muted-foreground">
+                    {{ formatFileSize(selectedFile.size) }}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" @click.stop="clearFile">
+                  <X class="h-4 w-4 mr-2" />
+                  Remove
+                </Button>
+              </div>
+            </div>
+
+            <!-- Import Options -->
+            <div class="space-y-4">
+              <div class="flex items-center space-x-2">
+                <Checkbox id="hasHeaders" v-model:checked="importOptions.hasHeaders" />
+                <Label for="hasHeaders">First row contains headers</Label>
+              </div>
+              
+              <div class="flex items-center space-x-2">
+                <Checkbox id="updateExisting" v-model:checked="importOptions.updateExisting" />
+                <Label for="updateExisting">Update existing items (match by item code)</Label>
+              </div>
+              
+              <div class="flex items-center space-x-2">
+                <Checkbox id="skipErrors" v-model:checked="importOptions.skipErrors" />
+                <Label for="skipErrors">Skip rows with errors and continue</Label>
+              </div>
+            </div>
+
+            <!-- Template Download -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div class="flex items-start space-x-3">
+                <Info class="h-5 w-5 text-blue-600 mt-0.5" />
+                <div class="flex-1">
+                  <p class="text-sm font-medium text-blue-900">Need a template?</p>
+                  <p class="text-xs text-blue-700 mb-2">
+                    Download our template file to ensure proper formatting
+                  </p>
+                  <Button variant="outline" size="sm" @click="downloadTemplate">
+                    <Download class="h-4 w-4 mr-2" />
+                    Download Template
                   </Button>
                 </div>
               </div>
             </div>
-          </div>
-          
-          <div class="space-y-2">
-            <Label for="csv-delimiter">CSV Delimiter</Label>
-            <Select v-model="csvOptions.delimiter">
-              <SelectTrigger id="csv-delimiter">
-                <SelectValue placeholder="Select delimiter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value=",">Comma (,)</SelectItem>
-                <SelectItem value=";">Semicolon (;)</SelectItem>
-                <SelectItem value="\t">Tab</SelectItem>
-                <SelectItem value="|">Pipe (|)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div class="flex items-center space-x-2">
-            <Checkbox id="has-header" v-model:checked="csvOptions.hasHeader" />
-            <Label for="has-header">File has header row</Label>
-          </div>
-        </div>
-        
-        <div v-if="parseError" class="bg-destructive/10 text-destructive p-4 rounded-md">
-          <div class="font-semibold">Error parsing CSV:</div>
-          <div class="text-sm">{{ parseError }}</div>
-        </div>
-        
-        <div v-if="parsedItems.length > 0" class="space-y-4">
-          <div class="flex items-center justify-between">
-            <h3 class="font-medium">Preview ({{ parsedItems.length }} items)</h3>
-            <Badge variant="outline">{{ validItemsCount }} valid items</Badge>
-          </div>
-          
-          <div class="border rounded-md overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Stock</TableHead>
-                  <TableHead>Cost</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow v-for="(item, index) in previewItems" :key="index">
-                  <TableCell>
-                    <div class="flex items-center gap-1">
-                      <CheckCircle2Icon v-if="!item.errors.length" class="h-4 w-4 text-success" />
-                      <AlertCircleIcon v-else class="h-4 w-4 text-destructive" />
-                      <span v-if="item.errors.length" class="text-xs text-destructive">
-                        {{ item.errors[0] }}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{{ item.data.sku }}</TableCell>
-                  <TableCell>{{ item.data.name }}</TableCell>
-                  <TableCell>{{ getCategoryName(item.data.categoryId) }}</TableCell>
-                  <TableCell>{{ item.data.stockOnHand || 0 }}</TableCell>
-                  <TableCell>{{ formatCurrency(item.data.cost) }}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-          
-          <div v-if="parsedItems.length > 5" class="text-center text-sm text-muted-foreground">
-            Showing first 5 items of {{ parsedItems.length }}
-          </div>
-          
-          <div v-if="hasInvalidItems" class="bg-warning/10 text-warning p-4 rounded-md">
-            <div class="font-semibold">Warning:</div>
-            <div class="text-sm">
-              {{ parsedItems.length - validItemsCount }} items have validation errors and will be skipped during import.
-            </div>
-          </div>
-        </div>
-      </template>
-      
-      <!-- Excel Import -->
-      <template v-else-if="importType === 'excel'">
-        <div class="space-y-4">
-          <div class="space-y-2">
-            <Label>Upload Excel File</Label>
-            <div 
-              class="border-2 border-dashed rounded-md p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors"
-              @click="triggerFileInput"
-              @dragover.prevent="dragOver = true"
-              @dragleave.prevent="dragOver = false"
-              @drop.prevent="handleFileDrop"
-              :class="{ 'border-primary bg-primary/5': dragOver }"
-            >
-              <input 
-                type="file" 
-                ref="fileInput" 
-                accept=".xlsx,.xls" 
-                class="hidden" 
-                @change="handleFileSelected"
-              />
-              
-              <div v-if="!selectedFile">
-                <UploadIcon class="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-                <div class="text-sm font-medium">
-                  Drag and drop an Excel file here, or click to browse
-                </div>
-                <div class="text-xs text-muted-foreground mt-1">
-                  File must be properly formatted. <Button variant="link" class="p-0 h-auto" @click.stop="downloadTemplate">Download template</Button>
-                </div>
-              </div>
-              
-              <div v-else class="text-left">
-                <div class="flex items-center gap-2">
-                  <FileSpreadsheetIcon class="h-8 w-8 text-emerald-500" />
-                  <div class="flex-1">
-                    <div class="font-medium">{{ selectedFile.name }}</div>
-                    <div class="text-xs text-muted-foreground">
-                      {{ formatFileSize(selectedFile.size) }} · {{ formatFileDate(selectedFile.lastModified) }}
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="icon" @click.stop="removeFile">
-                    <XIcon class="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="space-y-2">
-            <Label for="sheet-name">Sheet Name</Label>
-            <Input id="sheet-name" v-model="excelOptions.sheetName" placeholder="Default: first sheet" />
-            <p class="text-xs text-muted-foreground">
-              Leave blank to use the first sheet in the workbook
-            </p>
-          </div>
-          
-          <div class="flex items-center space-x-2">
-            <Checkbox id="has-header-excel" v-model:checked="excelOptions.hasHeader" />
-            <Label for="has-header-excel">File has header row</Label>
-          </div>
-        </div>
-        
-        <!-- Excel preview would go here, similar to CSV preview -->
-      </template>
-      
-      <!-- API Import -->
-      <template v-else-if="importType === 'api'">
-        <div class="space-y-6">
-          <div class="space-y-4">
-            <h3 class="font-medium">API Connection Settings</h3>
-            
-            <div class="space-y-2">
-              <Label for="api-url" required>API Endpoint URL</Label>
-              <Input id="api-url" v-model="apiOptions.url" placeholder="https://example.com/api/inventory" />
-            </div>
-            
-            <div class="space-y-2">
-              <Label for="api-method">HTTP Method</Label>
-              <Select v-model="apiOptions.method">
-                <SelectTrigger id="api-method">
-                  <SelectValue placeholder="Select HTTP method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="GET">GET</SelectItem>
-                  <SelectItem value="POST">POST</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div class="space-y-2">
-              <Label for="api-auth-type">Authentication Type</Label>
-              <Select v-model="apiOptions.authType">
-                <SelectTrigger id="api-auth-type">
-                  <SelectValue placeholder="Select authentication type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="basic">Basic Auth</SelectItem>
-                  <SelectItem value="bearer">Bearer Token</SelectItem>
-                  <SelectItem value="apikey">API Key</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div v-if="apiOptions.authType === 'basic'" class="space-y-4">
-              <div class="space-y-2">
-                <Label for="api-username">Username</Label>
-                <Input id="api-username" v-model="apiOptions.username" />
-              </div>
-              <div class="space-y-2">
-                <Label for="api-password">Password</Label>
-                <Input id="api-password" v-model="apiOptions.password" type="password" />
-              </div>
-            </div>
-            
-            <div v-if="apiOptions.authType === 'bearer'" class="space-y-2">
-              <Label for="api-token">Bearer Token</Label>
-              <Input id="api-token" v-model="apiOptions.token" />
-            </div>
-            
-            <div v-if="apiOptions.authType === 'apikey'" class="space-y-4">
-              <div class="space-y-2">
-                <Label for="api-key-name">API Key Name</Label>
-                <Input id="api-key-name" v-model="apiOptions.apiKeyName" placeholder="X-API-Key" />
-              </div>
-              <div class="space-y-2">
-                <Label for="api-key-value">API Key Value</Label>
-                <Input id="api-key-value" v-model="apiOptions.apiKeyValue" />
-              </div>
-              <div class="space-y-2">
-                <Label for="api-key-location">API Key Location</Label>
-                <Select v-model="apiOptions.apiKeyLocation">
-                  <SelectTrigger id="api-key-location">
-                    <SelectValue placeholder="Select location" />
+          </CardContent>
+        </Card>
+
+        <!-- Step 2: Column Mapping -->
+        <Card v-else-if="currentStep === 2">
+          <CardHeader>
+            <CardTitle>Step 2: Map Columns</CardTitle>
+            <CardDescription>
+              Map your file columns to inventory item fields
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div v-for="field in requiredFields" :key="field.key" class="space-y-2">
+                <Label>{{ field.label }} {{ field.required ? '*' : '' }}</Label>
+                <Select v-model="columnMapping[field.key]">
+                  <SelectTrigger>
+                    <SelectValue :placeholder="`Select column for ${field.label}`" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="header">Header</SelectItem>
-                    <SelectItem value="query">Query Parameter</SelectItem>
+                    <SelectItem value="_skip">-- Skip Field --</SelectItem>
+                    <SelectItem v-for="column in fileColumns" :key="column" :value="column">
+                      {{ column }}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
-          </div>
-          
-          <div class="space-y-4">
-            <h3 class="font-medium">Data Mapping</h3>
-            <p class="text-sm text-muted-foreground">
-              Specify how the API response data maps to inventory fields
-            </p>
-            
-            <div class="space-y-2">
-              <Label for="api-data-path">Data Path</Label>
-              <Input id="api-data-path" v-model="apiOptions.dataPath" placeholder="e.g., data.items or leave blank" />
-              <p class="text-xs text-muted-foreground">
-                JSON path to the array of items (leave blank if response is already an array)
+
+            <!-- Preview -->
+            <div v-if="previewData.length > 0" class="mt-6">
+              <Label class="text-base font-medium">Preview Data</Label>
+              <div class="border rounded-lg mt-2 overflow-auto max-h-64">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead v-for="field in mappedFields" :key="field.key">
+                        {{ field.label }}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow v-for="(row, index) in previewData.slice(0, 5)" :key="index">
+                      <TableCell v-for="field in mappedFields" :key="field.key">
+                        {{ row[columnMapping[field.key]] || '-' }}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              <p class="text-xs text-muted-foreground mt-2">
+                Showing first 5 rows of {{ previewData.length }} total rows
               </p>
             </div>
-            
-            <div class="space-y-2">
-              <Button variant="outline" size="sm" @click="testApiConnection">
-                <Loader2Icon v-if="apiTesting" class="mr-2 h-4 w-4 animate-spin" />
-                <NetworkIcon v-else class="mr-2 h-4 w-4" />
-                Test Connection
-              </Button>
+          </CardContent>
+        </Card>
+
+        <!-- Step 3: Validation Results -->
+        <Card v-else-if="currentStep === 3">
+          <CardHeader>
+            <CardTitle>Step 3: Validation Results</CardTitle>
+            <CardDescription>
+              Review validation results before importing
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <!-- Validation Summary -->
+            <div class="grid grid-cols-3 gap-4">
+              <div class="text-center p-4 bg-green-50 rounded-lg">
+                <div class="text-2xl font-bold text-green-600">{{ validationResults.valid }}</div>
+                <div class="text-sm text-green-700">Valid Rows</div>
+              </div>
+              <div class="text-center p-4 bg-red-50 rounded-lg">
+                <div class="text-2xl font-bold text-red-600">{{ validationResults.errors }}</div>
+                <div class="text-sm text-red-700">Errors</div>
+              </div>
+              <div class="text-center p-4 bg-yellow-50 rounded-lg">
+                <div class="text-2xl font-bold text-yellow-600">{{ validationResults.warnings }}</div>
+                <div class="text-sm text-yellow-700">Warnings</div>
+              </div>
             </div>
-            
-            <div v-if="apiTestResult" class="mt-2 text-sm"
-              :class="apiTestResult.success ? 'text-success' : 'text-destructive'"
-            >
-              {{ apiTestResult.message }}
+
+            <!-- Error Details -->
+            <div v-if="validationResults.errorDetails.length > 0" class="space-y-2">
+              <Label class="text-base font-medium text-red-600">Errors</Label>
+              <div class="max-h-32 overflow-auto space-y-1">
+                <div 
+                  v-for="error in validationResults.errorDetails" 
+                  :key="error.row"
+                  class="text-sm p-2 bg-red-50 border border-red-200 rounded"
+                >
+                  <span class="font-medium">Row {{ error.row }}:</span> {{ error.message }}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </template>
+
+            <!-- Warning Details -->
+            <div v-if="validationResults.warningDetails.length > 0" class="space-y-2">
+              <Label class="text-base font-medium text-yellow-600">Warnings</Label>
+              <div class="max-h-32 overflow-auto space-y-1">
+                <div 
+                  v-for="warning in validationResults.warningDetails" 
+                  :key="warning.row"
+                  class="text-sm p-2 bg-yellow-50 border border-yellow-200 rounded"
+                >
+                  <span class="font-medium">Row {{ warning.row }}:</span> {{ warning.message }}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <!-- Step 4: Import Progress -->
+        <Card v-else-if="currentStep === 4">
+          <CardHeader>
+            <CardTitle>Step 4: Importing Items</CardTitle>
+            <CardDescription>
+              Please wait while we import your inventory items
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="text-center space-y-4">
+              <div class="w-16 h-16 mx-auto">
+                <div class="animate-spin rounded-full h-16 w-16 border-4 border-primary border-t-transparent"></div>
+              </div>
+              <div>
+                <p class="font-medium">Importing items...</p>
+                <p class="text-sm text-muted-foreground">
+                  {{ importProgress.current }} of {{ importProgress.total }} processed
+                </p>
+              </div>
+              <div class="w-full bg-muted rounded-full h-2">
+                <div 
+                  class="bg-primary h-2 rounded-full transition-all duration-300"
+                  :style="{ width: `${(importProgress.current / importProgress.total) * 100}%` }"
+                ></div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <!-- Step 5: Import Results -->
+        <Card v-else-if="currentStep === 5">
+          <CardHeader>
+            <CardTitle class="flex items-center space-x-2">
+              <CheckCircle class="h-5 w-5 text-green-600" />
+              <span>Import Complete</span>
+            </CardTitle>
+            <CardDescription>
+              Your inventory items have been imported
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="text-center p-4 bg-green-50 rounded-lg">
+                <div class="text-2xl font-bold text-green-600">{{ importResults.imported }}</div>
+                <div class="text-sm text-green-700">Items Imported</div>
+              </div>
+              <div class="text-center p-4 bg-blue-50 rounded-lg">
+                <div class="text-2xl font-bold text-blue-600">{{ importResults.updated }}</div>
+                <div class="text-sm text-blue-700">Items Updated</div>
+              </div>
+            </div>
+
+            <div v-if="importResults.skipped > 0" class="text-center p-4 bg-yellow-50 rounded-lg">
+              <div class="text-lg font-bold text-yellow-600">{{ importResults.skipped }}</div>
+              <div class="text-sm text-yellow-700">Items Skipped (due to errors)</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
 
-    <!-- Footer -->
-    <div class="border-t p-4">
+    <!-- Footer Actions -->
+    <div class="border-t p-6">
       <div class="flex justify-between">
-        <Button
-          variant="outline"
-          @click="$emit('close')"
+        <Button 
+          variant="outline" 
+          @click="previousStep"
+          :disabled="currentStep === 1 || importing"
         >
-          Cancel
+          Previous
         </Button>
-        <Button
-          @click="importItems"
-          :disabled="isImportDisabled || isSubmitting"
-        >
-          <Loader2Icon v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" />
-          Import {{ validItemsCount || '' }} {{ validItemsCount === 1 ? 'Item' : 'Items' }}
-        </Button>
+        <div class="space-x-2">
+          <Button variant="outline" @click="$emit('close')">
+            {{ currentStep === 5 ? 'Close' : 'Cancel' }}
+          </Button>
+          <Button 
+            v-if="currentStep < 4"
+            @click="nextStep"
+            :disabled="!canProceed"
+          >
+            {{ currentStep === 3 ? 'Start Import' : 'Next' }}
+          </Button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
-import { format } from 'date-fns'
-import {
-  AlertCircleIcon,
-  CheckCircle2Icon,
-  FileSpreadsheetIcon,
-  FileTextIcon,
-  Loader2Icon,
-  NetworkIcon,
-  UploadIcon,
-  XIcon
+import { ref, computed, reactive } from 'vue'
+import { 
+  FileUp, FileCheck, X, Info, Download, CheckCircle
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
 } from '@/components/ui/table'
-import {
+import { 
   Select,
   SelectContent,
   SelectItem,
@@ -373,101 +320,97 @@ import {
   SelectValue
 } from '@/components/ui/select'
 
+// Props
 const props = defineProps({
   importType: {
     type: String,
-    required: true,
-    validator: (value) => ['csv', 'excel', 'api'].includes(value)
+    default: 'csv'
   },
   categories: {
+    type: Array,
+    default: () => []
+  },
+  units: {
     type: Array,
     default: () => []
   }
 })
 
+// Emits
 const emit = defineEmits(['import-complete', 'close'])
 
 // State
-const fileInput = ref(null)
+const currentStep = ref(1)
 const selectedFile = ref(null)
-const dragOver = ref(false)
-const isSubmitting = ref(false)
-const parseError = ref('')
-const parsedItems = ref([])
-const apiTesting = ref(false)
-const apiTestResult = ref(null)
+const fileInput = ref(null)
+const importing = ref(false)
+const fileColumns = ref([])
+const previewData = ref([])
 
-// Import options
-const csvOptions = reactive({
-  delimiter: ',',
-  hasHeader: true
+const importOptions = reactive({
+  hasHeaders: true,
+  updateExisting: false,
+  skipErrors: true
 })
 
-const excelOptions = reactive({
-  sheetName: '',
-  hasHeader: true
+const columnMapping = reactive({})
+
+const validationResults = reactive({
+  valid: 0,
+  errors: 0,
+  warnings: 0,
+  errorDetails: [],
+  warningDetails: []
 })
 
-const apiOptions = reactive({
-  url: '',
-  method: 'GET',
-  authType: 'none',
-  username: '',
-  password: '',
-  token: '',
-  apiKeyName: 'X-API-Key',
-  apiKeyValue: '',
-  apiKeyLocation: 'header',
-  dataPath: ''
+const importProgress = reactive({
+  current: 0,
+  total: 0
 })
 
-// Computed properties
-const importTypeTitle = computed(() => {
-  switch (props.importType) {
-    case 'csv': return 'Import from CSV'
-    case 'excel': return 'Import from Excel'
-    case 'api': return 'Import from API'
-    default: return 'Import Items'
+const importResults = reactive({
+  imported: 0,
+  updated: 0,
+  skipped: 0
+})
+
+const requiredFields = [
+  { key: 'itemCode', label: 'Item Code', required: true },
+  { key: 'name', label: 'Item Name', required: true },
+  { key: 'categoryId', label: 'Category', required: false },
+  { key: 'unitOfMeasureId', label: 'Unit of Measure', required: false },
+  { key: 'standardCost', label: 'Standard Cost', required: false },
+  { key: 'listPrice', label: 'List Price', required: false },
+  { key: 'description', label: 'Description', required: false },
+  { key: 'reorderPoint', label: 'Reorder Point', required: false },
+  { key: 'reorderQuantity', label: 'Reorder Quantity', required: false }
+]
+
+// Computed
+const canProceed = computed(() => {
+  switch (currentStep.value) {
+    case 1:
+      return selectedFile.value !== null
+    case 2:
+      return columnMapping.itemCode && columnMapping.name
+    case 3:
+      return validationResults.errors === 0 || importOptions.skipErrors
+    default:
+      return true
   }
 })
 
-const importTypeDescription = computed(() => {
-  switch (props.importType) {
-    case 'csv': return 'Upload a CSV file with inventory items to import.'
-    case 'excel': return 'Upload an Excel spreadsheet with inventory items to import.'
-    case 'api': return 'Configure API integration to import inventory items.'
-    default: return 'Import inventory items from external sources.'
-  }
-})
-
-const validItemsCount = computed(() => {
-  return parsedItems.value.filter(item => item.errors.length === 0).length
-})
-
-const hasInvalidItems = computed(() => {
-  return parsedItems.value.length > 0 && validItemsCount.value < parsedItems.value.length
-})
-
-const previewItems = computed(() => {
-  return parsedItems.value.slice(0, 5)
-})
-
-const isImportDisabled = computed(() => {
-  if (props.importType === 'csv' || props.importType === 'excel') {
-    return !selectedFile.value || validItemsCount.value === 0
-  } else if (props.importType === 'api') {
-    return !apiOptions.url || !apiTestResult.value?.success
-  }
-  return true
+const mappedFields = computed(() => {
+  return requiredFields.filter(field => columnMapping[field.key])
 })
 
 // Methods
 const triggerFileInput = () => {
-  fileInput.value.click()
+  fileInput.value?.click()
 }
 
-const handleFileSelected = (event) => {
-  const file = event.target.files[0]
+const handleFileSelect = (event) => {
+  const file = event.target.files?.[0]
   if (file) {
     selectedFile.value = file
     parseFile(file)
@@ -475,178 +418,124 @@ const handleFileSelected = (event) => {
 }
 
 const handleFileDrop = (event) => {
-  dragOver.value = false
-  const file = event.dataTransfer.files[0]
+  event.preventDefault()
+  const file = event.dataTransfer.files?.[0]
   if (file) {
     selectedFile.value = file
     parseFile(file)
   }
 }
 
-const removeFile = () => {
+const clearFile = () => {
   selectedFile.value = null
-  parsedItems.value = []
-  parseError.value = ''
-  fileInput.value.value = ''
+  fileColumns.value = []
+  previewData.value = []
+  Object.keys(columnMapping).forEach(key => delete columnMapping[key])
 }
 
 const parseFile = async (file) => {
-  parsedItems.value = []
-  parseError.value = ''
+  // Simulate file parsing
+  // In a real app, you'd use a library like Papa Parse for CSV or SheetJS for Excel
   
-  try {
-    if (props.importType === 'csv') {
-      // In a real app, this would be more robust and use a CSV parsing library
-      const text = await file.text()
-      const lines = text.split('\n').filter(line => line.trim())
-      
-      // Skip header if option is selected
-      const startIndex = csvOptions.hasHeader ? 1 : 0
-      
-      // Parse each line
-      for (let i = startIndex; i < lines.length; i++) {
-        const line = lines[i]
-        const values = line.split(csvOptions.delimiter)
-        
-        // Map CSV columns to item properties
-        const itemData = {
-          sku: values[0]?.trim() || '',
-          name: values[1]?.trim() || '',
-          description: values[2]?.trim() || '',
-          categoryId: values[3]?.trim() || '',
-          cost: parseFloat(values[4]) || 0,
-          stockOnHand: parseInt(values[5]) || 0,
-          reorderPoint: parseInt(values[6]) || 0,
-          reorderQuantity: parseInt(values[7]) || 0,
-          status: values[8]?.trim() || 'active',
-          unitOfMeasure: values[9]?.trim() || 'each',
-        }
-        
-        // Validate the item
-        const errors = validateItem(itemData)
-        
-        parsedItems.value.push({
-          data: itemData,
-          errors
-        })
-      }
-      
-    } else if (props.importType === 'excel') {
-      // In a real app, this would use a library like SheetJS to parse Excel
-      parseError.value = 'Excel parsing not implemented in this example. In a production app, this would use SheetJS or similar library.'
-    }
-  } catch (error) {
-    console.error('Error parsing file:', error)
-    parseError.value = error.message || 'Invalid file format'
+  // Mock columns and data
+  const mockColumns = ['Item Code', 'Item Name', 'Description', 'Category', 'Unit Price', 'Stock']
+  const mockData = [
+    { 'Item Code': 'ITEM001', 'Item Name': 'Widget A', 'Description': 'Sample widget', 'Category': 'Electronics', 'Unit Price': '25.00', 'Stock': '100' },
+    { 'Item Code': 'ITEM002', 'Item Name': 'Widget B', 'Description': 'Another widget', 'Category': 'Hardware', 'Unit Price': '35.00', 'Stock': '50' }
+  ]
+
+  fileColumns.value = mockColumns
+  previewData.value = mockData
+
+  // Auto-map columns
+  columnMapping.itemCode = 'Item Code'
+  columnMapping.name = 'Item Name'
+  columnMapping.description = 'Description'
+  columnMapping.standardCost = 'Unit Price'
+}
+
+const nextStep = async () => {
+  if (currentStep.value === 2) {
+    await validateData()
+  } else if (currentStep.value === 3) {
+    await startImport()
+    return // Import will handle step progression
+  }
+  
+  currentStep.value++
+}
+
+const previousStep = () => {
+  if (currentStep.value > 1) {
+    currentStep.value--
   }
 }
 
-const validateItem = (item) => {
-  const errors = []
+const validateData = async () => {
+  // Simulate validation
+  await new Promise(resolve => setTimeout(resolve, 1000))
   
-  if (!item.sku) {
-    errors.push('SKU is required')
-  }
-  
-  if (!item.name) {
-    errors.push('Name is required')
-  }
-  
-  if (item.cost < 0) {
-    errors.push('Cost cannot be negative')
-  }
-  
-  if (item.stockOnHand < 0) {
-    errors.push('Stock cannot be negative')
-  }
-  
-  return errors
+  validationResults.valid = previewData.value.length - 1
+  validationResults.errors = 1
+  validationResults.warnings = 0
+  validationResults.errorDetails = [
+    { row: 3, message: 'Invalid category name' }
+  ]
+  validationResults.warningDetails = []
 }
 
-const formatFileSize = (bytes) => {
-  if (bytes < 1024) return bytes + ' bytes'
-  else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
-  else return (bytes / 1048576).toFixed(1) + ' MB'
-}
-
-const formatFileDate = (timestamp) => {
-  return format(new Date(timestamp), 'MMM d, yyyy')
-}
-
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('en-US', { 
-    style: 'currency', 
-    currency: 'USD' 
-  }).format(value || 0)
-}
-
-const getCategoryName = (categoryId) => {
-  if (!categoryId) return 'Uncategorized'
+const startImport = async () => {
+  currentStep.value = 4
+  importing.value = true
   
-  const category = props.categories?.find(c => c.id === categoryId)
-  return category ? category.name : 'Unknown Category'
+  importProgress.total = previewData.value.length
+  importProgress.current = 0
+
+  // Simulate import progress
+  for (let i = 0; i < importProgress.total; i++) {
+    await new Promise(resolve => setTimeout(resolve, 500))
+    importProgress.current = i + 1
+  }
+
+  // Set results
+  importResults.imported = validationResults.valid
+  importResults.updated = 0
+  importResults.skipped = validationResults.errors
+
+  importing.value = false
+  currentStep.value = 5
+
+  // Emit completion
+  emit('import-complete', {
+    success: true,
+    importedCount: importResults.imported,
+    updatedCount: importResults.updated,
+    skippedCount: importResults.skipped
+  })
 }
 
 const downloadTemplate = () => {
-  // In a real app, this would generate and download a template file
-  alert('In a real application, this would download a template file.')
+  // Create and download template file
+  const headers = requiredFields.map(field => field.label).join(',')
+  const sampleRow = 'SAMPLE001,Sample Item,Sample description,Electronics,25.00,100,PCS,10,50'
+  const csvContent = `${headers}\n${sampleRow}`
+  
+  const blob = new Blob([csvContent], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `inventory-items-template.${props.importType}`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
-const testApiConnection = async () => {
-  apiTesting.value = true
-  apiTestResult.value = null
-  
-  try {
-    // In a real app, this would actually test the API connection
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // Simulated result
-    apiTestResult.value = {
-      success: true,
-      message: 'Connection successful! Found 24 items ready to import.'
-    }
-  } catch (error) {
-    apiTestResult.value = {
-      success: false,
-      message: error.message || 'Connection failed. Please check your settings.'
-    }
-  } finally {
-    apiTesting.value = false
-  }
-}
-
-const importItems = async () => {
-  if (isImportDisabled.value) return
-  
-  isSubmitting.value = true
-  
-  try {
-    // In a real app, this would send the data to the server or process it locally
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    let result = { success: true, count: 0 }
-    
-    if (props.importType === 'csv' || props.importType === 'excel') {
-      // Only import valid items
-      const validItems = parsedItems.value
-        .filter(item => item.errors.length === 0)
-        .map(item => item.data)
-      
-      result.count = validItems.length
-    } else if (props.importType === 'api') {
-      // Simulate API import
-      result.count = 24 // Mock count
-    }
-    
-    emit('import-complete', result)
-  } catch (error) {
-    console.error('Error during import:', error)
-    emit('import-complete', { 
-      success: false, 
-      error: error.message || 'Failed to import items'
-    })
-  } finally {
-    isSubmitting.value = false
-  }
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 </script>
