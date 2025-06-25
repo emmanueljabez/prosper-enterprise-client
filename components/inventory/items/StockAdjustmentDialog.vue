@@ -1,165 +1,198 @@
 <template>
-  <DialogContent class="sm:max-w-[500px]">
+  <DialogContent class="sm:max-w-md">
     <DialogHeader>
-      <DialogTitle>Adjust Stock Level</DialogTitle>
+      <DialogTitle class="flex items-center space-x-2">
+        <Package class="h-5 w-5" />
+        <span>Stock Adjustment</span>
+      </DialogTitle>
       <DialogDescription>
-        Increase or decrease inventory for {{ item.name }} ({{ item.sku }})
+        Adjust stock levels for {{ item?.name || 'selected item' }}
       </DialogDescription>
     </DialogHeader>
-    
-    <div class="space-y-4 py-2">
-      <!-- Item Badge -->
-      <div class="flex items-center justify-between bg-muted/40 p-3 rounded-md">
-        <div class="flex items-center gap-3">
-          <div class="h-10 w-10 rounded-md border bg-muted flex items-center justify-center overflow-hidden">
-            <BoxIcon class="h-5 w-5 text-muted-foreground" />
+
+    <div v-if="item" class="space-y-6">
+      <!-- Current Stock Info -->
+      <div class="bg-muted/50 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-medium">{{ item.name }}</span>
+          <Badge variant="outline">{{ item.itemCode }}</Badge>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-muted-foreground">Current Stock:</span>
+          <span class="text-lg font-semibold">{{ formatNumber(item.stockOnHand || 0) }} {{ item.unitOfMeasureName }}</span>
+        </div>
+      </div>
+
+      <form @submit.prevent="createAdjustment" class="space-y-4">
+        <!-- Adjustment Type -->
+        <div class="space-y-2">
+          <Label for="adjustmentType">Adjustment Type *</Label>
+          <Select v-model="formData.adjustmentType" required>
+            <SelectTrigger :class="{ 'border-red-500': errors.adjustmentType }">
+              <SelectValue placeholder="Select adjustment type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="IN">Stock In</SelectItem>
+              <SelectItem value="OUT">Stock Out</SelectItem>
+              <SelectItem value="ADJUSTMENT">Manual Adjustment</SelectItem>
+              <SelectItem value="TRANSFER_IN">Transfer In</SelectItem>
+              <SelectItem value="TRANSFER_OUT">Transfer Out</SelectItem>
+              <SelectItem value="COUNT">Cycle Count</SelectItem>
+            </SelectContent>
+          </Select>
+          <p v-if="errors.adjustmentType" class="text-sm text-red-500">{{ errors.adjustmentType }}</p>
+        </div>
+
+        <!-- Quantity Input -->
+        <div class="space-y-2">
+          <Label for="quantity">
+            {{ getQuantityLabel() }} *
+          </Label>
+          <div class="flex space-x-2">
+            <Input
+              id="quantity"
+              v-model="formData.quantity"
+              type="number"
+              step="0.01"
+              placeholder="0"
+              class="flex-1"
+              :class="{ 'border-red-500': errors.quantity }"
+              required
+            />
+            <div class="flex items-center px-3 bg-muted rounded-md min-w-[60px] justify-center">
+              <span class="text-sm text-muted-foreground">{{ item.unitOfMeasureName || 'UNIT' }}</span>
+            </div>
           </div>
-          <div>
-            <div class="font-medium">{{ item.name }}</div>
-            <div class="text-xs text-muted-foreground">{{ item.sku }}</div>
+          <p v-if="errors.quantity" class="text-sm text-red-500">{{ errors.quantity }}</p>
+        </div>
+
+        <!-- New Stock Level Preview -->
+        <div v-if="formData.quantity && formData.adjustmentType" class="bg-blue-50 rounded-lg p-4">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-blue-900">New Stock Level:</span>
+            <span class="text-lg font-semibold text-blue-900">
+              {{ formatNumber(getNewStockLevel()) }} {{ item.unitOfMeasureName }}
+            </span>
+          </div>
+          <div class="text-xs text-blue-700 mt-1">
+            {{ getAdjustmentChangeText() }}
           </div>
         </div>
-        <Badge :variant="getStatusVariant(item.status)">
-          {{ formatStatus(item.status) }}
-        </Badge>
-      </div>
-      
-      <!-- Location Selection -->
-      <div class="space-y-2">
-        <Label for="location" required>Location</Label>
-        <Select v-model="adjustment.locationId" :error="errors.locationId">
-          <SelectTrigger id="location">
-            <SelectValue placeholder="Select location" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem 
-              v-for="location in availableLocations" 
-              :key="location.id" 
-              :value="location.id"
-            >
-              {{ location.name }}
-              <span v-if="getLocationStock(location.id) !== null" class="ml-2 text-xs text-muted-foreground">
-                (Current: {{ getLocationStock(location.id) }})
-              </span>
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <p v-if="errors.locationId" class="text-sm text-destructive">{{ errors.locationId }}</p>
-      </div>
-      
-      <!-- Bin Location -->
-      <div class="space-y-2" v-if="adjustment.locationId && !existingLocation">
-        <Label for="bin">Bin Location</Label>
-        <Input id="bin" v-model="adjustment.bin" placeholder="Enter bin location (e.g., A1-B2-C3)" />
-        <p class="text-xs text-muted-foreground">
-          Optional: Specify a bin or shelf location for this item
-        </p>
-      </div>
-      
-      <!-- Quantity Adjustment -->
-      <div class="space-y-2">
-        <Label for="quantity" required>Adjustment Amount</Label>
-        <div class="relative">
+
+        <!-- Reason -->
+        <div class="space-y-2">
+          <Label for="reason">Reason *</Label>
+          <Select v-model="formData.reason" required>
+            <SelectTrigger :class="{ 'border-red-500': errors.reason }">
+              <SelectValue placeholder="Select reason" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="RECEIVED">Stock Received</SelectItem>
+              <SelectItem value="SOLD">Stock Sold</SelectItem>
+              <SelectItem value="DAMAGED">Damaged/Spoiled</SelectItem>
+              <SelectItem value="THEFT">Theft/Loss</SelectItem>
+              <SelectItem value="COUNT_VARIANCE">Count Variance</SelectItem>
+              <SelectItem value="RETURN">Customer Return</SelectItem>
+              <SelectItem value="TRANSFER">Warehouse Transfer</SelectItem>
+              <SelectItem value="CORRECTION">Data Correction</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+            </SelectContent>
+          </Select>
+          <p v-if="errors.reason" class="text-sm text-red-500">{{ errors.reason }}</p>
+        </div>
+
+        <!-- Reference -->
+        <div class="space-y-2">
+          <Label for="reference">Reference Number</Label>
           <Input
-            id="quantity"
-            v-model.number="adjustment.quantity"
-            type="number"
-            step="1"
-            placeholder="Enter quantity (+/-)"
-            :error="errors.quantity"
+            id="reference"
+            v-model="formData.reference"
+            placeholder="PO#, Invoice#, etc. (optional)"
           />
-          <div class="absolute right-3 top-3 text-xs text-muted-foreground">
-            {{ item.unitOfMeasure }}
-          </div>
         </div>
-        <p v-if="errors.quantity" class="text-sm text-destructive">{{ errors.quantity }}</p>
-        <p class="text-xs text-muted-foreground">
-          Enter a positive number to add stock or a negative number to remove stock
-        </p>
-      </div>
-      
-      <!-- Preview -->
-      <div v-if="adjustment.locationId && adjustment.quantity" class="bg-muted/30 p-3 rounded-md">
-        <div class="font-medium mb-2">Preview:</div>
-        <div class="flex justify-between text-sm">
-          <span>Current quantity at {{ getLocationName(adjustment.locationId) }}:</span>
-          <span>{{ getLocationStock(adjustment.locationId) || 0 }} {{ item.unitOfMeasure }}</span>
+
+        <!-- Notes -->
+        <div class="space-y-2">
+          <Label for="notes">Notes</Label>
+          <Textarea
+            id="notes"
+            v-model="formData.notes"
+            placeholder="Additional notes about this adjustment"
+            rows="3"
+          />
         </div>
-        <div class="flex justify-between text-sm">
-          <span>Adjustment:</span>
-          <span :class="adjustment.quantity >= 0 ? 'text-green-600' : 'text-destructive'">
-            {{ adjustment.quantity >= 0 ? '+' : '' }}{{ adjustment.quantity }} {{ item.unitOfMeasure }}
-          </span>
+
+        <!-- Cost per Unit (for stock in) -->
+        <div v-if="formData.adjustmentType === 'IN' || formData.adjustmentType === 'RECEIVED'" class="space-y-2">
+          <Label for="unitCost">Unit Cost</Label>
+          <Input
+            id="unitCost"
+            v-model="formData.unitCost"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+          />
+          <p class="text-xs text-muted-foreground">
+            Leave empty to use standard cost ({{ formatCurrency(item.standardCost || 0) }})
+          </p>
         </div>
-        <div class="flex justify-between font-medium text-sm mt-1 pt-1 border-t">
-          <span>New quantity:</span>
-          <span>{{ calculateNewQuantity() }} {{ item.unitOfMeasure }}</span>
+
+        <!-- Effective Date -->
+        <div class="space-y-2">
+          <Label for="effectiveDate">Effective Date</Label>
+          <Input
+            id="effectiveDate"
+            v-model="formData.effectiveDate"
+            type="datetime-local"
+          />
         </div>
-      </div>
-      
-      <!-- Reason -->
-      <div class="space-y-2">
-        <Label for="reason" required>Reason</Label>
-        <Select v-model="adjustment.reason" :error="errors.reason">
-          <SelectTrigger id="reason">
-            <SelectValue placeholder="Select reason for adjustment" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="initial_count">Initial Count</SelectItem>
-            <SelectItem value="recount">Inventory Recount</SelectItem>
-            <SelectItem value="purchase">New Purchase</SelectItem>
-            <SelectItem value="returned">Customer Return</SelectItem>
-            <SelectItem value="damaged">Damaged/Defective</SelectItem>
-            <SelectItem value="lost">Lost/Missing</SelectItem>
-            <SelectItem value="expired">Expired</SelectItem>
-            <SelectItem value="internal_use">Internal Use</SelectItem>
-            <SelectItem value="other">Other</SelectItem>
-          </SelectContent>
-        </Select>
-        <p v-if="errors.reason" class="text-sm text-destructive">{{ errors.reason }}</p>
-      </div>
-      
-      <!-- Notes -->
-      <div class="space-y-2">
-        <Label for="notes">Notes</Label>
-        <Textarea
-          id="notes"
-          v-model="adjustment.notes"
-          placeholder="Enter any additional details about this adjustment"
-          rows="2"
-        />
-      </div>
+
+        <!-- Serial/Lot Numbers (if applicable) -->
+        <div v-if="item.isSerialTracked || item.isLotTracked" class="space-y-2">
+          <Label>{{ item.isSerialTracked ? 'Serial Numbers' : 'Lot Numbers' }}</Label>
+          <Textarea
+            v-model="formData.serialLotNumbers"
+            :placeholder="item.isSerialTracked ? 'Enter serial numbers (one per line)' : 'Enter lot numbers (one per line)'"
+            rows="3"
+          />
+          <p class="text-xs text-muted-foreground">
+            {{ item.isSerialTracked ? 'One serial number per line' : 'Format: LOT001, QTY50' }}
+          </p>
+        </div>
+      </form>
     </div>
-    
+
     <DialogFooter>
-      <Button variant="outline" @click="$emit('close')">Cancel</Button>
-      <Button @click="saveAdjustment" :disabled="isSubmitting">
-        <Loader2Icon v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" />
-        Save Adjustment
+      <Button variant="outline" @click="$emit('close')">
+        Cancel
+      </Button>
+      <Button 
+        @click="createAdjustment"
+        :disabled="!isFormValid || creating"
+      >
+        <Loader2 v-if="creating" class="mr-2 h-4 w-4 animate-spin" />
+        Create Adjustment
       </Button>
     </DialogFooter>
   </DialogContent>
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
-import {
-  BoxIcon,
-  Loader2Icon
-} from 'lucide-vue-next'
+import { ref, computed, reactive, onMounted } from 'vue'
+import { Package, Loader2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import {
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
+import { 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
 } from '@/components/ui/dialog'
-import {
+import { 
   Select,
   SelectContent,
   SelectItem,
@@ -167,158 +200,165 @@ import {
   SelectValue
 } from '@/components/ui/select'
 
+// Props
 const props = defineProps({
   item: {
     type: Object,
-    required: true
-  },
-  locations: {
-    type: Array,
-    required: true,
-    default: () => []
+    default: () => null
   }
 })
 
-const emit = defineEmits(['adjustment-saved', 'close'])
+// Emits
+const emit = defineEmits(['adjustment-created', 'close'])
 
-// Form data
-const adjustment = reactive({
-  itemId: '',
-  locationId: '',
+// State
+const creating = ref(false)
+const errors = reactive({})
+
+const formData = reactive({
+  adjustmentType: '',
   quantity: null,
   reason: '',
+  reference: '',
   notes: '',
-  bin: ''
+  unitCost: null,
+  effectiveDate: new Date().toISOString().slice(0, 16), // Current datetime in local format
+  serialLotNumbers: ''
 })
 
-// Form validation errors
-const errors = reactive({
-  locationId: '',
-  quantity: '',
-  reason: ''
+// Computed
+const isFormValid = computed(() => {
+  return formData.adjustmentType && 
+         formData.quantity && 
+         parseFloat(formData.quantity) !== 0 && 
+         formData.reason
 })
 
-// Submission state
-const isSubmitting = ref(false)
-
-// Set the item ID from props
-adjustment.itemId = props.item.id
-
-// Computed properties
-const availableLocations = computed(() => {
-  return props.locations.filter(location => location.isActive !== false)
-})
-
-const existingLocation = computed(() => {
-  if (!adjustment.locationId) return false
-  return props.item.locations.some(loc => loc.id === adjustment.locationId)
-})
-
-// Helper methods
-const getLocationName = (locationId) => {
-  const location = props.locations.find(l => l.id === locationId)
-  return location ? location.name : 'Unknown Location'
-}
-
-const getLocationStock = (locationId) => {
-  const locationItem = props.item.locations.find(loc => loc.id === locationId)
-  return locationItem ? locationItem.quantity : null
-}
-
-const calculateNewQuantity = () => {
-  const currentQty = getLocationStock(adjustment.locationId) || 0
-  return currentQty + adjustment.quantity
-}
-
-const formatStatus = (status) => {
-  switch (status) {
-    case 'active':
-      return 'Active'
-    case 'out_of_stock':
-      return 'Out of Stock'
-    case 'low_stock':
-      return 'Low Stock'
-    case 'discontinued':
-      return 'Discontinued'
+const getQuantityLabel = () => {
+  switch (formData.adjustmentType) {
+    case 'IN':
+    case 'TRANSFER_IN':
+      return 'Quantity to Add'
+    case 'OUT':
+    case 'TRANSFER_OUT':
+      return 'Quantity to Remove'
+    case 'ADJUSTMENT':
+      return 'Adjustment Quantity (+/-)'
+    case 'COUNT':
+      return 'Actual Count'
     default:
-      return status.charAt(0).toUpperCase() + status.slice(1)
+      return 'Quantity'
   }
 }
 
-const getStatusVariant = (status) => {
-  switch (status) {
-    case 'active':
-      return 'success'
-    case 'out_of_stock':
-      return 'destructive'
-    case 'low_stock':
-      return 'warning'
-    case 'discontinued':
-      return 'outline'
+const getNewStockLevel = () => {
+  const currentStock = props.item?.stockOnHand || 0
+  const quantity = parseFloat(formData.quantity) || 0
+  
+  switch (formData.adjustmentType) {
+    case 'IN':
+    case 'TRANSFER_IN':
+      return currentStock + Math.abs(quantity)
+    case 'OUT':
+    case 'TRANSFER_OUT':
+      return currentStock - Math.abs(quantity)
+    case 'ADJUSTMENT':
+      return currentStock + quantity
+    case 'COUNT':
+      return quantity
     default:
-      return 'default'
+      return currentStock
   }
 }
 
-// Validation
+const getAdjustmentChangeText = () => {
+  const currentStock = props.item?.stockOnHand || 0
+  const newStock = getNewStockLevel()
+  const change = newStock - currentStock
+  
+  if (change > 0) {
+    return `+${formatNumber(Math.abs(change))} increase`
+  } else if (change < 0) {
+    return `-${formatNumber(Math.abs(change))} decrease`
+  } else {
+    return 'No change'
+  }
+}
+
+// Methods
 const validateForm = () => {
-  let isValid = true
-  
-  // Reset errors
-  Object.keys(errors).forEach(key => {
-    errors[key] = ''
-  })
-  
-  if (!adjustment.locationId) {
-    errors.locationId = 'Location is required'
-    isValid = false
+  // Clear previous errors
+  Object.keys(errors).forEach(key => delete errors[key])
+
+  if (!formData.adjustmentType) {
+    errors.adjustmentType = 'Adjustment type is required'
   }
   
-  if (adjustment.quantity === null || adjustment.quantity === undefined) {
-    errors.quantity = 'Quantity is required'
-    isValid = false
+  if (!formData.quantity || parseFloat(formData.quantity) === 0) {
+    errors.quantity = 'Quantity is required and must be non-zero'
   }
   
-  if (adjustment.quantity === 0) {
-    errors.quantity = 'Quantity cannot be zero'
-    isValid = false
-  }
-  
-  const newQuantity = calculateNewQuantity()
-  if (newQuantity < 0) {
-    errors.quantity = 'Cannot reduce stock below zero'
-    isValid = false
-  }
-  
-  if (!adjustment.reason) {
+  if (!formData.reason) {
     errors.reason = 'Reason is required'
-    isValid = false
   }
-  
-  return isValid
+
+  // Additional validation for negative stock
+  if (getNewStockLevel() < 0 && !props.item?.allowNegativeStock) {
+    errors.quantity = 'This adjustment would result in negative stock'
+  }
+
+  return Object.keys(errors).length === 0
 }
 
-// Form submission
-const saveAdjustment = async () => {
-  if (!validateForm()) {
-    return
-  }
-  
-  isSubmitting.value = true
-  
+const createAdjustment = async () => {
+  if (!validateForm()) return
+
+  creating.value = true
   try {
-    // If the location is not in the item's locations and we're adding stock,
-    // make sure bin is provided if we're adding to a new location
-    if (!existingLocation.value && adjustment.quantity > 0 && !adjustment.bin) {
-      adjustment.bin = 'Default'
+    const adjustmentData = {
+      itemId: props.item.id,
+      adjustmentType: formData.adjustmentType,
+      quantity: parseFloat(formData.quantity),
+      reason: formData.reason,
+      reference: formData.reference || null,
+      notes: formData.notes || null,
+      unitCost: formData.unitCost ? parseFloat(formData.unitCost) : null,
+      effectiveDate: new Date(formData.effectiveDate).toISOString(),
+      serialLotNumbers: formData.serialLotNumbers ? formData.serialLotNumbers.split('\n').filter(s => s.trim()) : []
     }
-    
-    // Emit the adjustment
-    emit('adjustment-saved', { ...adjustment })
+
+    // Adjust quantity based on type
+    if (formData.adjustmentType === 'OUT' || formData.adjustmentType === 'TRANSFER_OUT') {
+      adjustmentData.quantity = -Math.abs(adjustmentData.quantity)
+    } else if (formData.adjustmentType === 'COUNT') {
+      // For count adjustments, calculate the difference
+      adjustmentData.quantity = adjustmentData.quantity - (props.item?.stockOnHand || 0)
+    }
+
+    emit('adjustment-created', adjustmentData)
   } catch (error) {
-    console.error('Error saving adjustment:', error)
+    console.error('Error creating adjustment:', error)
   } finally {
-    isSubmitting.value = false
+    creating.value = false
   }
 }
+
+const formatNumber = (value) => {
+  return new Intl.NumberFormat().format(value || 0)
+}
+
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(value || 0)
+}
+
+// Initialize
+onMounted(() => {
+  // Set default unit cost to item's standard cost
+  if (props.item?.standardCost) {
+    formData.unitCost = props.item.standardCost
+  }
+})
 </script>

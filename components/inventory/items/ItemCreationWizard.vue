@@ -1,403 +1,366 @@
 <template>
-  <div class="flex h-full flex-col">
-    <!-- Header -->
-    <div class="border-b p-4">
-      <div class="flex items-center justify-between">
-        <h2 class="text-xl font-semibold">{{ stepTitles[currentStep] }}</h2>
-        <Button variant="ghost" size="icon" @click="$emit('close')">
-          <XIcon class="h-4 w-4" />
-          <span class="sr-only">Close</span>
-        </Button>
-      </div>
-      <p class="text-sm text-muted-foreground">
-        Step {{ currentStep + 1 }} of {{ steps.length }}
-      </p>
-    </div>
-
-    <!-- Wizard Content -->
-    <div class="flex-1 overflow-y-auto p-6">
-      <!-- Basic Info Step -->
-      <div v-if="currentStep === 0" class="space-y-4">
-        <div class="grid gap-4 md:grid-cols-2">
-          <div class="space-y-2">
-            <Label for="item-name" required>Item Name</Label>
-            <Input
-              id="item-name"
-              v-model="formData.name"
-              placeholder="Enter item name"
-              :error="errors.name"
-            />
-            <p v-if="errors.name" class="text-sm text-destructive">{{ errors.name }}</p>
-          </div>
-          <div class="space-y-2">
-            <Label for="item-sku" required>SKU</Label>
-            <Input
-              id="item-sku"
-              v-model="formData.sku"
-              placeholder="Enter item SKU"
-              :error="errors.sku"
-            />
-            <p v-if="errors.sku" class="text-sm text-destructive">{{ errors.sku }}</p>
-          </div>
+  <div class="flex flex-col h-full">
+    <div class="flex-1 overflow-y-auto px-6 pt-4 pb-4 space-y-6 min-h-0">
+      <div class="max-w-4xl mx-auto space-y-6">
+        <!-- Header -->
+        <div class="text-center mb-8">
+          <h2 class="text-2xl font-bold mb-2">Create New Inventory Item</h2>
+          <p class="text-muted-foreground">
+            Follow the steps below to add a new item to your inventory
+          </p>
         </div>
 
-        <div class="space-y-2">
-          <Label for="item-description">Description</Label>
-          <Textarea
-            id="item-description"
-            v-model="formData.description"
-            placeholder="Enter item description"
-            rows="4"
-          />
-        </div>
-
-        <div class="grid gap-4 md:grid-cols-2">
-          <div class="space-y-2">
-            <Label for="item-upc">UPC/EAN</Label>
-            <Input id="item-upc" v-model="formData.upc" placeholder="Enter barcode if applicable" />
-          </div>
-          <div class="space-y-2">
-            <Label for="item-vendor-sku">Vendor SKU</Label>
-            <Input
-              id="item-vendor-sku"
-              v-model="formData.vendorSku"
-              placeholder="Enter vendor's SKU if applicable"
-            />
-          </div>
-        </div>
-      </div>
-
-      <!-- Categories and Attributes Step -->
-      <div v-if="currentStep === 1" class="space-y-4">
-        <div class="space-y-2">
-          <Label for="item-category" required>Category</Label>
-          <Select v-model="formData.categoryId" :error="errors.categoryId">
-            <SelectTrigger id="item-category">
-              <SelectValue placeholder="Select a category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="category in categories" :key="category.id" :value="category.id">
-                {{ category.name }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <p v-if="errors.categoryId" class="text-sm text-destructive">{{ errors.categoryId }}</p>
-        </div>
-
-        <div class="space-y-2">
-          <Label for="item-unit">Unit of Measure</Label>
-          <Select v-model="formData.unitOfMeasure">
-            <SelectTrigger id="item-unit">
-              <SelectValue placeholder="Select unit of measure" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="each">Each</SelectItem>
-              <SelectItem value="case">Case</SelectItem>
-              <SelectItem value="box">Box</SelectItem>
-              <SelectItem value="pair">Pair</SelectItem>
-              <SelectItem value="kg">Kilogram</SelectItem>
-              <SelectItem value="lb">Pound</SelectItem>
-              <SelectItem value="l">Liter</SelectItem>
-              <SelectItem value="m">Meter</SelectItem>
-              <SelectItem value="ft">Foot</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div class="space-y-2 border rounded-md p-4">
-          <Label>Dimensions</Label>
-          <div class="grid gap-4 md:grid-cols-3">
-            <div class="space-y-2">
-              <Label for="item-length">Length</Label>
-              <div class="flex gap-2">
-                <Input
-                  id="item-length"
-                  v-model.number="formData.dimensions.length"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                />
-                <Select v-model="formData.dimensions.dimensionUnit" class="w-24">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="in">in</SelectItem>
-                    <SelectItem value="cm">cm</SelectItem>
-                    <SelectItem value="m">m</SelectItem>
-                    <SelectItem value="ft">ft</SelectItem>
-                  </SelectContent>
-                </Select>
+        <!-- Progress Steps -->
+        <div class="flex items-center justify-center mb-8">
+          <div class="flex items-center space-x-4">
+            <div 
+              v-for="(step, index) in steps" 
+              :key="index"
+              class="flex items-center"
+            >
+              <div 
+                class="flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors"
+                :class="getStepClass(index)"
+              >
+                <CheckIcon v-if="index < currentStep" class="h-4 w-4" />
+                <span v-else>{{ index + 1 }}</span>
               </div>
-            </div>
-            <div class="space-y-2">
-              <Label for="item-width">Width</Label>
-              <Input
-                id="item-width"
-                v-model.number="formData.dimensions.width"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-              />
-            </div>
-            <div class="space-y-2">
-              <Label for="item-height">Height</Label>
-              <Input
-                id="item-height"
-                v-model.number="formData.dimensions.height"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-          <div class="mt-4 grid gap-4 md:grid-cols-2">
-            <div class="space-y-2">
-              <Label for="item-weight">Weight</Label>
-              <div class="flex gap-2">
-                <Input
-                  id="item-weight"
-                  v-model.number="formData.dimensions.weight"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                />
-                <Select v-model="formData.dimensions.weightUnit" class="w-24">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="lb">lb</SelectItem>
-                    <SelectItem value="kg">kg</SelectItem>
-                    <SelectItem value="oz">oz</SelectItem>
-                    <SelectItem value="g">g</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Inventory Details Step -->
-      <div v-if="currentStep === 2" class="space-y-4">
-        <div class="grid gap-4 md:grid-cols-2">
-          <div class="space-y-2">
-            <Label for="item-cost" required>Cost</Label>
-            <div class="relative">
-              <span class="absolute inset-y-0 left-0 flex items-center pl-3">$</span>
-              <Input
-                id="item-cost"
-                v-model.number="formData.cost"
-                type="number"
-                min="0"
-                step="0.01"
-                class="pl-8"
-                placeholder="0.00"
-                :error="errors.cost"
-              />
-            </div>
-            <p v-if="errors.cost" class="text-sm text-destructive">{{ errors.cost }}</p>
-          </div>
-        </div>
-
-        <div class="border rounded-md p-4 space-y-4">
-          <h3 class="font-medium">Reorder Settings</h3>
-          <div class="grid gap-4 md:grid-cols-2">
-            <div class="space-y-2">
-              <Label for="reorder-point">Reorder Point</Label>
-              <Input
-                id="reorder-point"
-                v-model.number="formData.reorderPoint"
-                type="number"
-                min="0"
-                placeholder="0"
-              />
-              <p class="text-xs text-muted-foreground">
-                Minimum quantity before reordering
-              </p>
-            </div>
-            <div class="space-y-2">
-              <Label for="reorder-quantity">Reorder Quantity</Label>
-              <Input
-                id="reorder-quantity"
-                v-model.number="formData.reorderQuantity"
-                type="number"
-                min="0"
-                placeholder="0"
-              />
-              <p class="text-xs text-muted-foreground">
-                Quantity to order when reordering
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Location Assignment Step -->
-      <div v-if="currentStep === 3" class="space-y-4">
-        <p class="text-sm text-muted-foreground mb-4">
-          Assign initial inventory to locations. You can adjust quantities later.
-        </p>
-        
-        <div v-for="(locationItem, index) in formData.locations" :key="index" class="border rounded-md p-4 mb-4">
-          <div class="flex justify-between mb-4">
-            <h3 class="font-medium">Location Assignment #{{ index + 1 }}</h3>
-            <Button variant="ghost" size="icon" @click="removeLocation(index)" v-if="formData.locations.length > 1">
-              <XIcon class="h-4 w-4" />
-            </Button>
-          </div>
-          
-          <div class="grid gap-4 md:grid-cols-2 mb-4">
-            <div class="space-y-2">
-              <Label :for="`location-${index}`" required>Location</Label>
-              <Select v-model="locationItem.id" :error="getLocationError(index)">
-                <SelectTrigger :id="`location-${index}`">
-                  <SelectValue placeholder="Select a location" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem 
-                    v-for="location in availableLocations(index)" 
-                    :key="location.id" 
-                    :value="location.id"
-                  >
-                    {{ location.name }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p v-if="getLocationError(index)" class="text-sm text-destructive">{{ getLocationError(index) }}</p>
-            </div>
-            <div class="space-y-2">
-              <Label :for="`quantity-${index}`" required>Initial Quantity</Label>
-              <Input
-                :id="`quantity-${index}`"
-                v-model.number="locationItem.quantity"
-                type="number"
-                min="0"
-                placeholder="0"
-                :error="getQuantityError(index)"
-              />
-              <p v-if="getQuantityError(index)" class="text-sm text-destructive">{{ getQuantityError(index) }}</p>
-            </div>
-          </div>
-          
-          <div class="space-y-2">
-            <Label :for="`bin-${index}`">Bin Location</Label>
-            <Input :id="`bin-${index}`" v-model="locationItem.bin" placeholder="e.g., A1-B2-C3" />
-            <p class="text-xs text-muted-foreground">
-              Optional: Specify a bin or shelf location
-            </p>
-          </div>
-        </div>
-        
-        <Button variant="outline" @click="addLocation" class="w-full">
-          <PlusIcon class="h-4 w-4 mr-2" />
-          Add Another Location
-        </Button>
-      </div>
-
-      <!-- Review and Submit Step -->
-      <div v-if="currentStep === 4" class="space-y-6">
-        <div class="rounded-md border">
-          <div class="p-4 bg-muted/50">
-            <h3 class="font-medium">Basic Information</h3>
-          </div>
-          <div class="p-4 grid gap-4 md:grid-cols-2">
-            <div>
-              <div class="text-sm font-medium">Name</div>
-              <div>{{ formData.name }}</div>
-            </div>
-            <div>
-              <div class="text-sm font-medium">SKU</div>
-              <div>{{ formData.sku }}</div>
-            </div>
-            <div>
-              <div class="text-sm font-medium">Category</div>
-              <div>{{ getCategoryName(formData.categoryId) }}</div>
-            </div>
-            <div>
-              <div class="text-sm font-medium">Unit of Measure</div>
-              <div>{{ formatUnitOfMeasure(formData.unitOfMeasure) }}</div>
-            </div>
-            <div class="md:col-span-2">
-              <div class="text-sm font-medium">Description</div>
-              <div class="line-clamp-2">{{ formData.description || 'None' }}</div>
+              <span 
+                class="ml-2 text-sm font-medium"
+                :class="index <= currentStep ? 'text-foreground' : 'text-muted-foreground'"
+              >
+                {{ step.title }}
+              </span>
+              <ChevronRight v-if="index < steps.length - 1" class="h-4 w-4 mx-4 text-muted-foreground" />
             </div>
           </div>
         </div>
 
-        <div class="rounded-md border">
-          <div class="p-4 bg-muted/50">
-            <h3 class="font-medium">Inventory Details</h3>
-          </div>
-          <div class="p-4 grid gap-4 md:grid-cols-2">
-            <div>
-              <div class="text-sm font-medium">Cost</div>
-              <div>{{ formatCurrency(formData.cost) }}</div>
-            </div>
-            <div>
-              <div class="text-sm font-medium">Total Initial Stock</div>
-              <div>{{ getTotalStock() }} {{ formData.unitOfMeasure }}</div>
-            </div>
-            <div>
-              <div class="text-sm font-medium">Reorder Point</div>
-              <div>{{ formData.reorderPoint }}</div>
-            </div>
-            <div>
-              <div class="text-sm font-medium">Reorder Quantity</div>
-              <div>{{ formData.reorderQuantity }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="rounded-md border">
-          <div class="p-4 bg-muted/50">
-            <h3 class="font-medium">Location Assignments</h3>
-          </div>
-          <div class="p-4">
-            <div v-if="formData.locations.length === 0" class="text-muted-foreground">
-              No locations assigned
-            </div>
-            <div v-for="(loc, index) in formData.locations" :key="index" class="py-2 border-b last:border-0">
-              <div class="flex justify-between">
-                <div>
-                  <span class="font-medium">{{ getLocationName(loc.id) }}</span>
-                  <span v-if="loc.bin" class="text-sm text-muted-foreground ml-2">(Bin: {{ loc.bin }})</span>
+        <!-- Step Content -->
+        <Card>
+          <CardHeader>
+            <CardTitle>{{ steps[currentStep].title }}</CardTitle>
+            <CardDescription>{{ steps[currentStep].description }}</CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-6">
+            <!-- Step 1: Basic Information -->
+            <div v-if="currentStep === 0" class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <Label for="itemCode">Item Code *</Label>
+                  <Input
+                    id="itemCode"
+                    v-model="formData.itemCode"
+                    placeholder="Enter unique item code"
+                    :class="{ 'border-red-500': errors.itemCode }"
+                  />
+                  <p v-if="errors.itemCode" class="text-sm text-red-500">{{ errors.itemCode }}</p>
                 </div>
-                <div>{{ loc.quantity }} {{ formData.unitOfMeasure }}</div>
+                <div class="space-y-2">
+                  <Label for="barcode">Barcode</Label>
+                  <Input
+                    id="barcode"
+                    v-model="formData.barcode"
+                    placeholder="Enter barcode (optional)"
+                  />
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <Label for="name">Item Name *</Label>
+                <Input
+                  id="name"
+                  v-model="formData.name"
+                  placeholder="Enter item name"
+                  :class="{ 'border-red-500': errors.name }"
+                />
+                <p v-if="errors.name" class="text-sm text-red-500">{{ errors.name }}</p>
+              </div>
+
+              <div class="space-y-2">
+                <Label for="description">Description</Label>
+                <Textarea
+                  id="description"
+                  v-model="formData.description"
+                  placeholder="Enter item description"
+                  rows="3"
+                />
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <Label for="category">Category *</Label>
+                  <Select v-model="formData.categoryId">
+                    <SelectTrigger :class="{ 'border-red-500': errors.categoryId }">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem v-for="category in props.categories" :key="category.id" :value="category.id.toString()">
+                        {{ category.name }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p v-if="errors.categoryId" class="text-sm text-red-500">{{ errors.categoryId }}</p>
+                </div>
+                <div class="space-y-2">
+                  <Label for="unitOfMeasure">Unit of Measure *</Label>
+                  <Select v-model="formData.unitOfMeasureId">
+                    <SelectTrigger :class="{ 'border-red-500': errors.unitOfMeasureId }">
+                      <SelectValue placeholder="Select UOM" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem v-for="uom in props.units" :key="uom.id" :value="uom.id.toString()">
+                        {{ uom.name }} ({{ uom.code }})
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p v-if="errors.unitOfMeasureId" class="text-sm text-red-500">{{ errors.unitOfMeasureId }}</p>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+
+            <!-- Step 2: Pricing & Costs -->
+            <div v-else-if="currentStep === 1" class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <Label for="standardCost">Standard Cost</Label>
+                  <Input
+                    id="standardCost"
+                    v-model="formData.standardCost"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <Label for="listPrice">List Price</Label>
+                  <Input
+                    id="listPrice"
+                    v-model="formData.listPrice"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <Label for="wholesalePrice">Wholesale Price</Label>
+                  <Input
+                    id="wholesalePrice"
+                    v-model="formData.wholesalePrice"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <Label for="retailPrice">Retail Price</Label>
+                  <Input
+                    id="retailPrice"
+                    v-model="formData.retailPrice"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <Label>Pricing Configuration</Label>
+                <div class="space-y-2">
+                  <div class="flex items-center space-x-2">
+                    <Checkbox id="taxable" v-model:checked="formData.isTaxable" />
+                    <Label for="taxable">Taxable item</Label>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <Checkbox id="priceIncludesTax" v-model:checked="formData.priceIncludesTax" />
+                    <Label for="priceIncludesTax">Price includes tax</Label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 3: Inventory Settings -->
+            <div v-else-if="currentStep === 2" class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <Label for="initialStock">Initial Stock Quantity</Label>
+                  <Input
+                    id="initialStock"
+                    v-model="formData.initialStock"
+                    type="number"
+                    placeholder="0"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <Label for="reorderPoint">Reorder Point</Label>
+                  <Input
+                    id="reorderPoint"
+                    v-model="formData.reorderPoint"
+                    type="number"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <Label for="reorderQuantity">Reorder Quantity</Label>
+                  <Input
+                    id="reorderQuantity"
+                    v-model="formData.reorderQuantity"
+                    type="number"
+                    placeholder="0"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <Label for="maxStock">Maximum Stock</Label>
+                  <Input
+                    id="maxStock"
+                    v-model="formData.maxStock"
+                    type="number"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <Label>Stock Management</Label>
+                <div class="space-y-2">
+                  <div class="flex items-center space-x-2">
+                    <Checkbox id="trackStock" v-model:checked="formData.trackStock" />
+                    <Label for="trackStock">Track stock levels</Label>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <Checkbox id="allowNegativeStock" v-model:checked="formData.allowNegativeStock" />
+                    <Label for="allowNegativeStock">Allow negative stock</Label>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <Checkbox id="serialTracked" v-model:checked="formData.isSerialTracked" />
+                    <Label for="serialTracked">Serial number tracking</Label>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <Checkbox id="lotTracked" v-model:checked="formData.isLotTracked" />
+                    <Label for="lotTracked">Lot/Batch tracking</Label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 4: Additional Information -->
+            <div v-else-if="currentStep === 3" class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <Label for="weight">Weight</Label>
+                  <Input
+                    id="weight"
+                    v-model="formData.weight"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <Label for="weightUnit">Weight Unit</Label>
+                  <Select v-model="formData.weightUnit">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="kg">Kilograms (kg)</SelectItem>
+                      <SelectItem value="lb">Pounds (lb)</SelectItem>
+                      <SelectItem value="g">Grams (g)</SelectItem>
+                      <SelectItem value="oz">Ounces (oz)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="space-y-2">
+                  <Label for="length">Length</Label>
+                  <Input
+                    id="length"
+                    v-model="formData.length"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <Label for="width">Width</Label>
+                  <Input
+                    id="width"
+                    v-model="formData.width"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <Label for="height">Height</Label>
+                  <Input
+                    id="height"
+                    v-model="formData.height"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <Label for="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  v-model="formData.notes"
+                  placeholder="Additional notes about this item"
+                  rows="3"
+                />
+              </div>
+
+              <div class="space-y-2">
+                <Label>Item Status</Label>
+                <div class="flex items-center space-x-2">
+                  <Checkbox id="isActive" v-model:checked="formData.isActive" />
+                  <Label for="isActive">Item is active</Label>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
 
-    <!-- Footer -->
-    <div class="border-t p-4">
-      <div class="flex justify-between">
-        <Button
-          variant="outline"
-          @click="previousStep"
-          :disabled="currentStep === 0"
-        >
-          Previous
+    <!-- Footer Actions -->
+    <div class="border-t px-6 py-4 flex justify-between flex-shrink-0 bg-background/95 backdrop-blur-sm sticky bottom-0 z-10">
+      <Button 
+        variant="outline" 
+        @click="previousStep"
+        :disabled="currentStep === 0"
+      >
+        <ChevronLeft class="mr-2 h-4 w-4" />
+        Previous
+      </Button>
+      <div class="space-x-2">
+        <Button variant="outline" @click="$emit('close')">
+          Cancel
         </Button>
-        <Button
+        <Button 
           v-if="currentStep < steps.length - 1"
           @click="nextStep"
         >
           Next
+          <ChevronRight class="ml-2 h-4 w-4" />
         </Button>
-        <Button
+        <Button 
           v-else
           @click="createItem"
-          :disabled="isSubmitting"
+          :disabled="!isFormValid || creating"
         >
-          <Loader2Icon v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" />
+          <Loader2 v-if="creating" class="mr-2 h-4 w-4 animate-spin" />
           Create Item
         </Button>
       </div>
@@ -406,17 +369,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
-import {
-  XIcon,
-  PlusIcon,
-  Loader2Icon
-} from 'lucide-vue-next'
+import { ref, computed, reactive } from 'vue'
+import { CheckIcon, ChevronRight, ChevronLeft, Loader2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
+import { Checkbox } from '@/components/ui/checkbox'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { 
   Select,
   SelectContent,
   SelectItem,
@@ -424,75 +385,92 @@ import {
   SelectValue
 } from '@/components/ui/select'
 
+// Emits
+const emit = defineEmits(['item-created', 'close'])
+
+// Props
 const props = defineProps({
-  locations: {
-    type: Array,
-    required: true,
-    default: () => []
-  },
   categories: {
     type: Array,
-    required: true,
+    default: () => []
+  },
+  units: {
+    type: Array,
     default: () => []
   }
 })
 
-const emit = defineEmits(['item-created', 'close'])
-
-// Wizard steps
-const steps = ['basic-info', 'categories', 'inventory', 'locations', 'review']
-const stepTitles = [
-  'Basic Information',
-  'Categories & Attributes',
-  'Inventory Details',
-  'Location Assignment',
-  'Review & Create'
-]
+// State
 const currentStep = ref(0)
+const creating = ref(false)
+const errors = reactive({})
 
-// Form data
-const formData = reactive({
-  name: '',
-  sku: '',
-  description: '',
-  categoryId: '',
-  status: 'active',
-  upc: '',
-  vendorSku: '',
-  reorderPoint: 10,
-  reorderQuantity: 20,
-  cost: 0,
-  unitOfMeasure: 'each',
-  dimensions: {
-    weight: null,
-    length: null,
-    width: null,
-    height: null,
-    weightUnit: 'lb',
-    dimensionUnit: 'in'
+const steps = [
+  {
+    title: 'Basic Info',
+    description: 'Enter the basic information for your inventory item'
   },
-  locations: [
-    {
-      id: '',
-      quantity: 0,
-      bin: ''
-    }
-  ]
-})
+  {
+    title: 'Pricing & Costs',
+    description: 'Set up pricing and cost information'
+  },
+  {
+    title: 'Inventory Settings',
+    description: 'Configure stock management and tracking'
+  },
+  {
+    title: 'Additional Info',
+    description: 'Add physical properties and additional details'
+  }
+]
 
-// Form validation errors
-const errors = reactive({
+const formData = reactive({
+  itemCode: '',
   name: '',
-  sku: '',
+  description: '',
+  barcode: '',
   categoryId: '',
-  cost: '',
-  locations: []
+  unitOfMeasureId: '',
+  standardCost: null,
+  listPrice: null,
+  wholesalePrice: null,
+  retailPrice: null,
+  isTaxable: true,
+  priceIncludesTax: false,
+  initialStock: 0,
+  reorderPoint: 0,
+  reorderQuantity: 0,
+  maxStock: null,
+  trackStock: true,
+  allowNegativeStock: false,
+  isSerialTracked: false,
+  isLotTracked: false,
+  weight: null,
+  weightUnit: '',
+  length: null,
+  width: null,
+  height: null,
+  notes: '',
+  isActive: true
 })
 
-// Submission state
-const isSubmitting = ref(false)
+// Mock data - should come from stores  
+// Computed
+const isFormValid = computed(() => {
+  return formData.itemCode && formData.name && formData.categoryId && formData.unitOfMeasureId
+})
 
-// Navigation methods
+const getStepClass = (index) => {
+  if (index < currentStep.value) {
+    return 'bg-primary text-primary-foreground'
+  } else if (index === currentStep.value) {
+    return 'bg-primary text-primary-foreground'
+  } else {
+    return 'bg-muted text-muted-foreground'
+  }
+}
+
+// Methods
 const nextStep = () => {
   if (validateCurrentStep()) {
     currentStep.value++
@@ -500,204 +478,66 @@ const nextStep = () => {
 }
 
 const previousStep = () => {
-  currentStep.value--
+  if (currentStep.value > 0) {
+    currentStep.value--
+  }
 }
 
-// Location management
-const addLocation = () => {
-  formData.locations.push({
-    id: '',
-    quantity: 0,
-    bin: ''
-  })
-  errors.locations.push({
-    id: '',
-    quantity: ''
-  })
-}
-
-const removeLocation = (index) => {
-  formData.locations.splice(index, 1)
-  errors.locations.splice(index, 1)
-}
-
-const availableLocations = (currentIndex) => {
-  // Filter out locations that are already selected in other entries
-  const selectedLocationIds = formData.locations
-    .map((loc, i) => i !== currentIndex ? loc.id : null)
-    .filter(id => id)
-  
-  return props.locations.filter(location => 
-    !selectedLocationIds.includes(location.id) || 
-    location.id === formData.locations[currentIndex].id
-  )
-}
-
-// Validation methods
 const validateCurrentStep = () => {
-  let isValid = true
-  
-  // Reset errors
-  for (const key in errors) {
-    if (Array.isArray(errors[key])) {
-      errors[key] = formData.locations.map(() => ({ id: '', quantity: '' }))
-    } else {
-      errors[key] = ''
-    }
-  }
-  
+  // Clear previous errors
+  Object.keys(errors).forEach(key => delete errors[key])
+
   if (currentStep.value === 0) {
-    if (!formData.name.trim()) {
+    if (!formData.itemCode) {
+      errors.itemCode = 'Item code is required'
+    }
+    if (!formData.name) {
       errors.name = 'Item name is required'
-      isValid = false
     }
-    
-    if (!formData.sku.trim()) {
-      errors.sku = 'SKU is required'
-      isValid = false
-    }
-  }
-  
-  if (currentStep.value === 1) {
     if (!formData.categoryId) {
       errors.categoryId = 'Category is required'
-      isValid = false
+    }
+    if (!formData.unitOfMeasureId) {
+      errors.unitOfMeasureId = 'Unit of measure is required'
     }
   }
-  
-  if (currentStep.value === 2) {
-    if (formData.cost === null || formData.cost === undefined || formData.cost < 0) {
-      errors.cost = 'Cost must be a positive number'
-      isValid = false
-    }
-  }
-  
-  if (currentStep.value === 3) {
-    let hasLocation = false
-    
-    errors.locations = formData.locations.map((loc, index) => {
-      const locErrors = { id: '', quantity: '' }
-      
-      if (loc.id) {
-        hasLocation = true
-        
-        if (loc.quantity === null || loc.quantity === undefined || loc.quantity < 0) {
-          locErrors.quantity = 'Quantity must be a positive number'
-          isValid = false
-        }
-      } else {
-        locErrors.id = 'Location is required'
-        isValid = false
-      }
-      
-      return locErrors
-    })
-    
-    if (formData.locations.length === 0) {
-      isValid = false
-    }
-  }
-  
-  return isValid
+
+  return Object.keys(errors).length === 0
 }
 
-const validateAllSteps = () => {
-  const originalStep = currentStep.value
-  let isValid = true
-  
-  // Validate each step
-  for (let step = 0; step < steps.length - 1; step++) {
-    currentStep.value = step
-    if (!validateCurrentStep()) {
-      isValid = false
-    }
-  }
-  
-  // Restore original step
-  currentStep.value = originalStep
-  return isValid
-}
-
-const getLocationError = (index) => {
-  if (!errors.locations || !errors.locations[index]) return ''
-  return errors.locations[index].id
-}
-
-const getQuantityError = (index) => {
-  if (!errors.locations || !errors.locations[index]) return ''
-  return errors.locations[index].quantity
-}
-
-// Helper methods
-const getCategoryName = (categoryId) => {
-  const category = props.categories.find(c => c.id === categoryId)
-  return category ? category.name : 'None'
-}
-
-const getLocationName = (locationId) => {
-  const location = props.locations.find(l => l.id === locationId)
-  return location ? location.name : 'Unknown Location'
-}
-
-const formatUnitOfMeasure = (unit) => {
-  const unitMap = {
-    'each': 'Each',
-    'case': 'Case',
-    'box': 'Box',
-    'pair': 'Pair',
-    'kg': 'Kilogram',
-    'lb': 'Pound',
-    'l': 'Liter',
-    'm': 'Meter',
-    'ft': 'Foot'
-  }
-  return unitMap[unit] || unit
-}
-
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('en-US', { 
-    style: 'currency', 
-    currency: 'USD' 
-  }).format(value || 0)
-}
-
-const getTotalStock = () => {
-  return formData.locations.reduce((total, loc) => total + (Number(loc.quantity) || 0), 0)
-}
-
-// Submission handler
 const createItem = async () => {
-  if (!validateAllSteps()) {
-    return
-  }
-  
-  isSubmitting.value = true
-  
+  if (!validateCurrentStep()) return
+
+  creating.value = true
   try {
-    // Calculate stockOnHand from location quantities
-    const stockOnHand = getTotalStock()
-    
-    // Prepare data for submission
     const itemData = {
-      ...formData,
-      stockOnHand,
-      stockCommitted: 0,
-      stockAvailable: stockOnHand,
-      // Filter out empty locations
-      locations: formData.locations
-        .filter(loc => loc.id && loc.quantity > 0)
-        .map(loc => ({
-          ...loc,
-          name: getLocationName(loc.id)
-        }))
+      itemCode: formData.itemCode,
+      itemName: formData.name, // Map name to itemName
+      description: formData.description || undefined,
+      categoryId: parseInt(formData.categoryId),
+      baseUnitOfMeasureId: parseInt(formData.unitOfMeasureId), // Map unitOfMeasureId to baseUnitOfMeasureId
+      barcode: formData.barcode || undefined,
+      standardCost: parseFloat(formData.standardCost) || undefined,
+      sellingPrice: parseFloat(formData.listPrice) || undefined, // Map listPrice to sellingPrice
+      minStockLevel: parseInt(formData.minStock) || undefined, // Map minStock to minStockLevel
+      maxStockLevel: parseInt(formData.maxStock) || undefined, // Map maxStock to maxStockLevel
+      reorderPoint: parseInt(formData.reorderPoint) || undefined,
+      reorderQuantity: parseInt(formData.reorderQuantity) || undefined,
+      trackSerialNumber: formData.isSerialTracked, // Map isSerialTracked to trackSerialNumber
+      trackLotNumber: formData.isLotTracked, // Map isLotTracked to trackLotNumber
+      weight: parseFloat(formData.weight) || undefined,
+      length: parseFloat(formData.length) || undefined,
+      width: parseFloat(formData.width) || undefined,
+      height: parseFloat(formData.height) || undefined,
+      notes: formData.notes || undefined,
+      isActive: formData.isActive
     }
-    
-    // Emit the item for creation
+
     emit('item-created', itemData)
   } catch (error) {
-    console.error('Error preparing item data:', error)
+    console.error('Error creating item:', error)
   } finally {
-    isSubmitting.value = false
+    creating.value = false
   }
 }
 </script>

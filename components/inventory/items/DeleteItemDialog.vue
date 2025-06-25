@@ -1,81 +1,118 @@
 <template>
-  <DialogContent class="sm:max-w-[425px]">
+  <DialogContent class="sm:max-w-md">
     <DialogHeader>
-      <DialogTitle>Delete Item</DialogTitle>
+      <DialogTitle class="flex items-center space-x-2 text-red-600">
+        <AlertTriangle class="h-5 w-5" />
+        <span>Delete Item</span>
+      </DialogTitle>
       <DialogDescription>
-        Are you sure you want to delete this item? This action cannot be undone.
+        This action cannot be undone. The item will be permanently removed from your inventory.
       </DialogDescription>
     </DialogHeader>
-    
-    <div class="space-y-4 py-2">
-      <!-- Item Details -->
-      <div class="border rounded-md">
-        <div class="flex items-center gap-3 p-4 border-b bg-muted/20">
-          <div class="h-10 w-10 rounded-md border bg-muted flex items-center justify-center overflow-hidden">
-            <PackageXIcon class="h-5 w-5 text-destructive" />
+
+    <div v-if="item" class="space-y-4">
+      <!-- Item Info -->
+      <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+            <PackageIcon class="h-6 w-6 text-red-600" />
           </div>
           <div>
-            <div class="font-medium">{{ item.name }}</div>
-            <div class="text-xs text-muted-foreground">{{ item.sku }}</div>
-          </div>
-        </div>
-        <div class="p-4 grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <div class="text-muted-foreground">Status</div>
-            <Badge :variant="getStatusVariant(item.status)">
-              {{ formatStatus(item.status) }}
-            </Badge>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Stock</div>
-            <div>{{ item.stockOnHand }} {{ item.unitOfMeasure }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Locations</div>
-            <div>{{ item.locations.length }} locations</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Category</div>
-            <div>{{ getCategoryName() }}</div>
+            <h3 class="font-semibold text-red-900">{{ item.name }}</h3>
+            <p class="text-sm text-red-700">{{ item.itemCode }}</p>
+            <p v-if="item.description" class="text-xs text-red-600 mt-1">{{ item.description }}</p>
           </div>
         </div>
       </div>
-      
-      <!-- Warning -->
-      <div class="bg-destructive/10 p-3 rounded-md flex items-start gap-2 text-destructive">
-        <AlertTriangleIcon class="h-5 w-5 mt-0.5 flex-shrink-0" />
-        <div>
-          <div class="font-semibold">Warning:</div>
-          <div class="text-sm">
-            Deleting this item will permanently remove it from your inventory. Any stock level
-            information and location assignments will be lost. 
-            <span v-if="item.stockOnHand > 0" class="font-medium">
-              This item still has stock on hand.
-            </span>
+
+      <!-- Warning Checks -->
+      <div class="space-y-3">
+        <!-- Stock Warning -->
+        <div v-if="hasStock" class="flex items-start space-x-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+          <AlertCircle class="h-5 w-5 text-orange-600 mt-0.5" />
+          <div>
+            <p class="text-sm font-medium text-orange-900">Stock on Hand</p>
+            <p class="text-xs text-orange-700">
+              This item has {{ formatNumber(item.stockOnHand) }} {{ getUnitName(item.baseUnitOfMeasureId || item.unitOfMeasureId) }} in stock.
+              Consider transferring or adjusting stock before deletion.
+            </p>
+          </div>
+        </div>
+
+        <!-- Active Transactions Warning -->
+        <div v-if="hasActiveTransactions" class="flex items-start space-x-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <AlertCircle class="h-5 w-5 text-yellow-600 mt-0.5" />
+          <div>
+            <p class="text-sm font-medium text-yellow-900">Active Transactions</p>
+            <p class="text-xs text-yellow-700">
+              This item may have pending orders, invoices, or other transactions. 
+              Review these before proceeding.
+            </p>
+          </div>
+        </div>
+
+        <!-- Serial/Lot Tracking Warning -->
+        <div v-if="item.isSerialTracked || item.isLotTracked" class="flex items-start space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <Info class="h-5 w-5 text-blue-600 mt-0.5" />
+          <div>
+            <p class="text-sm font-medium text-blue-900">Tracking Information</p>
+            <p class="text-xs text-blue-700">
+              This item has {{ item.isSerialTracked ? 'serial number' : 'lot/batch' }} tracking enabled.
+              All tracking records will be deleted.
+            </p>
           </div>
         </div>
       </div>
-      
-      <!-- Confirmation Checkbox -->
-      <div class="flex items-center space-x-2 mt-4">
-        <Checkbox id="confirm-delete" v-model:checked="confirmDelete" />
-        <Label for="confirm-delete" class="font-medium">
-          I understand that this action cannot be undone
-        </Label>
+
+      <!-- Additional Options -->
+      <div class="space-y-2">
+        <div class="flex items-center space-x-2">
+          <Checkbox id="deleteHistory" v-model:checked="deleteOptions.includeHistory" />
+          <Label for="deleteHistory" class="text-sm">Delete transaction history</Label>
+        </div>
+        <div class="flex items-center space-x-2">
+          <Checkbox id="deleteAttachments" v-model:checked="deleteOptions.includeAttachments" />
+          <Label for="deleteAttachments" class="text-sm">Delete attached files and images</Label>
+        </div>
+      </div>
+
+      <!-- Alternative Actions -->
+      <div class="bg-gray-50 rounded-lg p-4">
+        <p class="text-sm font-medium text-gray-900 mb-2">Alternative Actions</p>
+        <div class="space-y-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            class="w-full justify-start"
+            @click="deactivateInstead"
+          >
+            <Power class="mr-2 h-4 w-4" />
+            Deactivate instead of delete
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            class="w-full justify-start"
+            @click="archiveInstead"
+          >
+            <Archive class="mr-2 h-4 w-4" />
+            Archive for future reference
+          </Button>
+        </div>
       </div>
     </div>
-    
+
     <DialogFooter>
       <Button variant="outline" @click="$emit('close')">
         Cancel
       </Button>
       <Button 
-        variant="destructive" 
-        @click="deleteItem" 
-        :disabled="!confirmDelete || isSubmitting"
+        variant="destructive"
+        @click="deleteItem"
+        :disabled="deleting"
       >
-        <Loader2Icon v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" />
-        <Trash2Icon v-else class="mr-2 h-4 w-4" />
+        <Loader2 v-if="deleting" class="mr-2 h-4 w-4 animate-spin" />
+        <Trash class="mr-2 h-4 w-4" />
         Delete Item
       </Button>
     </DialogFooter>
@@ -83,92 +120,101 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import {
-  AlertTriangleIcon,
-  Loader2Icon,
-  PackageXIcon,
-  Trash2Icon
+import { ref, computed, reactive } from 'vue'
+import { 
+  AlertTriangle, AlertCircle, Info, PackageIcon, Trash, 
+  Power, Archive, Loader2
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
+import { Checkbox } from '@/components/ui/checkbox'
+import { 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
 } from '@/components/ui/dialog'
 
+// Props
 const props = defineProps({
   item: {
     type: Object,
-    required: true
+    default: () => null
   },
-  categories: {
+  units: {
     type: Array,
     default: () => []
   }
 })
 
-const emit = defineEmits(['delete', 'close'])
+// Emits
+const emit = defineEmits(['item-deleted', 'close'])
 
 // State
-const confirmDelete = ref(false)
-const isSubmitting = ref(false)
+const deleting = ref(false)
 
-// Helper methods
-const formatStatus = (status) => {
-  switch (status) {
-    case 'active':
-      return 'Active'
-    case 'out_of_stock':
-      return 'Out of Stock'
-    case 'low_stock':
-      return 'Low Stock'
-    case 'discontinued':
-      return 'Discontinued'
-    default:
-      return status.charAt(0).toUpperCase() + status.slice(1)
-  }
-}
+const deleteOptions = reactive({
+  includeHistory: true,
+  includeAttachments: true
+})
 
-const getStatusVariant = (status) => {
-  switch (status) {
-    case 'active':
-      return 'success'
-    case 'out_of_stock':
-      return 'destructive'
-    case 'low_stock':
-      return 'warning'
-    case 'discontinued':
-      return 'outline'
-    default:
-      return 'default'
-  }
-}
+// Computed
+const hasStock = computed(() => {
+  return props.item && (props.item.stockOnHand || 0) > 0
+})
 
-const getCategoryName = () => {
-  if (!props.item.categoryId) return 'Uncategorized'
-  
-  const category = props.categories?.find(c => c.id === props.item.categoryId)
-  return category ? category.name : 'Unknown Category'
-}
+const hasActiveTransactions = computed(() => {
+  return props.item?.isActive
+})
 
-// Delete handler
+// Methods
 const deleteItem = async () => {
-  if (!confirmDelete.value) return
+  console.log('Deleting item:', props.item)
+  console.log('Item ID:', props.item?.id)
   
-  isSubmitting.value = true
-  
-  try {
-    emit('delete', props.item)
-  } catch (error) {
-    console.error('Error during deletion:', error)
-  } finally {
-    isSubmitting.value = false
+  if (!props.item?.id) {
+    console.error('No item ID provided for deletion')
+    return
   }
+  
+  deleting.value = true
+  try {
+    const deleteData = {
+      itemId: props.item.id,
+      options: deleteOptions
+    }
+    
+    console.log('Delete data:', deleteData)
+    emit('item-deleted', deleteData)
+  } catch (error) {
+    console.error('Error deleting item:', error)
+  } finally {
+    deleting.value = false
+  }
+}
+
+const deactivateInstead = () => {
+  // Emit deactivation event and close dialog
+  // The parent component can handle the deactivation
+  emit('close')
+  // Could emit a separate event for deactivation
+}
+
+const archiveInstead = () => {
+  // Emit archive event and close dialog
+  emit('close')
+  // Could emit a separate event for archiving
+}
+
+const formatNumber = (value) => {
+  return new Intl.NumberFormat().format(value || 0)
+}
+
+const getUnitName = (unitId) => {
+  if (!unitId) return 'units'
+  const unit = props.units.find(u => u.id === unitId)
+  return unit?.name || unit?.code || 'units'
 }
 </script>

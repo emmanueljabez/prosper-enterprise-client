@@ -84,10 +84,44 @@
         </TableHeader>
         <TableBody>
           <TableRow v-if="loading">
-            <TableCell colspan="10" class="text-center py-8">
-              <div class="flex items-center justify-center space-x-2">
-                <Loader2Icon class="h-4 w-4 animate-spin" />
-                <span>Loading units...</span>
+            <TableCell colspan="10" class="h-24">
+              <div class="space-y-3">
+                <div class="flex items-center space-x-4">
+                  <Skeleton class="h-4 w-4" />
+                  <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[150px]" />
+                  <Skeleton class="h-4 w-[100px]" />
+                  <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[100px]" />
+                  <Skeleton class="h-4 w-[120px]" />
+                  <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[100px]" />
+                  <Skeleton class="h-4 w-[80px]" />
+                </div>
+                <div class="flex items-center space-x-4">
+                  <Skeleton class="h-4 w-4" />
+                  <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[150px]" />
+                  <Skeleton class="h-4 w-[100px]" />
+                  <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[100px]" />
+                  <Skeleton class="h-4 w-[120px]" />
+                  <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[100px]" />
+                  <Skeleton class="h-4 w-[80px]" />
+                </div>
+                <div class="flex items-center space-x-4">
+                  <Skeleton class="h-4 w-4" />
+                  <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[150px]" />
+                  <Skeleton class="h-4 w-[100px]" />
+                  <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[100px]" />
+                  <Skeleton class="h-4 w-[120px]" />
+                  <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[100px]" />
+                  <Skeleton class="h-4 w-[80px]" />
+                </div>
               </div>
             </TableCell>
           </TableRow>
@@ -249,6 +283,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Skeleton } from '@/components/ui/skeleton'
 import { 
   Select,
   SelectContent,
