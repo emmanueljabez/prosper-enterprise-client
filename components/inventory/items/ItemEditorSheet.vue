@@ -82,6 +82,79 @@
                 <Checkbox id="isActive" v-model:checked="formData.isActive" />
                 <Label for="isActive">Item is active</Label>
               </div>
+
+              <!-- Image Upload Section -->
+              <div class="space-y-2">
+                <Label for="itemImage">Item Image</Label>
+                <div class="space-y-3">
+                  <!-- Current Image Display -->
+                  <div v-if="imageUrl" class="relative inline-block">
+                    <img 
+                      :src="imageUrl" 
+                      alt="Item image" 
+                      class="w-32 h-32 object-cover rounded-lg border border-border"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      class="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
+                      @click="onRemoveImage"
+                    >
+                      <X class="h-3 w-3" />
+                    </Button>
+                    <!-- Change Image Button -->
+                    <div class="mt-2 flex items-center space-x-2">
+                      <input
+                        ref="fileInput"
+                        type="file"
+                        accept="image/*"
+                        class="hidden"
+                        @change="onImageSelect"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        :disabled="isUploading"
+                        @click="$refs.fileInput?.click()"
+                      >
+                        <Upload class="h-4 w-4 mr-2" />
+                        Change Image
+                      </Button>
+                      <Loader2 v-if="isUploading" class="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  </div>
+                  <!-- Upload Button and File Input (only if no image) -->
+                  <div v-else class="flex items-center space-x-2">
+                    <input
+                      ref="fileInput"
+                      type="file"
+                      accept="image/*"
+                      class="hidden"
+                      @change="onImageSelect"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      :disabled="isUploading"
+                      @click="$refs.fileInput?.click()"
+                    >
+                      <Upload class="h-4 w-4 mr-2" />
+                      Upload Image
+                    </Button>
+                    <Loader2 v-if="isUploading" class="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                  <!-- Upload Error -->
+                  <p v-if="uploadError" class="text-sm text-red-500">
+                    {{ uploadError }}
+                  </p>
+                  <!-- Help Text -->
+                  <p class="text-xs text-muted-foreground">
+                    Supported formats: JPG, PNG, GIF. Max size: 5MB.
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -355,7 +428,7 @@
 
 <script setup>
 import { ref, computed, reactive, watch, onMounted } from 'vue'
-import { Loader2 } from 'lucide-vue-next'
+import { Loader2, X, Upload } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -383,15 +456,28 @@ const props = defineProps({
   units: {
     type: Array,
     default: () => []
+  },
+  isUploading: {
+    type: Boolean,
+    default: false
+  },
+  uploadError: {
+    type: String,
+    default: null
+  },
+  imageUrl: {
+    type: String,
+    default: ''
   }
 })
 
 // Emits
-const emit = defineEmits(['item-updated', 'close'])
+const emit = defineEmits(['item-updated', 'close', 'upload-image', 'remove-image'])
 
 // State
 const updating = ref(false)
 const errors = reactive({})
+const fileInput = ref(null)
 
 const formData = reactive({
   itemCode: '',
@@ -420,13 +506,25 @@ const formData = reactive({
   width: null,
   height: null,
   notes: '',
-  isActive: true
+  isActive: true,
+  imageUrl: '' // TODO: Enable this field when backend supports it
 })
 
 // Computed
 const isFormValid = computed(() => {
   return formData.itemCode && formData.name && formData.categoryId && formData.unitOfMeasureId
 })
+
+// Image upload methods
+const onImageSelect = (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+  emit('upload-image', { file, itemId: props.item?.id })
+}
+
+const onRemoveImage = () => {
+  emit('remove-image', { itemId: props.item?.id })
+}
 
 // Methods
 const loadItemData = () => {
@@ -461,6 +559,7 @@ const loadItemData = () => {
     formData.height = props.item.height || null
     formData.notes = props.item.notes || ''
     formData.isActive = props.item.isActive !== undefined ? props.item.isActive : true
+    formData.imageUrl = props.item.imageUrl || '' // TODO: Enable when backend supports it
     
     // Convert IDs to strings for selects
     if (props.item.categoryId) {
@@ -558,6 +657,7 @@ const updateItem = async () => {
       height: parseFloat(formData.height) || undefined,
       notes: formData.notes || undefined,
       isActive: formData.isActive
+      // imageUrl: formData.imageUrl || undefined // TODO: Enable when backend supports it
     }
 
     emit('item-updated', updateData)

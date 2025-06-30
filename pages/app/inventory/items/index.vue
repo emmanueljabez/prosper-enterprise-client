@@ -198,8 +198,13 @@
         <ItemCreationWizard
           :categories="categories"
           :units="units"
+          :is-uploading="fileUploadStore.getIsUploading"
+          :upload-error="fileUploadStore.getError"
+          :image-url="fileUploadStore.getUploadedUrl"
           @item-created="handleItemCreated"
           @close="showItemWizard = false"
+          @upload-image="handleImageUpload"
+          @remove-image="handleImageRemove"
         />
       </SheetContent>
     </Sheet>
@@ -210,10 +215,15 @@
       :item="selectedItem"
       :categories="categories"
       :units="units"
+      :is-uploading="fileUploadStore.getIsUploading"
+      :upload-error="fileUploadStore.getError"
       @update:open="showItemDetailsDialog = $event"
       @edit="openItemEditor"
       @duplicate="handleDuplicateItem"
       @adjust-stock="openStockAdjustmentDialog"
+      @image-updated="handleItemImageUpdate"
+      @upload-image="handleImageUpload"
+      @remove-image="handleImageRemove"
     />    
     
     <!-- Item Editor Sheet -->
@@ -229,8 +239,13 @@
           :item="selectedItem"
           :categories="categories"
           :units="units"
+          :is-uploading="fileUploadStore.getIsUploading"
+          :upload-error="fileUploadStore.getError"
+          :image-url="selectedItem?.imageUrl"
           @item-updated="handleItemUpdated"
           @close="showItemEditorSheet = false"
+          @upload-image="handleImageUpload"
+          @remove-image="handleImageRemove"
         />
       </SheetContent>
     </Sheet>
@@ -370,11 +385,13 @@ import ReorderRequiredDialog from '@/components/inventory/items/ReorderRequiredD
 import { useInventoryItemsStore } from '@/store/modules/inventory/inventory-items'
 import { useItemCategoriesStore } from '@/store/modules/inventory/item-categories'
 import { useUomStore } from '@/store/modules/inventory/uom'
+import { useFileUploadStore } from '@/store/modules/utility/file-upload/upload'
 
 // Initialize stores
 const inventoryItemsStore = useInventoryItemsStore()
 const itemCategoriesStore = useItemCategoriesStore()
 const uomStore = useUomStore()
+const fileUploadStore = useFileUploadStore()
 const { toast } = useToast()
 
 // Access store state through computed properties
@@ -446,6 +463,7 @@ const openItemWizard = () => {
 const openItemDetails = async (item) => {
   try {
     await inventoryItemsStore.fetchItemById(item.id)
+    fileUploadStore.clearError()
     showItemDetailsDialog.value = true
   } catch (error) {
     console.error('Error fetching item details:', error)
@@ -486,6 +504,91 @@ const openItemEditor = async (item) => {
 const openStockAdjustmentDialog = (item) => {
   inventoryItemsStore.setSelectedItem(item)
   showStockAdjustmentDialog.value = true
+}
+
+const handleItemImageUpdate = async (data) => {
+  try {
+    // Update the selected item's image URL
+    if (selectedItem.value && selectedItem.value.id === data.itemId) {
+      selectedItem.value.imageUrl = data.imageUrl
+    }
+    
+    // Update the item in the store if it exists in the items list
+    const itemInList = inventoryItemsStore.items.find(item => item.id === data.itemId)
+    if (itemInList) {
+      itemInList.imageUrl = data.imageUrl
+    }
+    
+    // TODO: Call API to update the item's image URL when backend supports it
+    // await inventoryItemsStore.updateItem({
+    //   id: data.itemId,
+    //   imageUrl: data.imageUrl
+    // })
+    
+    toast({
+      title: 'Success',
+      description: data.imageUrl ? 'Item image updated successfully' : 'Item image removed successfully'
+    })
+  } catch (error) {
+    console.error('Error updating item image:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to update item image',
+      variant: 'destructive'
+    })
+  }
+}
+
+const handleImageUpload = async (data) => {
+  try {
+    if (data.error) {
+      fileUploadStore.error = data.error
+      return
+    }
+    if (!data.file) return
+    console.log('Uploading image file:', data.file)
+    // Upload the file using the store
+    const result = await fileUploadStore.uploadFile(data.file)
+    if (result.success && result.data?.url) {
+      if (data.itemId) {
+        // Editing existing item
+        await handleItemImageUpdate({
+          itemId: data.itemId,
+          imageUrl: result.data.url
+        })
+      } else {
+        // Creating new item: set uploaded URL in store for wizard
+        fileUploadStore.setUploadedUrl(result.data.url)
+      }
+    }
+  } catch (error) {
+    console.error('Error uploading image:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to upload image',
+      variant: 'destructive'
+    })
+  }
+}
+
+const handleImageRemove = async (data) => {
+  try {
+    // Clear any existing upload errors
+    fileUploadStore.clearError()
+    
+    // Update the item to remove the image URL
+    await handleItemImageUpdate({
+      itemId: data.itemId,
+      imageUrl: null
+    })
+  } catch (error) {
+    console.error('Error removing image:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to remove image',
+      variant: 'destructive'
+    })
+  }
 }
 
 const openStockHistoryDialog = (item) => {
