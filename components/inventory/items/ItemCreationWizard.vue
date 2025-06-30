@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col h-full">
-    <div class="flex-1 overflow-y-auto px-6 pt-4 pb-4 space-y-6 min-h-0">
+    <div class="flex-1 overflow-y-auto px-6 pt-4 pb-4 space-y-6 min-h-0 max-h-[70vh]">
       <div class="max-w-4xl mx-auto space-y-6">
         <!-- Header -->
         <div class="text-center mb-8">
@@ -328,6 +328,79 @@
                   <Label for="isActive">Item is active</Label>
                 </div>
               </div>
+
+              <!-- Image Upload Section -->
+              <div class="space-y-2">
+                <Label for="itemImage">Item Image</Label>
+                <div class="space-y-3">
+                  <!-- Current Image Display -->
+                  <div v-if="imageUrl" class="relative inline-block">
+                    <img 
+                      :src="imageUrl" 
+                      alt="Item image" 
+                      class="w-32 h-32 object-cover rounded-lg border border-border"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      class="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
+                      @click="removeImage"
+                    >
+                      <X class="h-3 w-3" />
+                    </Button>
+                    <!-- Change Image Button -->
+                    <div class="mt-2 flex items-center space-x-2">
+                      <input
+                        ref="fileInput"
+                        type="file"
+                        accept="image/*"
+                        class="hidden"
+                        @change="handleImageSelect"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        :disabled="isUploading"
+                        @click="$refs.fileInput?.click()"
+                      >
+                        <Upload class="h-4 w-4 mr-2" />
+                        Change Image
+                      </Button>
+                      <Loader2 v-if="isUploading" class="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  </div>
+                  <!-- Upload Button and File Input (only if no image) -->
+                  <div v-else class="flex items-center space-x-2">
+                    <input
+                      ref="fileInput"
+                      type="file"
+                      accept="image/*"
+                      class="hidden"
+                      @change="handleImageSelect"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      :disabled="isUploading"
+                      @click="$refs.fileInput?.click()"
+                    >
+                      <Upload class="h-4 w-4 mr-2" />
+                      Upload Image
+                    </Button>
+                    <Loader2 v-if="isUploading" class="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                  <!-- Upload Error -->
+                  <p v-if="uploadError" class="text-sm text-red-500">
+                    {{ uploadError }}
+                  </p>
+                  <!-- Help Text -->
+                  <p class="text-xs text-muted-foreground">
+                    Supported formats: JPG, PNG, GIF. Max size: 5MB.
+                  </p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -370,7 +443,7 @@
 
 <script setup>
 import { ref, computed, reactive } from 'vue'
-import { CheckIcon, ChevronRight, ChevronLeft, Loader2 } from 'lucide-vue-next'
+import { CheckIcon, ChevronRight, ChevronLeft, Loader2, X, Upload } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -386,7 +459,7 @@ import {
 } from '@/components/ui/select'
 
 // Emits
-const emit = defineEmits(['item-created', 'close'])
+const emit = defineEmits(['item-created', 'close', 'upload-image', 'remove-image'])
 
 // Props
 const props = defineProps({
@@ -397,6 +470,18 @@ const props = defineProps({
   units: {
     type: Array,
     default: () => []
+  },
+  isUploading: {
+    type: Boolean,
+    default: false
+  },
+  uploadError: {
+    type: String,
+    default: null
+  },
+  imageUrl: {
+    type: String,
+    default: ''
   }
 })
 
@@ -404,6 +489,7 @@ const props = defineProps({
 const currentStep = ref(0)
 const creating = ref(false)
 const errors = reactive({})
+const fileInput = ref(null)
 
 const steps = [
   {
@@ -470,6 +556,17 @@ const getStepClass = (index) => {
   }
 }
 
+// Image upload methods
+const handleImageSelect = (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+  emit('upload-image', { file, itemId: props.item?.id })
+}
+
+const removeImage = () => {
+   emit('remove-image', { itemId: props.item?.id })
+}
+
 // Methods
 const nextStep = () => {
   if (validateCurrentStep()) {
@@ -531,6 +628,7 @@ const createItem = async () => {
       height: parseFloat(formData.height) || undefined,
       notes: formData.notes || undefined,
       isActive: formData.isActive
+      // imageUrl: formData.imageUrl || undefined // TODO: Enable when backend supports it
     }
 
     emit('item-created', itemData)

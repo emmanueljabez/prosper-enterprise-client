@@ -59,6 +59,9 @@ export interface InventoryItem {
   notes?: string;
   isActive?: boolean;
   
+  // Image URL (TODO: Enable when backend supports it)
+  // imageUrl?: string;
+  
   // Related Data (populated in responses)
   category?: {
     id: number;
@@ -120,6 +123,7 @@ export interface CreateInventoryItemRequest {
   volume?: number;
   notes?: string;
   isActive?: boolean;
+  // imageUrl?: string; // TODO: Enable when backend supports it
 }
 
 export interface UpdateInventoryItemRequest extends Partial<CreateInventoryItemRequest> {

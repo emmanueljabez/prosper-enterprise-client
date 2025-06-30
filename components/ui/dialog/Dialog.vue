@@ -7,31 +7,14 @@ const emits = defineEmits<DialogRootEmits>()
 
 const forwarded = useForwardPropsEmits(props, emits)
 
-// More aggressive cleanup function
+// More conservative cleanup function: only reset body styles, do not remove DOM nodes
 const cleanupOverlays = () => {
-  // Reset all possible body styles
   document.body.style.overflow = ''
   document.body.style.paddingRight = ''
   document.body.style.pointerEvents = ''
   document.body.style.touchAction = ''
   document.body.classList.remove('overflow-hidden')
-  
-  // Target all possible overlay elements
-  const selectors = [
-    '.fixed.inset-0.z-50.bg-black\\/80',
-    '.fixed.inset-0',
-    '[data-radix-portal]',
-    '[data-radix-focus-guard]',
-    '[role="dialog"]'
-  ]
-  
-  selectors.forEach(selector => {
-    document.querySelectorAll(selector).forEach(el => {
-      if (!el.getAttribute('data-state') || el.getAttribute('data-state') === 'closed') {
-        el.remove()
-      }
-    })
-  })
+  // Do NOT remove overlay/portal/dialog elements here; let Vue/Radix handle it
 }
 
 // Watch for dialog closing
