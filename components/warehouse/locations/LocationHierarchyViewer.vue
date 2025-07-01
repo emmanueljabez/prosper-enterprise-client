@@ -1,10 +1,102 @@
 <template>
   <div class="border rounded-lg">
-    <!-- Loading State -->
-    <div v-if="loading" class="flex justify-center items-center h-64 p-8">
-      <div class="flex flex-col items-center">
-        <Loader2Icon class="h-8 w-8 animate-spin text-primary mb-4" />
-        <span class="text-muted-foreground">Loading locations...</span>
+    <!-- Skeleton Loading State -->
+    <div v-if="loading" class="p-4">
+      <!-- View Controls Skeleton -->
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex gap-2">
+          <Skeleton class="h-9 w-24" />
+          <Skeleton class="h-9 w-24" />
+          <Skeleton class="h-9 w-24" />
+        </div>
+        <div class="flex items-center space-x-2">
+          <Skeleton class="h-9 w-[250px]" />
+          <Skeleton class="h-9 w-20" />
+        </div>
+      </div>
+
+      <!-- Tree View Skeleton -->
+      <div v-if="viewMode === 'tree'" class="border rounded-lg p-4 bg-muted/10">
+        <!-- Warehouse Level Skeletons -->
+        <div v-for="i in 2" :key="`warehouse-${i}`" class="mb-4 last:mb-0">
+          <div class="flex items-center space-x-2 p-2 rounded-md">
+            <Skeleton class="h-4 w-4" /> <!-- Expand icon -->
+            <Skeleton class="h-5 w-5" /> <!-- Location icon -->
+            <Skeleton class="h-5 w-32" /> <!-- Name -->
+            <Skeleton class="h-5 w-20" /> <!-- Badge -->
+            <div class="ml-auto flex space-x-1">
+              <Skeleton class="h-8 w-8 rounded" /> <!-- Action buttons -->
+              <Skeleton class="h-8 w-8 rounded" />
+              <Skeleton class="h-8 w-8 rounded" />
+            </div>
+          </div>
+          
+          <!-- Child Levels Skeletons (Zones/Aisles/Bins) -->
+          <div class="ml-6 mt-2 space-y-2">
+            <div v-for="j in 3" :key="`zone-${i}-${j}`" class="flex items-center space-x-2 p-2 rounded-md">
+              <Skeleton class="h-4 w-4" />
+              <Skeleton class="h-4 w-4" />
+              <Skeleton class="h-4 w-24" />
+              <Skeleton class="h-4 w-16" />
+              <div class="ml-auto flex space-x-1">
+                <Skeleton class="h-6 w-6 rounded" />
+                <Skeleton class="h-6 w-6 rounded" />
+              </div>
+            </div>
+            
+            <!-- Sub-child levels -->
+            <div class="ml-6 space-y-1">
+              <div v-for="k in 2" :key="`aisle-${i}-${j}-${k}`" class="flex items-center space-x-2 p-1 rounded-md">
+                <Skeleton class="h-3 w-3" />
+                <Skeleton class="h-3 w-3" />
+                <Skeleton class="h-3 w-20" />
+                <Skeleton class="h-3 w-12" />
+                <div class="ml-auto">
+                  <Skeleton class="h-5 w-5 rounded" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map View Skeleton -->
+      <div v-else-if="viewMode === 'map'" class="border rounded-lg p-4 bg-muted/10 h-[500px]">
+        <div class="space-y-4">
+          <div class="flex justify-between items-center">
+            <Skeleton class="h-6 w-40" />
+            <Skeleton class="h-8 w-24" />
+          </div>
+          <Skeleton class="h-[400px] w-full rounded-md" />
+        </div>
+      </div>
+
+      <!-- List View Skeleton -->
+      <div v-else-if="viewMode === 'list'" class="border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Code</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Capacity</TableHead>
+              <TableHead>Items</TableHead>
+              <TableHead class="w-[100px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="i in 8" :key="`skeleton-row-${i}`">
+              <TableCell><Skeleton class="h-4 w-32" /></TableCell>
+              <TableCell><Skeleton class="h-6 w-16 rounded-full" /></TableCell>
+              <TableCell><Skeleton class="h-4 w-20" /></TableCell>
+              <TableCell><Skeleton class="h-6 w-20 rounded-full" /></TableCell>
+              <TableCell><Skeleton class="h-4 w-16" /></TableCell>
+              <TableCell><Skeleton class="h-4 w-12" /></TableCell>
+              <TableCell><Skeleton class="h-8 w-8 rounded" /></TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </div>
     </div>
 
@@ -62,6 +154,17 @@
             <ListIcon class="h-4 w-4 mr-2" />
             List View
           </Button>
+          
+          <!-- Refresh Button -->
+          <Button 
+            variant="outline" 
+            size="sm" 
+            @click="$emit('refresh')"
+            title="Refresh locations"
+          >
+            <RefreshCwIcon class="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
         </div>
         
         <div class="flex items-center space-x-2 w-full sm:w-auto">
@@ -89,8 +192,8 @@
               <DropdownMenuCheckboxItem v-model:checked="filters.aisles">
                 Aisles
               </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem v-model:checked="filters.bins">
-                Bins
+              <DropdownMenuCheckboxItem v-model:checked="filters.shelves">
+                Shelves
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -175,6 +278,17 @@
                         <PencilIcon class="h-4 w-4 mr-2" />
                         Edit
                       </DropdownMenuItem>
+                      <!-- Warehouse-specific actions -->
+                      <template v-if="location.type === 'warehouse'">
+                        <DropdownMenuItem v-if="location.status === 'active'" 
+                          @click="$emit('deactivate-warehouse', location)"
+                          class="text-destructive"
+                          :disabled="location.status === 'inactive'"
+                        >
+                          <PowerOffIcon class="h-4 w-4 mr-2" />
+                          Deactivate
+                        </DropdownMenuItem>                        
+                      </template>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem @click="$emit('delete-location', location)" class="text-destructive">
                         <TrashIcon class="h-4 w-4 mr-2" />
@@ -197,11 +311,12 @@ import { ref, computed, watch } from 'vue';
 import { 
   Loader2Icon, AlertCircleIcon, WarehouseIcon, NetworkIcon,
   GridIcon, ListIcon, FilterIcon, MoreHorizontalIcon,
-  EyeIcon, PencilIcon, TrashIcon, MapIcon
+  EyeIcon, PencilIcon, TrashIcon, MapIcon, RefreshCwIcon, PowerOffIcon
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -237,6 +352,10 @@ const props = defineProps({
   error: {
     type: [String, null],
     default: null
+  },
+  expandedWarehouses: {
+    type: Array,
+    default: () => []
   }
 });
 
@@ -248,7 +367,9 @@ const emit = defineEmits([
   'create-location',
   'refresh',
   'print-labels',
-  'assign-items'
+  'assign-items',
+  'expand-warehouse',
+  'deactivate-warehouse'
 ]);
 
 // UI state
@@ -258,9 +379,21 @@ const filters = ref({
   warehouses: true,
   zones: true,
   aisles: true,
-  bins: true
+  shelves: true
 });
 const expandedNodes = ref([]);
+
+// Watch for changes in expandedWarehouses prop and sync with local state
+watch(() => props.expandedWarehouses, (newExpanded) => {
+  expandedNodes.value = [...newExpanded];
+}, { immediate: true });
+
+// Watch for changes in locations and clean up invalid expanded nodes
+watch(() => props.locations, (newLocations) => {
+  // Remove expanded nodes that no longer exist in the locations data
+  const existingIds = new Set(newLocations.map(loc => loc.id));
+  expandedNodes.value = expandedNodes.value.filter(nodeId => existingIds.has(nodeId));
+}, { immediate: false });
 
 // Computed properties
 const filteredLocations = computed(() => {
@@ -280,7 +413,7 @@ const filteredLocations = computed(() => {
     if (loc.type === 'warehouse') return filters.value.warehouses;
     if (loc.type === 'zone') return filters.value.zones;
     if (loc.type === 'aisle') return filters.value.aisles;
-    if (loc.type === 'bin') return filters.value.bins;
+    if (['bin', 'shelf'].includes(loc.type)) return filters.value.shelves; // 'bin' and 'shelf' map to shelves
     return true;
   });
   
@@ -296,6 +429,12 @@ const toggleNode = (nodeId) => {
   const index = expandedNodes.value.indexOf(nodeId);
   if (index === -1) {
     expandedNodes.value.push(nodeId);
+    
+    // If this is a warehouse, emit expand event
+    const location = props.locations.find(loc => loc.id === nodeId);
+    if (location && location.type === 'warehouse') {
+      emit('expand-warehouse', nodeId);
+    }
   } else {
     expandedNodes.value.splice(index, 1);
   }
@@ -311,12 +450,9 @@ const formatStatus = (status) => {
   return status.charAt(0).toUpperCase() + status.slice(1);
 };
 
-// Initialize: expand all top-level nodes by default
+// Initialize: don't auto-expand warehouses, let user manually expand them
 watch(() => props.locations, (newLocations) => {
-  if (newLocations.length > 0 && expandedNodes.value.length === 0) {
-    expandedNodes.value = newLocations
-      .filter(loc => loc.type === 'warehouse')
-      .map(loc => loc.id);
-  }
+  // Don't auto-expand warehouses - let users expand them manually
+  // This ensures they see the expand icons and can control the loading
 }, { immediate: true });
 </script>

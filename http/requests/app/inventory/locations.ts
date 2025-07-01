@@ -1,98 +1,126 @@
 import axiosInstance from '@/http/axios';
 import type { 
-  Location, 
-  LocationCreateInput, 
-  LocationUpdateInput, 
-  BulkLocationUpdate,
-  LocationFilters 
+  Warehouse,
+  Zone,
+  Aisle,
+  Shelf,
+  WarehouseHierarchy,
+  WarehouseLocationNode,
+  CreateMainWarehouseRequest,
+  CreateZoneRequest,
+  CreateAisleRequest,
+  CreateShelfRequest,
+  UpdateWarehouseRequest,
+  DeactivateWarehouseRequest,
+  WarehouseQueryParams,
+  PaginatedResponse,
+  ApiResponse
 } from '@/types/inventory/location';
 
-// Define API client for Location operations
+const BASE_URL = '/tenant/inventory';
+
+// Define API client for Warehouse Management operations
 export default {
-  fetchLocations: (params: LocationFilters = {}) => {
-    return axiosInstance.get('/inventory/locations', { params });
-  },
+  // ======== WAREHOUSE MANAGEMENT ========
   
-  fetchLocation: (id: string) => {
-    return axiosInstance.get(`/inventory/locations/${id}`);
+  /**
+   * Create main warehouse
+   */
+  createMainWareHouse(warehouse: CreateMainWarehouseRequest): Promise<ApiResponse<Warehouse>> {
+    return axiosInstance.post(`${BASE_URL}/warehouses`, warehouse);
   },
-  
-  createLocation: (location: LocationCreateInput) => {
-    return axiosInstance.post('/inventory/locations', location);
+
+  /**
+   * Create zone
+   */
+  createZone(id: number, zone: CreateZoneRequest): Promise<ApiResponse<Zone>> {
+    return axiosInstance.post(`${BASE_URL}/warehouses/${id}/locations`, zone);
   },
-  
-  updateLocation: (id: string, location: LocationUpdateInput) => {
-    return axiosInstance.put(`/inventory/locations/${id}`, location);
+
+  /**
+   * Create aisle
+   */
+  createAisle(id: number, aisle: CreateAisleRequest): Promise<ApiResponse<Aisle>> {
+    return axiosInstance.post(`${BASE_URL}/warehouses/${id}/locations`, aisle);
   },
-  
-  deleteLocation: (id: string) => {
-    return axiosInstance.delete(`/inventory/locations/${id}`);
+
+  /**
+   * Create shelf
+   */
+  createShelf(id: number, shelf: CreateShelfRequest): Promise<ApiResponse<Shelf>> {
+    return axiosInstance.post(`${BASE_URL}/warehouses/${id}/locations`, shelf);
   },
-  
-  activateLocation: (id: string) => {
-    return axiosInstance.patch(`/inventory/locations/${id}/activate`);
+
+  /**
+   * Update warehouse
+   */
+  updateWarehouse(id: number, warehouse: UpdateWarehouseRequest): Promise<ApiResponse<Warehouse>> {
+    return axiosInstance.put(`${BASE_URL}/warehouses/${id}`, warehouse);
   },
-  
-  deactivateLocation: (id: string) => {
-    return axiosInstance.patch(`/inventory/locations/${id}/deactivate`);
+
+  /**
+   * Deactivate warehouse
+   */
+  deactivateWarehouse(id: number, warehouse: DeactivateWarehouseRequest): Promise<ApiResponse<Warehouse>> {
+    return axiosInstance.put(`${BASE_URL}/warehouses/${id}`, warehouse);
   },
-  
-  moveLocation: (id: string, parentId: string | null) => {
-    return axiosInstance.patch(`/inventory/locations/${id}/move`, { parentId });
+
+  /**
+   * Delete warehouse
+   */
+  deleteWarehouse(id: number): Promise<ApiResponse<null>> {
+    return axiosInstance.delete(`${BASE_URL}/warehouses/${id}`);
   },
-  
-  bulkUpdateLocations: (locationIds: string[], updates: BulkLocationUpdate) => {
-    return axiosInstance.patch('/inventory/locations/bulk-update', { locationIds, updates });
+
+  /**
+   * Fetch paginated warehouses
+   */
+  fetchWarehousesPaginated(params?: WarehouseQueryParams): Promise<ApiResponse<PaginatedResponse<Warehouse>>> {
+
+    const queryParams: any = {
+      page: params?.page ?? 0,
+      size: params?.pageSize ?? params?.size ?? 10
+    };
+    
+    // Add other query parameters if provided
+    if (params?.search) {
+      queryParams.search = params.search;
+    }
+    if (params?.sortBy) {
+      queryParams.sortBy = params.sortBy;
+    }
+    if (params?.sortOrder) {
+      queryParams.sortOrder = params.sortOrder;
+    }
+    
+    return axiosInstance.get(`${BASE_URL}/warehouses`, { params: queryParams });
   },
-  
-  getLocationTree: () => {
-    return axiosInstance.get('/inventory/locations/tree');
+
+  /**
+   * Fetch all warehouses
+   */
+  fetchAllWarehouses(): Promise<ApiResponse<Warehouse[]>> {
+    return axiosInstance.get(`${BASE_URL}/warehouses`);
   },
-  
-  getLocationPath: (id: string) => {
-    return axiosInstance.get(`/inventory/locations/${id}/path`);
+
+  /**
+   * Fetch warehouse by ID
+   */
+  fetchWarehouseById(id: number): Promise<ApiResponse<Warehouse>> {
+    return axiosInstance.get(`${BASE_URL}/warehouses/${id}`);
   },
-  
-  getLocationCapacity: (id: string) => {
-    return axiosInstance.get(`/inventory/locations/${id}/capacity`);
+
+  /**
+   * Fetch complete warehouse hierarchy
+   */
+  fetchCompleteWarehouseHierarchy(id: number): Promise<ApiResponse<WarehouseHierarchy>> {
+    return axiosInstance.get(`${BASE_URL}/warehouses/${id}/hierarchy`);
   },
-  
-  updateLocationCapacity: (id: string, capacity: {
-    weightCapacity?: { value: number, unit: string },
-    volumeCapacity?: { value: number, unit: string }
-  }) => {
-    return axiosInstance.patch(`/inventory/locations/${id}/capacity`, capacity);
-  },
-  
-  getLocationItems: (id: string, params = {}) => {
-    return axiosInstance.get(`/inventory/locations/${id}/items`, { params });
-  },
-  
-  exportLocations: (format: string = 'csv', filters: LocationFilters = {}) => {
-    return axiosInstance.get(`/inventory/locations/export/${format}`, { 
-      params: filters,
-      responseType: 'blob'
-    });
-  },
-  
-  importLocations: (formData: FormData) => {
-    return axiosInstance.post('/inventory/locations/import', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
-  },
-  
-  validateLocation: (locationData: Partial<Location>) => {
-    return axiosInstance.post('/inventory/locations/validate', locationData);
-  },
-  
-  searchLocations: (query: string, params: LocationFilters = {}) => {
-    return axiosInstance.get('/inventory/locations/search', {
-      params: {
-        query,
-        ...params
-      }
-    });
+
+  /**
+   * Fetch location tree structure
+   */
+  fetchLocationTreeStructure(warehouseId: number): Promise<ApiResponse<WarehouseLocationNode[]>> {
+    return axiosInstance.get(`${BASE_URL}/warehouses/${warehouseId}/locations/tree`);
   }
 };

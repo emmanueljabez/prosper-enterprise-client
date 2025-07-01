@@ -7,7 +7,7 @@
     >
       <!-- Expand/collapse button -->
       <Button 
-        v-if="hasChildren" 
+        v-if="hasChildren || canExpand" 
         variant="ghost" 
         size="icon" 
         class="h-6 w-6 mr-1 -ml-1.5" 
@@ -28,7 +28,7 @@
         <WarehouseIcon v-if="location.type === 'warehouse'" class="h-4 w-4" />
         <LayoutGridIcon v-else-if="location.type === 'zone'" class="h-4 w-4" />
         <AlignEndHorizontalIcon v-else-if="location.type === 'aisle'" class="h-4 w-4" />
-        <PackageIcon v-else-if="location.type === 'bin'" class="h-4 w-4" />
+        <PackageIcon v-else-if="location.type === 'bin' || location.type === 'shelf'" class="h-4 w-4" />
         <FolderIcon v-else class="h-4 w-4" />
       </div>
       
@@ -100,6 +100,16 @@
               <PencilIcon class="h-4 w-4 mr-2" />
               Edit
             </DropdownMenuItem>
+            <!-- Warehouse-specific actions -->
+            <template v-if="location.type === 'warehouse'">
+              <DropdownMenuItem 
+                @click="handleDeactivateWarehouse(location)"
+                :disabled="location.status === 'inactive'"
+              >
+                <PowerOffIcon class="h-4 w-4 mr-2" />
+                Deactivate
+              </DropdownMenuItem>
+            </template>
             <DropdownMenuItem 
               v-if="canHaveChildren" 
               @click="handleCreateLocation(location)"
@@ -112,7 +122,7 @@
               Print Labels
             </DropdownMenuItem>
             <DropdownMenuItem 
-              v-if="location.type === 'bin'" 
+              v-if="['bin', 'shelf'].includes(location.type)" 
               @click="handleAssignItems(location)"
             >
               <PackagePlusIcon class="h-4 w-4 mr-2" />
@@ -160,7 +170,7 @@ import {
   ChevronRightIcon, WarehouseIcon, LayoutGridIcon, 
   AlignEndHorizontalIcon, PackageIcon, FolderIcon,
   EyeIcon, PencilIcon, MoreVerticalIcon, TrashIcon,
-  PlusIcon, PrinterIcon, PackagePlusIcon
+  PlusIcon, PrinterIcon, PackagePlusIcon, RefreshCwIcon, PowerOffIcon
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -208,17 +218,22 @@ const hasChildren = computed(() => {
   return childLocations.value.length > 0;
 });
 
+const canExpand = computed(() => {
+  return props.location.canExpand || false;
+});
+
 const isExpanded = computed(() => {
   return props.expandedNodes.includes(props.location.id);
 });
 
 const canHaveChildren = computed(() => {
-  return props.location.type !== 'bin'; // Bins can't have sub-locations
+  return !['bin', 'shelf'].includes(props.location.type); // Shelves/bins can't have sub-locations
 });
 
 // Methods
 const toggleExpand = () => {
-  if (hasChildren.value) {
+  // Allow expansion if there are children OR if canExpand is true (for warehouses)
+  if (hasChildren.value || canExpand.value) {
     emit('toggle-node', props.location.id);
   }
 };
@@ -270,6 +285,7 @@ const getTypeIconClass = (type) => {
     case 'aisle':
       return 'bg-amber-50 text-amber-500';
     case 'bin':
+    case 'shelf':
       return 'bg-green-50 text-green-500';
     default:
       return 'bg-gray-50 text-gray-500';
