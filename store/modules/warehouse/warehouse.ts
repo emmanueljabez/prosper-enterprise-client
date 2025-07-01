@@ -142,8 +142,7 @@ export const useWarehouseStore = defineStore('warehouse', {
     }
   },
   
-  actions: {
-    setUseMockData(useMock: boolean): void {
+  actions: {    setUseMockData(useMock: boolean): void {
       this.useMockData = useMock;
     },
     

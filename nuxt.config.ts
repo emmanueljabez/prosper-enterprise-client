@@ -7,6 +7,7 @@ export default defineNuxtConfig({
     public: {
       // mapboxToken: process.env.NUXT_PUBLIC_MAPBOX_TOKEN
       nodeEnv: process.env.NODE_ENV,
+      googleMapsApiKey: process.env.NUXT_PUBLIC_GOOGLE_MAPS_API_KEY,
     }
   },
   ssr: false,

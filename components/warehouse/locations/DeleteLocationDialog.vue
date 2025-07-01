@@ -82,7 +82,7 @@ const props = defineProps({
 });
 
 // Emits
-defineEmits(['delete', 'close']);
+const emit = defineEmits(['delete', 'close']);
 
 // State
 const isDeleting = ref(false);

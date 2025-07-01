@@ -3,24 +3,19 @@ export type Status = 'pending' | 'scheduled' | 'in_transit' | 'received' | 'in_p
 export type Priority = 'low' | 'medium' | 'normal' | 'high' | 'urgent';
 export type QCStatus = 'pending' | 'in_progress' | 'passed' | 'failed' | 'waived';
 
-// Warehouse Locations
-export interface Warehouse {
-  id: string;
-  name: string;
-  code: string;
-  address: Address;
-  isActive: boolean;
-  areas?: WarehouseArea[];
-}
 
-export interface WarehouseArea {
-  id: string;
-  warehouseId: string;
-  name: string;
-  code: string;
-  description?: string;
-  type: 'receiving' | 'storage' | 'picking' | 'packing' | 'shipping' | 'quality' | 'misc';
-}
+
+
+
+
+
+
+
+
+
+
+
+
 
 export interface StorageLocation {
   id: string;

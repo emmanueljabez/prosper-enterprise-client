@@ -1,92 +1,12 @@
-/**
- * Location type enum
- */
-export enum LocationType {
-  WAREHOUSE = 'warehouse',
-  ZONE = 'zone',
-  AISLE = 'aisle',
-  BIN = 'bin',
-  RETAIL = 'retail',
-  MANUFACTURING = 'manufacturing',
-  SUPPLIER = 'supplier',
-  CUSTOMER = 'customer',
-  VEHICLE = 'vehicle',
-  OTHER = 'other'
-}
+// ============= WAREHOUSE MANAGEMENT TYPES =============
 
 /**
- * Location status enum
+ * Warehouse location type for warehouse hierarchy
  */
-export enum LocationStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
-  MAINTENANCE = 'maintenance',
-  RESTRICTED = 'restricted'
-}
+export type WarehouseLocationType = 'ZONE' | 'AISLE' | 'SHELF' | 'BIN';
 
 /**
- * Represents a physical location in the inventory system
- */
-export interface Location {
-  /** Unique identifier for the location */
-  id: string;
-  
-  /** Human-readable name of the location */
-  name: string;
-  
-  /** Type of location (warehouse, zone, aisle, bin, etc.) */
-  type: string;
-  
-  /** Status of the location */
-  status: string;
-  
-  /** Optional parent location ID, if this is a child location */
-  parentId?: string | null;
-  
-  /** Optional code for the location (e.g., warehouse code, bin code) */
-  code?: string;
-  
-  /** Optional address for the location */
-  address?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    zip?: string;
-    country?: string;
-  };
-  
-  /** Physical dimensions of the location */
-  dimensions?: {
-    length?: number;
-    width?: number;
-    height?: number;
-    unit?: 'ft' | 'm' | 'in' | 'cm';
-  };
-  
-  /** Maximum capacity (number of items) */
-  capacity?: number;
-  
-  /** Current number of items stored in this location */
-  itemCount?: number;
-  
-  /** Optional notes or description */
-  description?: string;
-  
-  /** Optional additional attributes */
-  attributes?: Record<string, string>;
-  
-  /** Creation timestamp */
-  createdAt: string;
-  
-  /** Last update timestamp */
-  updatedAt: string;
-  
-  /** Optional array of child locations, used for hierarchical display */
-  children?: Location[];
-}
-
-/**
- * Location statistics interface
+ * Warehouse statistics interface
  */
 export interface LocationStats {
   /** Number of active warehouses */
@@ -121,8 +41,15 @@ export interface LocationStats {
  * State interface for the locations store
  */
 export interface LocationState {
-  /** Array of all locations */
-  locations: Location[];
+  // Warehouse management
+  warehouses: Warehouse[];
+  paginatedWarehouses: PaginatedResponse<Warehouse> | null;
+  selectedWarehouse: Warehouse | null;
+  warehouseHierarchy: WarehouseHierarchy | null;
+  locationTreeStructure: WarehouseLocationNode[];
+  zones: Zone[];
+  aisles: Aisle[];
+  shelves: Shelf[];
   
   /** Loading status flag */
   isLoading: boolean;
@@ -133,68 +60,326 @@ export interface LocationState {
   /** Flag to use mock data instead of API calls */
   useMockData: boolean;
   
-  /** Location statistics */
+  /** Warehouse statistics */
   locationStats: LocationStats;
 }
 
 /**
- * Interface for location creation payload
- * Omits auto-generated fields like id, createdAt, updatedAt
+ * Warehouse location interface for locations within a warehouse
  */
-export type LocationCreateInput = Omit<Partial<Location>, 'id' | 'createdAt' | 'updatedAt' | 'children'>;
-
-/**
- * Interface for location update payload
- */
-export type LocationUpdateInput = Partial<Omit<Location, 'createdAt' | 'updatedAt' | 'children'>> & { id: string };
-
-/**
- * Interface for bulk location updates
- */
-export interface BulkLocationUpdate {
-  status?: string;
-  type?: string;
-  parentId?: string | null;
+export interface WarehouseLocation {
+  id: number;
+  name: string;
+  code: string;
   description?: string;
-  capacity?: number;
-  attributes?: Record<string, any>;
+  parentLocation?: WarehouseLocation | null;
+  locationType: WarehouseLocationType;
+  barcode?: string | null;
+  isActive: boolean;
+  maxCapacity?: number;
+  currentCapacity?: number;
+  aisle?: string | null;
+  rowCode?: string | null;
+  binCode?: string | null;
+  pickable: boolean;
+  created: string;
+  updated: string;
 }
 
 /**
- * Location filters for search and list operations
+ * Main warehouse interface
  */
-export interface LocationFilters {
+export interface Warehouse {
+  id?: number;
+  code: string;
+  name: string;
+  description?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  isActive: boolean;
+  isMainWarehouse?: boolean;
+  created?: string;
+  updated?: string;
+  locations?: WarehouseLocation[];
+  activeLocations?: WarehouseLocation[];
+  rootLocations?: WarehouseLocation[];
+  activeLocationCount?: number;
+  locationCount?: number;
+}
+
+/**
+ * Zone interface
+ */
+export interface Zone {
+  id?: number;
+  name: string;
+  code: string;
+  description?: string;
+  locationType: WarehouseLocationType;
+  isActive: boolean;
+  maxCapacity?: number;
+  currentCapacity?: number;
+  pickable: boolean;
+}
+
+/**
+ * Aisle interface
+ */
+export interface Aisle {
+  id?: number;
+  name: string;
+  code: string;
+  description?: string;
+  parentLocationId?: number;
+  locationType: WarehouseLocationType;
+  aisle: string;
+  isActive: boolean;
+  maxCapacity?: number;
+  currentCapacity?: number;
+  pickable: boolean;
+}
+
+/**
+ * Shelf interface
+ */
+export interface Shelf {
+  id?: number;
+  name: string;
+  code: string;
+  description?: string;
+  parentLocationId?: number;
+  locationType: WarehouseLocationType;
+  aisle: string;
+  rowCode: string;
+  isActive: boolean;
+  maxCapacity?: number;
+  currentCapacity?: number;
+  pickable: boolean;
+}
+
+/**
+ * Warehouse location node for hierarchy
+ */
+export interface WarehouseLocationNode {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  warehouseId?: number | null;
+  warehouseName?: string | null;
+  locationType: WarehouseLocationType;
+  barcode?: string | null;
+  isActive: boolean;
+  parentLocationId?: number | null;
+  parentLocationName?: string | null;
+  depth: number;
+  path: string;
+  fullPath?: string | null;
+  maxCapacity?: number;
+  currentCapacity?: number;
+  availableCapacity?: number;
+  capacityUtilization?: number;
+  canReceive?: boolean;
+  canPick?: boolean;
+  pickable?: boolean;
+  aisle?: string | null;
+  rowCode?: string | null;
+  binCode?: string | null;
+  createdByUsername?: string;
+  updatedByUsername?: string | null;
+  created?: string;
+  updated?: string;
+  children?: WarehouseLocationNode[];
+  totalDescendants?: number;
+  activeDescendants?: number;
+  totalCapacityInSubtree?: number;
+  usedCapacityInSubtree?: number;
+  hasChildren?: boolean;
+  isLeaf?: boolean;
+  isRoot?: boolean | null;
+  totalChildren?: number | null;
+}
+
+/**
+ * Complete warehouse hierarchy
+ */
+export interface WarehouseHierarchy {
+  id?: number;
+  code: string;
+  name: string;
+  description?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  country?: string;
+  postalCode: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  isMainWarehouse?: boolean;
+  isActive: boolean;
+  createdByUsername?: string;
+  updatedByUsername?: string;
+  created?: string;
+  updated?: string;
+  locationHierarchy?: WarehouseLocationNode[];
+  totalLocations?: number;
+  activeLocations?: number;
+  rootLocations?: number;
+  maxDepth?: number;
+  pickableLocations?: number;
+  receivableLocations?: number;
+  totalCapacity?: number;
+  usedCapacity?: number;
+  availableCapacity?: number;
+  capacityUtilization?: number;
+}
+
+/**
+ * Request interface for creating main warehouse
+ */
+export interface CreateMainWarehouseRequest {
+  code: string;
+  name: string;
+  description?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  isActive: boolean;
+  isMainWarehouse?: boolean;
+  locationType?: string;
+}
+
+/**
+ * Request interface for creating zone
+ */
+export interface CreateZoneRequest {
+  name: string;
+  code: string;
+  description?: string;
+  warehouseId: number;
+  parentLocationId: number;
+  locationType: WarehouseLocationType;
+  isActive: boolean;
+  maxCapacity?: number;
+  currentCapacity?: number;
+  pickable: boolean;
+}
+
+/**
+ * Request interface for creating aisle
+ */
+export interface CreateAisleRequest {
+  name: string;
+  code: string;
+  description?: string;
+  warehouseId: number;
+  parentLocationId: number;
+  locationType: WarehouseLocationType;
+  aisle: string;
+  isActive: boolean;
+  maxCapacity?: number;
+  currentCapacity?: number;
+  pickable: boolean;
+}
+
+/**
+ * Request interface for creating shelf
+ */
+export interface CreateShelfRequest {
+  name: string;
+  code: string;
+  description?: string;
+  warehouseId: number;
+  parentLocationId: number;
+  locationType: WarehouseLocationType;
+  aisle: string;
+  rowCode: string;
+  isActive: boolean;
+  maxCapacity?: number;
+  currentCapacity?: number;
+  pickable: boolean;
+}
+
+/**
+ * Request interface for updating warehouse
+ */
+export interface UpdateWarehouseRequest extends CreateMainWarehouseRequest {
+  id: number;
+}
+
+/**
+ * Request interface for deactivating warehouse
+ */
+export interface DeactivateWarehouseRequest extends CreateMainWarehouseRequest {
+  id: number;
+  isActive: false;
+}
+
+/**
+ * Query parameters for warehouse operations
+ */
+export interface WarehouseQueryParams {
+  page?: number;
+  pageSize?: number;
+  size?: number; // Backend uses 'size' for page size
   search?: string;
-  types?: string[];
-  status?: string;
-  parentId?: string | null;
-  createdAfter?: string;
-  createdBefore?: string;
-  updatedAfter?: string;
-  updatedBefore?: string;
+  sortBy?: 'name' | 'code' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
 }
 
 /**
- * Response from bulk update operations
+ * Paginated response interface
  */
-export interface BulkUpdateResponse {
-  success: boolean;
-  updatedCount: number;
-  updatedIds: string[];
-  message?: string;
+export interface PaginatedResponse<T> {
+  content: T[];
+  pageable: {
+    pageNumber: number;
+    pageSize: number;
+    sort: {
+      empty: boolean;
+      sorted: boolean;
+      unsorted: boolean;
+    };
+    offset: number;
+    paged: boolean;
+    unpaged: boolean;
+  };
+  last: boolean;
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+  sort: {
+    empty: boolean;
+    sorted: boolean;
+    unsorted: boolean;
+  };
+  first: boolean;
+  numberOfElements: number;
+  empty: boolean;
 }
 
 /**
- * Import response
+ * Generic API response interface
  */
-export interface ImportResponse {
+export interface ApiResponse<T = unknown> {
   success: boolean;
-  importedCount: number;
-  skippedCount?: number;
-  errorCount?: number;
   message: string;
-  errors?: Array<{
-    row: number;
-    message: string;
-  }>;
+  data: T;
+  timestamp: string;
 }
