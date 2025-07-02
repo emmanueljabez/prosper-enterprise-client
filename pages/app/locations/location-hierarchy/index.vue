@@ -423,7 +423,11 @@ const handleCreateLocation = (parentLocation) => {
 }
 
 const handleViewLocation = async (location) => {
+  // Always fetch warehouse hierarchy for context, regardless of location type
+  let warehouseId = location.warehouseId
+
   if (location.type === 'warehouse') {
+    warehouseId = location.id
     try {
       // Fetch detailed warehouse data and hierarchy
       await Promise.all([
@@ -442,7 +446,23 @@ const handleViewLocation = async (location) => {
       return
     }
   } else {
+    // For non-warehouse locations, always fetch the complete warehouse hierarchy
     selectedLocation.value = location
+    
+    if (warehouseId) {
+      try {
+        // Fetch complete warehouse hierarchy - we'll filter it in the dialog
+        await locationsStore.fetchWarehouseHierarchy(warehouseId)
+      } catch (error) {
+        console.error('Error fetching warehouse hierarchy for location:', error)
+        toast({
+          title: 'Warning',
+          description: 'Could not load warehouse structure context.',
+          variant: 'default'
+        })
+        // Continue without hierarchy data
+      }
+    }
   }
   
   showLocationDetailsDialog.value = true
