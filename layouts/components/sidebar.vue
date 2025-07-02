@@ -107,7 +107,7 @@ function setActiveTeam(team: typeof data.teams[number]) {
               <div class="flex items-center justify-start group-data-[collapsible=expanded]:justify-start">
                 <!-- Full logo when expanded -->
                 <img 
-                  src="/images/ispbox_logo.png" 
+                  src="/images/pcash_logo.png" 
                   alt="ISPBox Logo" 
                   class="h-7 w-auto group-data-[collapsible=icon]:hidden transition-all duration-200" 
                 />
@@ -134,7 +134,7 @@ function setActiveTeam(team: typeof data.teams[number]) {
                   <SidebarMenuSub v-if="item.children">
                     <SidebarMenuSubItem v-for="subItem in item.children" :key="subItem.title">
                       <SidebarMenuSubButton as-child :class="{ 'text-white': subItem.isActive }"
-                        :style="{ background: subItem.isActive ? 'linear-gradient(90deg, #7453a4, #7453a4)' : '' }"
+                        :style="{ background: subItem.isActive ? 'linear-gradient(90deg, #1b1b41, #1b1b41)' : '' }"
                         :tooltip="subItem.title">
                         <NuxtLink :to="subItem.url" class="text-sm font-normal">
                           <component :is="subItem.icon" class="mr-2 size-4" />
@@ -147,21 +147,24 @@ function setActiveTeam(team: typeof data.teams[number]) {
                 <div v-if="index < sidebarStore.navigation.length - 1" class="my-2"></div>
               </template>
             </SidebarMenu>
+            
             <!-- Collapsed view: Show only child icons -->
-            <SidebarMenu class="hidden group-data-[collapsible=icon]:block space-y-1">
-              <template v-for="item in sidebarStore.navigation" :key="`collapsed-${item.title}`">
-                <template v-for="subItem in item.children" :key="`collapsed-${subItem.title}`">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton as-child :tooltip="subItem.title" :class="{ 'text-white': subItem.isActive }"
-                      :style="{ background: subItem.isActive ? 'linear-gradient(90deg, #7453a4, #7453a4)' : '' }">
-                      <NuxtLink :to="subItem.url" class="flex items-center justify-center p-2">
-                        <component :is="subItem.icon" class="size-4" />
-                      </NuxtLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+            <div class="hidden group-data-[collapsible=icon]:block">
+              <SidebarMenu class="space-y-1">
+                <template v-for="item in sidebarStore.navigation" :key="`collapsed-${item.title}`">
+                  <template v-for="subItem in item.children" :key="`collapsed-${subItem.title}`">
+                    <SidebarMenuItem>
+                      <SidebarMenuButton as-child :tooltip="subItem.title" :class="{ 'text-white': subItem.isActive }"
+                        :style="{ background: subItem.isActive ? 'linear-gradient(90deg, #1b1b41, #1b1b41)' : '' }">
+                        <NuxtLink :to="subItem.url" class="flex items-center justify-center p-2">
+                          <component :is="subItem.icon" class="size-4" />
+                        </NuxtLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </template>
                 </template>
-              </template>
-            </SidebarMenu>
+              </SidebarMenu>
+            </div>
           </SidebarGroup>
         </SidebarContent>
         <!-- <SidebarFooter>
@@ -251,9 +254,19 @@ function setActiveTeam(team: typeof data.teams[number]) {
 
 /* Remove bottom whitespace by ensuring content fills available space */
 .sidebar-scrollable .space-y-1 {
-  min-height: 100%;
   display: flex;
   flex-direction: column;
+  gap: 0.25rem; /* equivalent to space-y-1 */
+}
+
+/* Ensure collapsed menu is properly hidden in expanded state */
+.group[data-collapsible="expanded"] .group-data-\[collapsible\=icon\]\:block {
+  display: none !important;
+}
+
+/* Ensure expanded menu is properly hidden in collapsed state */
+.group[data-collapsible="icon"] .group-data-\[collapsible\=icon\]\:hidden {
+  display: none !important;
 }
 
 .bg-gray-200 {
