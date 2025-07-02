@@ -1,519 +1,337 @@
 <template>
-  <DialogContent class="sm:max-w-4xl">
-    <DialogHeader>
-      <DialogTitle class="text-xl">{{ location.name }}</DialogTitle>
-      <DialogDescription>
-        {{ formatLocationType(location.type) }} | Code: {{ location.code || 'N/A' }}
-        <Badge class="ml-2" :variant="location.status === 'active' ? 'success' : 'secondary'">
-          {{ formatStatus(location.status) }}
-        </Badge>
-      </DialogDescription>
+  <DialogContent class="sm:max-w-6xl max-h-[90vh]">
+    <DialogHeader class="border-b pb-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-2">
+            <component :is="getLocationIcon(location.type)" class="h-6 w-6" :class="getLocationIconColor(location.type)" />
+            <div>
+              <DialogTitle class="text-2xl font-semibold">{{ location.name }}</DialogTitle>
+              <DialogDescription class="flex items-center space-x-3 mt-1">
+                <span class="text-sm">{{ location.code }}</span>
+                <span class="text-xs text-muted-foreground">•</span>
+                <Badge :variant="getStatusVariant(location.status || location.isActive)">
+                  {{ formatStatus(location.status || location.isActive) }}
+                </Badge>
+                <span class="text-xs text-muted-foreground">•</span>
+                <span class="text-xs text-muted-foreground">{{ formatLocationType(location.type) }}</span>
+              </DialogDescription>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <Button size="sm" variant="outline" @click="refreshHierarchy" :disabled="isRefreshing">
+            <RefreshCwIcon class="h-4 w-4" :class="{ 'animate-spin': isRefreshing }" />
+          </Button>
+          <Button size="sm" @click="$emit('edit-location', location)">
+            <PencilIcon class="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
     </DialogHeader>
 
-    <div class="overflow-y-auto max-h-[70vh]">
-      <Tabs defaultValue="details" class="w-full">
-        <TabsList :class="location.type === 'warehouse' ? 'grid w-full grid-cols-5' : 'grid w-full grid-cols-4'">
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger v-if="location.type === 'warehouse'" value="hierarchy">Hierarchy</TabsTrigger>
-          <TabsTrigger value="items">Items</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="sublocations">Sub-locations</TabsTrigger>
-        </TabsList>
-        
-        <!-- Details Tab -->
-        <TabsContent value="details" class="space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 py-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+      <!-- Left Column - Basic Info & Stats -->
+      <div class="space-y-6">
+        <!-- Basic Information -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-semibold">Information</h3>
+          
+          <div class="space-y-3">
+            <div>
+              <span class="text-xs font-medium text-muted-foreground">Description</span>
+              <p class="text-sm mt-1">{{ location.description || 'No description provided' }}</p>
+            </div>
+            
+            <div v-if="isWarehouse" class="space-y-2">
+              <div v-if="location.addressLine1">
+                <span class="text-xs font-medium text-muted-foreground">Address</span>
+                <div class="text-sm mt-1 space-y-1">
+                  <p>{{ location.addressLine1 }}</p>
+                  <p v-if="location.addressLine2">{{ location.addressLine2 }}</p>
+                  <p>{{ [location.city, location.state, location.postalCode].filter(Boolean).join(', ') }}</p>
+                  <p v-if="location.country">{{ location.country }}</p>
+                </div>
+              </div>
+              
+              <div v-if="location.contactPerson">
+                <span class="text-xs font-medium text-muted-foreground">Contact</span>
+                <div class="text-sm mt-1 space-y-1">
+                  <p>{{ location.contactPerson }}</p>
+                  <p v-if="location.contactPhone" class="text-muted-foreground">{{ location.contactPhone }}</p>
+                  <p v-if="location.contactEmail" class="text-muted-foreground">{{ location.contactEmail }}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div v-if="!isWarehouse && location.path">
+              <span class="text-xs font-medium text-muted-foreground">Location Path</span>
+              <p class="text-sm mt-1 font-mono bg-muted/30 px-2 py-1 rounded">{{ location.path }}</p>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span class="text-xs font-medium text-muted-foreground">Created</span>
+                <p class="mt-1">{{ formatDate(location.created) }}</p>
+              </div>
+              <div>
+                <span class="text-xs font-medium text-muted-foreground">Updated</span>
+                <p class="mt-1">{{ formatDate(location.updated) }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Capacity Stats -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-semibold">Capacity</h3>
+          
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="text-center p-3 bg-muted/30 rounded-lg">
+                <p class="text-2xl font-bold">{{ formatNumber(getCapacityData().total) }}</p>
+                <p class="text-xs text-muted-foreground">Total Capacity</p>
+              </div>
+              <div class="text-center p-3 bg-muted/30 rounded-lg">
+                <p class="text-2xl font-bold">{{ formatNumber(getCapacityData().used) }}</p>
+                <p class="text-xs text-muted-foreground">Used</p>
+              </div>
+            </div>
+            
+            <div>
+              <div class="flex justify-between text-sm mb-2">
+                <span>Utilization</span>
+                <span>{{ getCapacityData().utilization }}%</span>
+              </div>
+              <div class="w-full bg-muted rounded-full h-2">
+                <div 
+                  class="h-2 rounded-full transition-all duration-300"
+                  :class="getUtilizationColor(getCapacityData().utilization)"
+                  :style="{ width: `${getCapacityData().utilization}%` }"
+                ></div>
+              </div>
+            </div>
+            
+            <div class="text-center p-2 border rounded-lg">
+              <p class="text-lg font-semibold">{{ formatNumber(getCapacityData().available) }}</p>
+              <p class="text-xs text-muted-foreground">Available Space</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Location Properties -->
+        <div v-if="!isWarehouse" class="space-y-4">
+          <h3 class="text-lg font-semibold">Properties</h3>
+          
+          <div class="space-y-3">
+            <div class="grid grid-cols-2 gap-4 text-sm">
+              <div class="flex items-center space-x-2">
+                <component :is="location.canReceive ? CheckCircleIcon : XCircleIcon" 
+                  class="h-4 w-4" 
+                  :class="location.canReceive ? 'text-green-500' : 'text-muted-foreground'" 
+                />
+                <span>Can Receive</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <component :is="location.pickable ? CheckCircleIcon : XCircleIcon" 
+                  class="h-4 w-4" 
+                  :class="location.pickable ? 'text-green-500' : 'text-muted-foreground'" 
+                />
+                <span>Pickable</span>
+              </div>
+            </div>
+            
+            <div v-if="location.barcode" class="border rounded-lg p-3 bg-muted/10">
+              <span class="text-xs font-medium text-muted-foreground">Barcode</span>
+              <p class="font-mono text-sm mt-1">{{ location.barcode }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column - Hierarchy Tree -->
+      <div class="lg:col-span-2 space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold">
+            {{ isWarehouse ? 'Warehouse Structure' : 'Location Tree' }}
+          </h3>
+          <div class="flex items-center space-x-2">
+            <Button size="sm" variant="outline" @click="$emit('create-location', location)" v-if="canAddChildren">
+              <PlusIcon class="h-4 w-4 mr-2" />
+              Add {{ getChildType() }}
+            </Button>
+          </div>
+        </div>
+
+        <!-- Hierarchy Tree -->
+        <div class="border rounded-lg bg-muted/10 min-h-[400px]">
+          <div v-if="isWarehouse && warehouseHierarchy" class="p-6">
+            <!-- Warehouse Tree Root -->
             <div class="space-y-4">
-              <div>
-                <h4 class="text-sm font-medium mb-1 text-muted-foreground">Location Type</h4>
-                <p>{{ formatLocationType(location.type) }}</p>
+              <!-- Warehouse Stats Header -->
+              <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="text-center p-3 bg-background rounded-lg border">
+                  <p class="text-lg font-bold">{{ warehouseHierarchy.totalLocations || 0 }}</p>
+                  <p class="text-xs text-muted-foreground">Total Locations</p>
+                </div>
+                <div class="text-center p-3 bg-background rounded-lg border">
+                  <p class="text-lg font-bold">{{ warehouseHierarchy.activeLocations || 0 }}</p>
+                  <p class="text-xs text-muted-foreground">Active</p>
+                </div>
+                <div class="text-center p-3 bg-background rounded-lg border">
+                  <p class="text-lg font-bold">{{ warehouseHierarchy.pickableLocations || 0 }}</p>
+                  <p class="text-xs text-muted-foreground">Pickable</p>
+                </div>
+                <div class="text-center p-3 bg-background rounded-lg border">
+                  <p class="text-lg font-bold">{{ warehouseHierarchy.maxDepth || 0 }}</p>
+                  <p class="text-xs text-muted-foreground">Max Depth</p>
+                </div>
               </div>
-              <div>
-                <h4 class="text-sm font-medium mb-1 text-muted-foreground">Description</h4>
-                <p>{{ location.description || 'No description provided' }}</p>
-              </div>
-              <div v-if="location.parentId">
-                <h4 class="text-sm font-medium mb-1 text-muted-foreground">Parent Location</h4>
-                <div class="flex items-center space-x-2">
-                  <p>{{ getParentName(location.parentId) }}</p>
-                  <Button variant="ghost" size="icon" @click="viewParent(location.parentId)">
-                    <ExternalLinkIcon class="h-4 w-4" />
+
+              <!-- Tree Structure -->
+              <div class="space-y-3">
+                <div v-if="hasHierarchyData">
+                  <!-- Use HierarchyTreeNode for recursive tree display -->
+                  <HierarchyTreeNode
+                    v-for="zone in warehouseHierarchy.locationHierarchy"
+                    :key="zone.id"
+                    :node="zone"
+                    :level="0"
+                    :is-highlighted="idsMatch(zone.id, location.id)"
+                    :highlighted-location-id="location.id"
+                    @view-location="$emit('view-location', $event)"
+                    @edit-location="$emit('edit-location', $event)"
+                    @create-location="$emit('create-location', $event)"
+                  />
+                </div>
+                <div v-else class="text-center py-12">
+                  <LayoutGridIcon class="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                  <p class="text-muted-foreground mb-4">No zones configured yet</p>
+                  <Button size="sm" @click="$emit('create-location', location)">
+                    <PlusIcon class="h-4 w-4 mr-2" />
+                    Add First Zone
                   </Button>
                 </div>
               </div>
             </div>
-
-            <div class="space-y-4">
-              <div>
-                <h4 class="text-sm font-medium mb-1 text-muted-foreground">Status</h4>
-                <Badge :variant="location.status === 'active' ? 'success' : 'secondary'">
-                  {{ formatStatus(location.status) }}
-                </Badge>
-              </div>
-              <div>
-                <h4 class="text-sm font-medium mb-1 text-muted-foreground">Last Updated</h4>
-                <p>{{ formatDate(location.updatedAt) }}</p>
-              </div>
-              <div>
-                <h4 class="text-sm font-medium mb-1 text-muted-foreground">Created</h4>
-                <p>{{ formatDate(location.createdAt) }}</p>
-              </div>
-            </div>
           </div>
-
-          <div class="border rounded-md p-4 bg-muted/30">
-            <h4 class="font-medium mb-2">Capacity & Utilization</h4>
-            <div class="space-y-3">
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p class="text-muted-foreground">Capacity:</p>
-                  <p class="font-medium">{{ location.capacity || 'Unlimited' }}</p>
-                </div>
-                <div>
-                  <p class="text-muted-foreground">Items Stored:</p>
-                  <p class="font-medium">{{ location.itemCount || 0 }}</p>
-                </div>
-                <div>
-                  <p class="text-muted-foreground">Utilization:</p>
-                  <p class="font-medium">{{ getUtilizationPercentage() }}%</p>
-                </div>
-                <div>
-                  <p class="text-muted-foreground">Space Available:</p>
-                  <p class="font-medium">{{ getAvailableSpace() }}</p>
+          
+          <!-- For non-warehouse locations with hierarchy data, show tree context -->
+          <div v-else-if="!isWarehouse && warehouseHierarchy && hasHierarchyData" class="p-6">
+            <div class="space-y-4">
+              <!-- Current Location Highlight -->
+              <div class="mb-6 p-4 bg-accent/10 border rounded-lg">
+                <div class="flex items-center space-x-3">
+                  <component :is="getLocationIcon(location.type)" 
+                    class="h-6 w-6" 
+                    :class="getLocationIconColor(location.type)" 
+                  />
+                  <div>
+                    <h4 class="text-lg font-semibold">{{ location.name }}</h4>
+                    <p class="text-sm text-muted-foreground">{{ location.code }} | {{ formatLocationType(location.type) }}</p>
+                    <p class="text-xs text-muted-foreground mt-1">{{ location.path }}</p>
+                  </div>
                 </div>
               </div>
               
-              <div>
-                <div class="text-xs mb-1 flex justify-between">
-                  <span>0%</span>
-                  <span>100%</span>
-                </div>
-                <div class="w-full bg-muted rounded-full h-2.5">
-                  <div 
-                    class="bg-primary h-2.5 rounded-full" 
-                    :style="{ width: `${getUtilizationPercentage()}%` }"
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div v-if="location.dimensions" class="border rounded-md p-4 bg-muted/30">
-            <h4 class="font-medium mb-2">Dimensions</h4>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p class="text-muted-foreground">Length:</p>
-                <p>{{ location.dimensions.length }} {{ location.dimensions.unit }}</p>
-              </div>
-              <div>
-                <p class="text-muted-foreground">Width:</p>
-                <p>{{ location.dimensions.width }} {{ location.dimensions.unit }}</p>
-              </div>
-              <div>
-                <p class="text-muted-foreground">Height:</p>
-                <p>{{ location.dimensions.height }} {{ location.dimensions.unit }}</p>
-              </div>
-              <div>
-                <p class="text-muted-foreground">Area:</p>
-                <p>{{ calculateArea() }} {{ location.dimensions.unit }}²</p>
-              </div>
-            </div>
-          </div>
-          
-          <div v-if="location.attributes" class="border rounded-md p-4 bg-muted/30">
-            <h4 class="font-medium mb-2">Attributes</h4>
-            <div class="grid grid-cols-2 gap-4 text-sm">
-              <div v-for="(value, key) in location.attributes" :key="key">
-                <p class="text-muted-foreground">{{ formatAttributeName(key) }}:</p>
-                <p>{{ value }}</p>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-        
-        <!-- Warehouse Hierarchy Tab (only for warehouses) -->
-        <TabsContent v-if="location.type === 'warehouse'" value="hierarchy" class="space-y-4">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-medium">Warehouse Structure</h3>
-            <div class="flex items-center space-x-2">
-              <Button size="sm" variant="outline" @click="refreshHierarchy">
-                <RefreshCwIcon class="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-              <Button size="sm" @click="$emit('create-location', location)">
-                <PlusIcon class="h-4 w-4 mr-2" />
-                Add Zone
-              </Button>
-            </div>
-          </div>
-          
-          <!-- Hierarchy Tree View -->
-          <div v-if="warehouseHierarchy && warehouseHierarchy.locationHierarchy && warehouseHierarchy.locationHierarchy.length > 0" class="border rounded-lg p-4 bg-muted/10">
-            <div class="space-y-2">
-              <div v-for="zone in warehouseHierarchy.locationHierarchy" :key="zone.id" class="border-l-2 border-blue-200 pl-4">
-                <div class="flex items-center justify-between py-2">
-                  <div class="flex items-center space-x-3">
-                    <LayoutGridIcon class="h-5 w-5 text-purple-500" />
-                    <div>
-                      <h4 class="font-medium">{{ zone.name }}</h4>
-                      <p class="text-sm text-muted-foreground">{{ zone.code }} | {{ zone.locationType }}</p>
-                      <p class="text-xs text-muted-foreground">
-                        Capacity: {{ zone.currentCapacity || 0 }}/{{ zone.maxCapacity || 'Unlimited' }}
-                        <span v-if="zone.maxCapacity"> ({{ Math.round((zone.currentCapacity || 0) / zone.maxCapacity * 100) }}% used)</span>
-                      </p>
-                    </div>
-                  </div>
-                  <div class="flex items-center space-x-2">
-                    <Badge :variant="zone.isActive ? 'default' : 'secondary'">
-                      {{ zone.isActive ? 'Active' : 'Inactive' }}
-                    </Badge>
-                    <div class="flex items-center space-x-1">
-                      <Button size="icon" variant="ghost" @click="$emit('view-location', zone)">
-                        <EyeIcon class="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" @click="$emit('edit-location', zone)">
-                        <PencilIcon class="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+              <!-- Show relevant tree structure based on location type -->
+              <div class="space-y-3">
+                <h4 class="text-md font-medium">{{ getTreeStructureTitle() }}</h4>
                 
-                <!-- Show children if any (aisles) -->
-                <div v-if="zone.children && zone.children.length > 0" class="ml-4 mt-2 space-y-2">
-                  <div v-for="aisle in zone.children" :key="aisle.id" class="border-l-2 border-amber-200 pl-4">
-                    <div class="flex items-center justify-between py-1">
-                      <div class="flex items-center space-x-2">
-                        <AlignEndHorizontalIcon class="h-4 w-4 text-amber-500" />
-                        <div>
-                          <p class="font-medium text-sm">{{ aisle.name }}</p>
-                          <p class="text-xs text-muted-foreground">{{ aisle.code }} | {{ aisle.locationType }}</p>
-                          <p class="text-xs text-muted-foreground">
-                            Capacity: {{ aisle.currentCapacity || 0 }}/{{ aisle.maxCapacity || 'Unlimited' }}
-                          </p>
-                        </div>
-                      </div>
-                      <div class="flex items-center space-x-2">
-                        <Badge size="sm" :variant="aisle.isActive ? 'default' : 'secondary'">
-                          {{ aisle.isActive ? 'Active' : 'Inactive' }}
-                        </Badge>
-                        <div class="flex items-center space-x-1">
-                          <Button size="icon" variant="ghost" @click="$emit('view-location', aisle)">
-                            <EyeIcon class="h-3 w-3" />
-                          </Button>
-                          <Button size="icon" variant="ghost" @click="$emit('edit-location', aisle)">
-                            <PencilIcon class="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <!-- Show shelves/bins if any -->
-                    <div v-if="aisle.children && aisle.children.length > 0" class="ml-4 mt-1">
-                      <div v-for="shelf in aisle.children" :key="shelf.id" class="flex items-center justify-between py-1">
-                        <div class="flex items-center space-x-2">
-                          <PackageIcon class="h-3 w-3 text-green-500" />
-                          <div>
-                            <p class="font-medium text-xs">{{ shelf.name }}</p>
-                            <p class="text-xs text-muted-foreground">{{ shelf.code }} | {{ shelf.locationType }}</p>
-                            <p class="text-xs text-muted-foreground">
-                              {{ shelf.pickable ? 'Pickable' : 'Storage Only' }}
-                            </p>
-                          </div>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                          <Badge size="sm" :variant="shelf.isActive ? 'default' : 'secondary'">
-                            {{ shelf.isActive ? 'Active' : 'Inactive' }}
-                          </Badge>
-                          <div class="flex items-center space-x-1">
-                            <Button size="icon" variant="ghost" @click="$emit('view-location', shelf)">
-                              <EyeIcon class="h-3 w-3" />
-                            </Button>
-                            <Button size="icon" variant="ghost" @click="$emit('edit-location', shelf)">
-                              <PencilIcon class="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <HierarchyTreeNode
+                  v-for="node in getRelevantTreeNodes()"
+                  :key="node.id"
+                  :node="node"
+                  :level="0"
+                  :is-highlighted="idsMatch(node.id, location.id)"
+                  :highlighted-location-id="location.id"
+                  @view-location="$emit('view-location', $event)"
+                  @edit-location="$emit('edit-location', $event)"
+                  @create-location="$emit('create-location', $event)"
+                />
               </div>
             </div>
           </div>
           
-          <!-- Empty Hierarchy State -->
-          <div v-else class="text-center py-8">
-            <LayoutGridIcon class="h-12 w-12 mx-auto text-muted-foreground/30 mb-2" />
-            <p class="text-muted-foreground mb-4">No zones configured for this warehouse</p>
-            <Button size="sm" @click="$emit('create-location', location)">
-              <PlusIcon class="h-4 w-4 mr-2" />
-              Add First Zone
-            </Button>
-          </div>
-          
-          <!-- Hierarchy Stats -->
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="border rounded-md p-4 bg-muted/30">
-              <h4 class="font-medium mb-2">Total Locations</h4>
-              <p class="text-2xl font-bold">{{ warehouseHierarchy?.totalLocations || 0 }}</p>
-            </div>
-            <div class="border rounded-md p-4 bg-muted/30">
-              <h4 class="font-medium mb-2">Active Locations</h4>
-              <p class="text-2xl font-bold">{{ warehouseHierarchy?.activeLocations || 0 }}</p>
-            </div>
-            <div class="border rounded-md p-4 bg-muted/30">
-              <h4 class="font-medium mb-2">Max Depth</h4>
-              <p class="text-2xl font-bold">{{ warehouseHierarchy?.maxDepth || 0 }}</p>
-            </div>
-            <div class="border rounded-md p-4 bg-muted/30">
-              <h4 class="font-medium mb-2">Capacity Utilization</h4>
-              <p class="text-2xl font-bold">{{ warehouseHierarchy?.capacityUtilization || 0 }}%</p>
-            </div>
-          </div>
-        </TabsContent>
-        
-        <!-- Items Tab -->
-        <TabsContent value="items" class="space-y-4">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-medium">Items in this location</h3>
-            <Button size="sm" @click="$emit('assign-items', location)">
-              <PlusIcon class="h-4 w-4 mr-2" />
-              Assign Items
-            </Button>
-          </div>
-          
-          <div v-if="location.items && location.items.length > 0">
-            <div class="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead class="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-for="item in location.items" :key="item.id">
-                    <TableCell class="font-medium">{{ item.name }}</TableCell>
-                    <TableCell>{{ item.sku }}</TableCell>
-                    <TableCell>{{ item.quantity }}</TableCell>
-                    <TableCell>
-                      <Badge :variant="item.status === 'available' ? 'success' : 'secondary'">
-                        {{ formatStatus(item.status) }}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon">
-                        <ExternalLinkIcon class="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-          <div v-else class="text-center py-8">
-            <PackageIcon class="h-12 w-12 mx-auto text-muted-foreground/30 mb-2" />
-            <p class="text-muted-foreground mb-4">No items stored in this location</p>
-            <Button size="sm" @click="$emit('assign-items', location)">
-              Assign Items
-            </Button>
-          </div>
-        </TabsContent>
-        
-        <!-- History Tab -->
-        <TabsContent value="history" class="space-y-4">
-          <div v-if="location.history && location.history.length > 0">
+          <!-- Simple non-warehouse location view (no hierarchy data) -->
+          <div v-else-if="!isWarehouse" class="p-6">
             <div class="space-y-4">
-              <div v-for="(event, index) in location.history" :key="index" class="flex">
-                <div class="mr-4 flex flex-col items-center">
-                  <div class="rounded-full h-9 w-9 flex items-center justify-center flex-shrink-0 bg-muted">
-                    <HistoryIcon v-if="event.type === 'status_change'" class="h-5 w-5" />
-                    <PackageIcon v-else-if="event.type === 'item_added'" class="h-5 w-5" />
-                    <PackageXIcon v-else-if="event.type === 'item_removed'" class="h-5 w-5" />
-                    <EditIcon v-else-if="event.type === 'edit'" class="h-5 w-5" />
-                    <CircleDotIcon v-else class="h-5 w-5" />
-                  </div>
-                  
-                  <div v-if="index !== location.history.length - 1" class="h-full w-px bg-muted mt-1"></div>
-                </div>
+              <div class="text-center py-8">
+                <component :is="getLocationIcon(location.type)" 
+                  class="h-16 w-16 mx-auto mb-4" 
+                  :class="getLocationIconColor(location.type)" 
+                />
+                <h4 class="text-lg font-semibold mb-2">{{ location.name }}</h4>
+                <p class="text-sm text-muted-foreground mb-4">{{ location.path }}</p>
                 
-                <div class="pb-6">
-                  <div class="text-sm font-medium">{{ event.description }}</div>
-                  <div class="text-muted-foreground text-xs mb-1.5">
-                    {{ formatDate(event.timestamp) }} at {{ formatTime(event.timestamp) }}
-                  </div>
-                  <div class="text-sm">{{ event.details }}</div>
-                  <div class="text-xs text-muted-foreground mt-1">
-                    By {{ event.user || 'System' }}
-                  </div>
+                <div class="flex justify-center space-x-2">
+                  <Button size="sm" variant="outline" @click="$emit('edit-location', location)">
+                    <PencilIcon class="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                  <Button size="sm" variant="outline" @click="$emit('create-location', location)" v-if="canAddChildren">
+                    <PlusIcon class="h-4 w-4 mr-2" />
+                    Add {{ getChildType() }}
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
-          <div v-else class="text-center py-8">
-            <HistoryIcon class="h-12 w-12 mx-auto text-muted-foreground/30 mb-2" />
-            <p class="text-muted-foreground">No history events available</p>
-          </div>
-        </TabsContent>
-        
-        <!-- Sub-locations Tab -->
-        <TabsContent value="sublocations" class="space-y-4">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-medium">Sub-locations</h3>
-            <Button 
-              size="sm" 
-              @click="$emit('create-location', location)"
-              v-if="canHaveChildren"
-            >
-              <PlusIcon class="h-4 w-4 mr-2" />
-              Add Sub-location
-            </Button>
-          </div>
           
-          <div v-if="childLocations.length > 0">
-            <div class="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Items</TableHead>
-                    <TableHead class="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-for="child in childLocations" :key="child.id">
-                    <TableCell class="font-medium">{{ child.name }}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{{ formatLocationType(child.type) }}</Badge>
-                    </TableCell>
-                    <TableCell>{{ child.code || '-' }}</TableCell>
-                    <TableCell>
-                      <Badge :variant="child.status === 'active' ? 'success' : 'secondary'">
-                        {{ formatStatus(child.status) }}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{{ child.itemCount || 0 }}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontalIcon class="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem @click="$emit('view-location', child)">
-                            <EyeIcon class="h-4 w-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem @click="$emit('edit-location', child)">
-                            <PencilIcon class="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem @click="$emit('delete-location', child)" class="text-destructive">
-                            <TrashIcon class="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
+          <!-- Loading State -->
+          <div v-else-if="isRefreshing" class="flex items-center justify-center py-12">
+            <RefreshCwIcon class="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-          <div v-else class="text-center py-8">
-            <LayoutGridIcon class="h-12 w-12 mx-auto text-muted-foreground/30 mb-2" />
-            <p class="text-muted-foreground mb-4">
-              {{ canHaveChildren ? 'No sub-locations found' : 'This location type cannot have sub-locations' }}
-            </p>
-            <Button 
-              size="sm" 
-              @click="$emit('create-location', location)"
-              v-if="canHaveChildren"
-            >
-              Add Sub-location
-            </Button>
-          </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
 
-    <DialogFooter class="flex justify-between">
-      <div>
+    <DialogFooter class="border-t pt-4">
+      <div class="flex justify-between w-full">
         <Button variant="outline" @click="$emit('delete-location', location)" class="text-destructive hover:text-destructive">
           <TrashIcon class="h-4 w-4 mr-2" />
           Delete
         </Button>
-      </div>
-      <div class="space-x-2">
-        <Button variant="outline" @click="$emit('close')">
-          Close
-        </Button>
-        <Button @click="$emit('edit-location', location)">
-          <PencilIcon class="h-4 w-4 mr-2" />
-          Edit
-        </Button>
+        <div class="space-x-2">
+          <Button variant="outline" @click="$emit('close')">
+            Close
+          </Button>
+          <Button @click="$emit('assign-items', location)">
+            <PackageIcon class="h-4 w-4 mr-2" />
+            Assign Items
+          </Button>
+        </div>
       </div>
     </DialogFooter>
   </DialogContent>
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { format } from 'date-fns';
+import { computed, ref } from 'vue'
+import { format } from 'date-fns'
 import {
-  ExternalLinkIcon,
-  HistoryIcon,
+  BuildingIcon,
+  LayoutGridIcon,
+  AlignJustifyIcon,
   PackageIcon,
-  PackageXIcon,
+  RefreshCwIcon,
   PencilIcon,
   TrashIcon,
-  EditIcon,
-  CircleDotIcon,
   PlusIcon,
-  MoreHorizontalIcon,
-  EyeIcon,
-  LayoutGridIcon,
-  RefreshCwIcon,
-  AlignEndHorizontalIcon
-} from 'lucide-vue-next';
+  CheckCircleIcon,
+  XCircleIcon,
+  EyeIcon
+} from 'lucide-vue-next'
 import {
   DialogContent,
   DialogHeader,
   DialogFooter,
   DialogTitle,
   DialogDescription
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/components/ui/tabs';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import HierarchyTreeNode from './HierarchyTreeNode.vue'
 
 // Props
 const props = defineProps({
@@ -526,7 +344,7 @@ const props = defineProps({
     type: Object,
     default: null
   }
-});
+})
 
 // Emits
 const emit = defineEmits([
@@ -537,107 +355,247 @@ const emit = defineEmits([
   'create-location',
   'assign-items',
   'refresh-hierarchy'
-]);
+])
 
-// Computed
-const warehouseHierarchy = computed(() => props.warehouseHierarchy);
+// State
+const isRefreshing = ref(false)
 
-const childLocations = computed(() => {
-  const children = props.location.children || [];
-  return Array.isArray(children) ? children : [];
-});
+// Computed properties
+const isWarehouse = computed(() => props.location.type === 'warehouse')
 
-const canHaveChildren = computed(() => {
-  return props.location.type !== 'bin'; // Bins can't have sub-locations
-});
-
-// Warehouse hierarchy stats
-const hierarchyStats = computed(() => {
-  if (!props.warehouseHierarchy || props.location.type !== 'warehouse') {
-    return { zones: 0, aisles: 0, shelves: 0 };
-  }
-  
-  let zones = 0;
-  let aisles = 0;
-  let shelves = 0;
-  
-  const countInHierarchy = (nodes) => {
-    nodes.forEach(node => {
-      if (node.locationType === 'ZONE') zones++;
-      else if (node.locationType === 'AISLE') aisles++;
-      else if (node.locationType === 'SHELF') shelves++;
-      
-      if (node.children && node.children.length > 0) {
-        countInHierarchy(node.children);
-      }
-    });
-  };
-  
-  if (props.warehouseHierarchy?.locationHierarchy) {
-    countInHierarchy(props.warehouseHierarchy.locationHierarchy);
-  }
-  
-  return { zones, aisles, shelves };
-});
+const canAddChildren = computed(() => {
+  return props.location.type !== 'shelf' // All types except shelf can have children
+})
 
 // Helper functions
-const formatLocationType = (type) => {
-  if (!type) return 'Unknown';
-  return type.charAt(0).toUpperCase() + type.slice(1);
-};
+const getLocationIcon = (type) => {
+  switch (type) {
+    case 'warehouse': return BuildingIcon
+    case 'zone': return LayoutGridIcon
+    case 'aisle': return AlignJustifyIcon
+    case 'shelf': return PackageIcon
+    default: return PackageIcon
+  }
+}
+
+const getLocationIconColor = (type) => {
+  switch (type) {
+    case 'warehouse': return 'text-blue-600'
+    case 'zone': return 'text-purple-600'
+    case 'aisle': return 'text-amber-600'
+    case 'shelf': return 'text-green-600'
+    default: return 'text-muted-foreground'
+  }
+}
+
+const getStatusVariant = (status) => {
+  if (typeof status === 'boolean') {
+    return status ? 'default' : 'secondary'
+  }
+  return status === 'active' ? 'default' : 'secondary'
+}
 
 const formatStatus = (status) => {
-  if (!status) return 'Unknown';
-  return status.charAt(0).toUpperCase() + status.slice(1);
-};
+  if (typeof status === 'boolean') {
+    return status ? 'Active' : 'Inactive'
+  }
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown'
+}
+
+const formatLocationType = (type) => {
+  if (!type) return 'Unknown'
+  return type.charAt(0).toUpperCase() + type.slice(1)
+}
 
 const formatDate = (date) => {
-  if (!date) return 'N/A';
-  return format(new Date(date), 'MMM d, yyyy');
-};
+  if (!date) return 'N/A'
+  return format(new Date(date), 'MMM d, yyyy h:mm a')
+}
 
-const formatTime = (date) => {
-  if (!date) return '';
-  return format(new Date(date), 'h:mm a');
-};
+const formatNumber = (num) => {
+  if (num === null || num === undefined) return '0'
+  return num.toLocaleString()
+}
 
-const formatAttributeName = (name) => {
-  if (!name) return '';
-  return name
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, l => l.toUpperCase());
-};
+const getChildType = () => {
+  switch (props.location.type) {
+    case 'warehouse': return 'Zone'
+    case 'zone': return 'Aisle'
+    case 'aisle': return 'Shelf'
+    default: return 'Location'
+  }
+}
 
-const getParentName = (parentId) => {
-  return 'Parent Location'; // In real implementation, you'd look up the parent name
-};
+const getCapacityData = () => {
+  if (isWarehouse.value && props.warehouseHierarchy) {
+    return {
+      total: props.warehouseHierarchy.totalCapacity || 0,
+      used: props.warehouseHierarchy.usedCapacity || 0,
+      available: props.warehouseHierarchy.availableCapacity || 0,
+      utilization: Math.round((props.warehouseHierarchy.capacityUtilization || 0) * 100)
+    }
+  } else {
+    const total = props.location.maxCapacity || 0
+    const used = props.location.currentCapacity || 0
+    const available = total - used
+    const utilization = total > 0 ? Math.round((used / total) * 100) : 0
+    
+    return { total, used, available, utilization }
+  }
+}
 
-const viewParent = (parentId) => {
-  // In real implementation, you'd emit an event to view the parent location
-  console.log('View parent:', parentId);
-};
+// Helper to check if hierarchy data is available and has locations
+const hasHierarchyData = computed(() => {
+  return props.warehouseHierarchy && 
+         props.warehouseHierarchy.locationHierarchy && 
+         props.warehouseHierarchy.locationHierarchy.length > 0
+})
 
-const getUtilizationPercentage = () => {
-  if (!props.location.capacity || props.location.capacity <= 0) return 0;
-  const itemCount = props.location.itemCount || 0;
-  return Math.min(Math.round((itemCount / props.location.capacity) * 100), 100);
-};
-
-const getAvailableSpace = () => {
-  if (!props.location.capacity) return 'Unlimited';
-  const itemCount = props.location.itemCount || 0;
-  return Math.max(0, props.location.capacity - itemCount);
-};
-
-const calculateArea = () => {
-  if (!props.location.dimensions) return 'N/A';
-  return (props.location.dimensions.length * props.location.dimensions.width).toFixed(2);
-};
+const getUtilizationColor = (utilization) => {
+  if (utilization >= 90) return 'bg-red-500'
+  if (utilization >= 75) return 'bg-amber-500'
+  if (utilization >= 50) return 'bg-blue-500'
+  return 'bg-green-500'
+}
 
 const refreshHierarchy = async () => {
-  // Emit event to parent to handle the warehouse data fetching
-  emit('refresh-hierarchy', props.location.id);
-};
+  // Determine the warehouse ID to refresh
+  let warehouseId = null
+  
+  if (isWarehouse.value) {
+    warehouseId = props.location.id
+  } else if (props.location.warehouseId) {
+    warehouseId = props.location.warehouseId
+  }
+  
+  if (warehouseId) {
+    isRefreshing.value = true
+    try {
+      await emit('refresh-hierarchy', warehouseId)
+    } finally {
+      isRefreshing.value = false
+    }
+  }
+}
 
-// Remove the onMounted hook since parent will handle data fetching
+// Transform node data to match location format expected by parent components
+const transformNodeToLocation = (node) => {
+  return {
+    id: node.id,
+    name: node.name,
+    code: node.code,
+    description: node.description,
+    type: node.locationType.toLowerCase(), // Convert ZONE -> zone, etc.
+    status: node.isActive ? 'active' : 'inactive',
+    isActive: node.isActive,
+    path: node.path,
+    maxCapacity: node.maxCapacity,
+    currentCapacity: node.currentCapacity,
+    availableCapacity: node.availableCapacity,
+    capacityUtilization: node.capacityUtilization,
+    canReceive: node.canReceive,
+    pickable: node.pickable || node.canPick,
+    barcode: node.barcode,
+    parentLocationId: node.parentLocationId,
+    parentLocationName: node.parentLocationName,
+    warehouseId: node.warehouseId,
+    warehouseName: node.warehouseName,
+    created: node.created,
+    updated: node.updated,
+    children: node.children || []
+  }
+}
+
+// Get tree structure title based on current location type
+const getTreeStructureTitle = () => {
+  switch (props.location.type) {
+    case 'zone': return `Zone: ${props.location.name} - Aisles & Shelves`
+    case 'aisle': return `Aisle: ${props.location.name} - Location Context`
+    case 'shelf': return `Shelf: ${props.location.name} - Location Context`
+    default: return 'Location Structure'
+  }
+}
+
+// Helper function to extract numeric ID from string IDs like "zone-1"
+const extractNumericId = (id) => {
+  if (typeof id === 'number') return id
+  if (typeof id === 'string') {
+    // Extract number from strings like "zone-1", "aisle-2", "shelf-3"
+    const match = id.match(/(\d+)$/)
+    return match ? parseInt(match[1], 10) : null
+  }
+  return null
+}
+
+// Helper function to check if two IDs match (handles string/number comparison)
+const idsMatch = (id1, id2) => {
+  const numId1 = extractNumericId(id1)
+  const numId2 = extractNumericId(id2)
+  return numId1 !== null && numId2 !== null && numId1 === numId2
+}
+
+// Get relevant tree nodes based on current location type
+const getRelevantTreeNodes = () => {
+  if (!props.warehouseHierarchy || !props.warehouseHierarchy.locationHierarchy) {
+    return []
+  }
+
+  const findNodeInTree = (nodes, targetId) => {
+    for (const node of nodes) {
+      // Use the improved ID matching function
+      if (idsMatch(node.id, targetId)) {
+        return node
+      }
+      if (node.children && node.children.length > 0) {
+        const found = findNodeInTree(node.children, targetId)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  const currentLocationId = props.location.id
+  
+  switch (props.location.type) {
+    case 'zone': {
+      // For zone, find and return only this specific zone with ALL its children (aisles and shelves)
+      const zoneNode = findNodeInTree(props.warehouseHierarchy.locationHierarchy, currentLocationId)
+      if (zoneNode) {
+        return [zoneNode]
+      }
+      return []
+    }
+    case 'aisle': {
+      // For aisle, find the zone that contains this aisle and return just that zone
+      for (const zone of props.warehouseHierarchy.locationHierarchy) {
+        if (zone.children && zone.children.length > 0) {
+          const aisleFound = zone.children.find(aisle => idsMatch(aisle.id, currentLocationId))
+          if (aisleFound) {
+            return [zone]
+          }
+        }
+      }
+      return []
+    }
+    case 'shelf': {
+      // For shelf, find the zone that contains this shelf and return just that zone
+      for (const zone of props.warehouseHierarchy.locationHierarchy) {
+        if (zone.children && zone.children.length > 0) {
+          for (const aisle of zone.children) {
+            if (aisle.children && aisle.children.length > 0) {
+              const shelfFound = aisle.children.find(shelf => idsMatch(shelf.id, currentLocationId))
+              if (shelfFound) {
+                return [zone]
+              }
+            }
+          }
+        }
+      }
+      return []
+    }
+    default:
+      // For warehouse or unknown types, return all zones
+      return props.warehouseHierarchy.locationHierarchy || []
+  }
+}
 </script>
