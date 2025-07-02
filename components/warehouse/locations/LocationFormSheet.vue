@@ -1247,7 +1247,7 @@ async function handleSubmit() {
           isActive: formData.value.status === 'active',
           maxCapacity: formData.value.maxCapacity ? Number(formData.value.maxCapacity) : undefined,
           currentCapacity: formData.value.currentCapacity || 0,
-          pickable: false // Zones are typically not pickable
+          pickable: false 
         };
         break;
         
@@ -1284,7 +1284,7 @@ async function handleSubmit() {
     }
 
     // For child locations (zones, aisles, bins), establish parent-child relationship
-    if (props.parentLocation && formData.value.type !== 'warehouse') {
+    if (props.parentLocation && formData.value.type !== 'warehouse' && formData.value.type !== 'zone') {
       // Extract numeric IDs from string identifiers (e.g., "zone-4" -> 4)
       const warehouseId = extractNumericId(props.parentLocation.warehouseId || props.parentLocation.id);
       const parentLocationId = extractNumericId(props.parentLocation.id);
@@ -1305,9 +1305,11 @@ async function handleSubmit() {
     if (!props.isCreating && props.location?.id) {
       requestPayload.id = props.location.id;
     }
+
+    const warehouseId = extractNumericId(props.parentLocation.warehouseId || props.parentLocation.id);
     
     // Emit structured payload to parent component for API submission
-    emit('location-saved', requestPayload);
+    emit('location-saved', requestPayload, warehouseId);
   } catch (error) {
     console.error('Error submitting form:', error);
   } finally {

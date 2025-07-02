@@ -254,7 +254,13 @@
     <Dialog v-model:open="showStockAdjustmentDialog">
       <StockAdjustmentDialog
         :item="selectedItem"
-        @adjustment-created="handleStockAdjustment"
+        :purchase-orders="purchaseOrders"
+        :warehouses="warehouses"
+        :purchase-orders-loading="purchaseOrdersLoading"
+        :warehouses-loading="warehousesLoading"
+        :purchase-orders-pagination-meta="purchaseOrdersPaginationMeta"
+        @transaction-created="handleStockTransaction"
+        @load-purchase-orders="loadPurchaseOrdersForDialog"
         @close="showStockAdjustmentDialog = false"
       />
     </Dialog>
@@ -386,12 +392,16 @@ import { useInventoryItemsStore } from '@/store/modules/inventory/inventory-item
 import { useItemCategoriesStore } from '@/store/modules/inventory/item-categories'
 import { useUomStore } from '@/store/modules/inventory/uom'
 import { useFileUploadStore } from '@/store/modules/utility/file-upload/upload'
+import { usePurchaseOrdersStore } from '@/store/modules/purchase-orders/purchase-orders'
+import { useLocationsStore } from '@/store/modules/inventory/locations'
 
 // Initialize stores
 const inventoryItemsStore = useInventoryItemsStore()
 const itemCategoriesStore = useItemCategoriesStore()
 const uomStore = useUomStore()
 const fileUploadStore = useFileUploadStore()
+const purchaseOrdersStore = usePurchaseOrdersStore()
+const locationsStore = useLocationsStore()
 const { toast } = useToast()
 
 // Access store state through computed properties
@@ -413,6 +423,22 @@ const categoriesLoading = computed(() => itemCategoriesStore.getIsLoading)
 // UOM store state
 const units = computed(() => uomStore.getActiveUnits)
 const unitsLoading = computed(() => uomStore.getIsLoading)
+
+// Purchase orders store state
+const purchaseOrders = computed(() => purchaseOrdersStore.getOrders)
+const purchaseOrdersLoading = computed(() => purchaseOrdersStore.getIsLoading)
+const purchaseOrdersPagination = computed(() => purchaseOrdersStore.getPagination)
+
+// Purchase orders pagination metadata for dialog
+const purchaseOrdersPaginationMeta = computed(() => ({
+  page: purchaseOrdersPagination.value.page,
+  totalPages: purchaseOrdersPagination.value.totalPages,
+  hasMore: purchaseOrdersPagination.value.page < purchaseOrdersPagination.value.totalPages - 1
+}))
+
+// Locations store state
+const warehouses = computed(() => locationsStore.getActiveWarehouses)
+const warehousesLoading = computed(() => locationsStore.getIsLoading)
 
 // State management
 const selectedBulkItems = ref([])
@@ -817,6 +843,67 @@ const handleStockAdjustment = async (adjustmentData) => {
   }
 }
 
+const handleStockTransaction = async (transactionData) => {
+  try {
+    console.log('Creating stock transaction:', transactionData)
+    
+    // Here you would call your stock transaction API
+    // await inventoryItemsStore.createStockTransaction(transactionData)
+    
+    showStockAdjustmentDialog.value = false
+    
+    toast({
+      title: 'Success',
+      description: 'Stock transaction created successfully',
+      variant: 'success'
+    })
+    
+    await refreshItems()
+  } catch (error) {
+    console.error('Error creating stock transaction:', error)
+    toast({
+      title: 'Error',
+      description: error.response?.data?.message || 'An error occurred while creating stock transaction.',
+      variant: 'destructive'
+    })
+  }
+}
+
+const loadPurchaseOrdersForDialog = async (options = {}) => {
+  try {
+    const { page = 0, append = false } = options
+    
+    const params = {
+      page,
+      pageSize: 10,
+      startCreatedDate: 'all',
+      endCreatedDate: 'all',
+      raisedById: 0,
+      vendorId: 0,
+      status: 'all',
+      startDueDate: 'all',
+      paymentTermsId: 0,
+      endDueDate: 'all',
+    }
+    
+    if (append && page > 0) {
+      // For pagination, we need to append to existing orders
+      // The store should handle this logic
+      await purchaseOrdersStore.fetchMoreOrders(params)
+    } else {
+      // For initial load, fetch fresh data
+      await purchaseOrdersStore.fetchOrders(params)
+    }
+  } catch (error) {
+    console.error('Error fetching purchase orders:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to load purchase orders',
+      variant: 'destructive'
+    })
+  }
+}
+
 const handleBulkUpdate = async (items, updates) => {
   try {
     const itemIds = items.map(item => item.id)
@@ -1028,14 +1115,16 @@ onMounted(async () => {
   try {
     console.log('Initializing inventory items page...')
     
-    // Fetch categories, units, and items in parallel
+    // Fetch categories, units, warehouses, and items in parallel
     await Promise.all([
       itemCategoriesStore.fetchAllCategories(),
-      uomStore.fetchUnits()
+      uomStore.fetchUnits(),
+      locationsStore.fetchAllWarehouses()
     ])
     
     console.log('Categories loaded:', categories.value)
     console.log('Units loaded:', units.value)
+    console.log('Warehouses loaded:', warehouses.value)
     
     await refreshItems()
   } catch (error) {

@@ -100,7 +100,7 @@ export default {
    * Fetch all warehouses
    */
   fetchAllWarehouses(): Promise<ApiResponse<Warehouse[]>> {
-    return axiosInstance.get(`${BASE_URL}/warehouses`);
+    return axiosInstance.get(`${BASE_URL}/warehouses/all`);
   },
 
   /**

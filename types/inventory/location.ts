@@ -271,8 +271,6 @@ export interface CreateZoneRequest {
   name: string;
   code: string;
   description?: string;
-  warehouseId: number;
-  parentLocationId: number;
   locationType: WarehouseLocationType;
   isActive: boolean;
   maxCapacity?: number;
