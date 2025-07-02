@@ -41,6 +41,7 @@ import {
   BreadcrumbLink,
   BreadcrumbPage,
 } from '@/components/ui/breadcrumb';
+import { Separator } from '@/components/ui/separator';
 import { ChevronsUpDown, Plus } from 'lucide-vue-next';
 
 const sidebarStore = useSidebarStore();
@@ -100,29 +101,43 @@ function setActiveTeam(team: typeof data.teams[number]) {
     <SidebarProvider>
       <Sidebar collapsible="icon" @collapse="isCollapsed = true" @expand="isCollapsed = false"
         class="bg-background shadow-2xl z-50">
-        <SidebarHeader class="p-4">
+        <SidebarHeader class="p-4 flex-shrink-0">
           <SidebarMenu>
             <SidebarMenuItem>
-              <div class="flex items-center justify-start">
-                <img src="/images/pcash_logo.png" alt="Nautix Logo" class="h-7 w-auto" />
+              <div class="flex items-center justify-start group-data-[collapsible=expanded]:justify-start">
+                <!-- Full logo when expanded -->
+                <img 
+                  src="/images/ispbox_logo.png" 
+                  alt="ISPBox Logo" 
+                  class="h-7 w-auto group-data-[collapsible=icon]:hidden transition-all duration-200" 
+                />
+                <!-- Favicon when collapsed -->
+                <img 
+                  src="/images/favicon-32x32.png" 
+                  alt="ISPBox" 
+                  class="hidden group-data-[collapsible=icon]:block h-6 w-6 transition-all duration-200" 
+                />
               </div>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
-        <SidebarContent class="sidebar-scrollable">
-          <SidebarGroup>
-            <SidebarMenu>
+        <SidebarContent class="sidebar-scrollable flex-1" style="overflow-y: auto;">
+          <SidebarGroup class="h-full">
+            <!-- Expanded view: Show full hierarchy -->
+            <SidebarMenu class="group-data-[collapsible=icon]:hidden">
               <template v-for="(item, index) in sidebarStore.navigation" :key="item.title">
                 <SidebarMenuItem>
-                  <SidebarMenuButton :tooltip="item.title" class="font-bold text-right">
+                  <SidebarMenuButton :tooltip="item.title" class="font-bold">
+                    <!-- Never show parent icons -->
                     <span class="text-[16px]">{{ item.title }}</span>
                   </SidebarMenuButton>
                   <SidebarMenuSub v-if="item.children">
                     <SidebarMenuSubItem v-for="subItem in item.children" :key="subItem.title">
                       <SidebarMenuSubButton as-child :class="{ 'text-white': subItem.isActive }"
-                        :style="{ background: subItem.isActive ? 'linear-gradient(90deg, #1b1b41, #1b1b41)' : '' }">
+                        :style="{ background: subItem.isActive ? 'linear-gradient(90deg, #7453a4, #7453a4)' : '' }"
+                        :tooltip="subItem.title">
                         <NuxtLink :to="subItem.url" class="text-sm font-normal">
-                          <component :is="subItem.icon" class="mr-2" />
+                          <component :is="subItem.icon" class="mr-2 size-4" />
                           <span class="text-[14px]">{{ subItem.title }}</span>
                         </NuxtLink>
                       </SidebarMenuSubButton>
@@ -130,6 +145,21 @@ function setActiveTeam(team: typeof data.teams[number]) {
                   </SidebarMenuSub>
                 </SidebarMenuItem>
                 <div v-if="index < sidebarStore.navigation.length - 1" class="my-2"></div>
+              </template>
+            </SidebarMenu>
+            <!-- Collapsed view: Show only child icons -->
+            <SidebarMenu class="hidden group-data-[collapsible=icon]:block space-y-1">
+              <template v-for="item in sidebarStore.navigation" :key="`collapsed-${item.title}`">
+                <template v-for="subItem in item.children" :key="`collapsed-${subItem.title}`">
+                  <SidebarMenuItem>
+                    <SidebarMenuButton as-child :tooltip="subItem.title" :class="{ 'text-white': subItem.isActive }"
+                      :style="{ background: subItem.isActive ? 'linear-gradient(90deg, #7453a4, #7453a4)' : '' }">
+                      <NuxtLink :to="subItem.url" class="flex items-center justify-center p-2">
+                        <component :is="subItem.icon" class="size-4" />
+                      </NuxtLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </template>
               </template>
             </SidebarMenu>
           </SidebarGroup>
@@ -189,36 +219,41 @@ function setActiveTeam(team: typeof data.teams[number]) {
 }
 
 .sidebar-scrollable {
-  overflow: hidden auto;
-  max-height: calc(100vh - 64px);
-  /* Adjust based on your header/footer height */
+  overflow-y: auto;
+  flex: 1;
+  /* Remove max-height to allow full expansion */
 }
 
-/* Custom scrollbar styles */
+/* Enhanced scrollbar for collapsed state */
 .sidebar-scrollable::-webkit-scrollbar {
-  width: 8px;
-  opacity: 0;
-  /* Hide scrollbar by default */
-  transition: opacity 0.3s;
-  /* Smooth transition */
-}
-
-.sidebar-scrollable:hover::-webkit-scrollbar {
-  opacity: 1;
-  /* Show scrollbar on hover */
+  width: 6px;
 }
 
 .sidebar-scrollable::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: transparent;
 }
 
 .sidebar-scrollable::-webkit-scrollbar-thumb {
-  background: #f3f6f5;
-  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
 }
 
 .sidebar-scrollable::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Ensure proper height for the sidebar */
+.group[data-side="left"] {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Remove bottom whitespace by ensuring content fills available space */
+.sidebar-scrollable .space-y-1 {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .bg-gray-200 {
