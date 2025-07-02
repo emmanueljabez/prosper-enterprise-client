@@ -487,19 +487,20 @@ const handleDeleteLocation = (location) => {
   showDeleteLocationDialog.value = true
 }
 
-const handleLocationSaved = async (locationData) => {
+const handleLocationSaved = async (locationData, warehouseId) => {
   try {
     // Store current expanded warehouses before refresh
     const currentExpandedWarehouses = new Set(expandedWarehouses.value)
     
     if (isCreatingLocation.value) {
+      console.log('location data', locationData)
       // Create new location based on type
       switch (locationData.locationType) {
         case 'WAREHOUSE':
           await locationsStore.createMainWarehouse(locationData)
           break
         case 'ZONE':
-          await locationsStore.createZone(locationData.warehouseId, locationData)
+          await locationsStore.createZone(warehouseId, locationData)
           break
         case 'AISLE':
           await locationsStore.createAisle(locationData.warehouseId, locationData)

@@ -205,6 +205,7 @@ export const useLocationsStore = defineStore('locations', {
       this.isLoading = true;
       this.error = null;
       return new Promise((resolve, reject) => {
+        console.log('zone data', zoneData);
         locationsApi.createZone(warehouseId, zoneData)
           .then((response: ApiResponse<Zone>) => {
             this.zones.push(response.data!);
