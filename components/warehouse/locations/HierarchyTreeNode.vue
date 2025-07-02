@@ -48,7 +48,7 @@
                 <MoreHorizontalIcon class="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <!-- <DropdownMenuContent align="end">
               <DropdownMenuItem @click="$emit('edit-location', transformNodeToLocation(node))">
                 <PencilIcon class="h-4 w-4 mr-2" />
                 Edit
@@ -62,7 +62,7 @@
                 <TrashIcon class="h-4 w-4 mr-2" />
                 Delete
               </DropdownMenuItem>
-            </DropdownMenuContent>
+            </DropdownMenuContent> -->
           </DropdownMenu>
         </div>
       </div>
