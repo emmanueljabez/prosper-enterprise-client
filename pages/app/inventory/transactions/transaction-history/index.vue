@@ -277,14 +277,14 @@ import DateRangePickerDialog from '@/components/inventory/transactions/history/D
 // Store imports
 import { useInventoryStore } from '@/store/modules/inventory/items'
 import { useLocationsStore } from '@/store/modules/inventory/locations'
-import { useTransactionsStore } from '@/store/modules/inventory/transactions'
+import { useInventoryTransactionsStore } from '@/store/modules/inventory/transactions'
 import { useDocumentsStore } from '@/store/modules/inventory/documents'
 import { useAuditStore } from '@/store/modules/inventory/audit'
 
 // Initialize stores
 const inventoryStore = useInventoryStore()
 const locationsStore = useLocationsStore()
-const transactionsStore = useTransactionsStore()
+const transactionsStore = useInventoryTransactionsStore()
 const documentsStore = useDocumentsStore()
 const auditStore = useAuditStore()
 const { toast } = useToast()
