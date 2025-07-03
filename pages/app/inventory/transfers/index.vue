@@ -170,12 +170,12 @@ import ReceiveTransferDialog from '@/components/inventory/transfers/ReceiveTrans
 import CancelTransferDialog from '@/components/inventory/transfers/CancelTransferDialog.vue'
 
 // Stores
-import { useTransfersStore } from '@/store/modules/inventory/transactions'
+import { useInventoryTransactionsStore } from '@/store/modules/inventory/transactions'
 import { useLocationsStore } from '@/store/modules/inventory/locations'
 import { useInventoryStore } from '@/store/modules/inventory/items'
 
 // Initialize stores
-const transactionStore = useTransfersStore()
+const transactionStore = useInventoryTransactionsStore()
 const locationsStore = useLocationsStore()
 const inventoryStore = useInventoryStore()
 const { toast } = useToast()
