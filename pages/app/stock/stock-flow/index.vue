@@ -192,12 +192,12 @@ import LocationDetailsDialog from '@/components/stock/flow/LocationDetailsDialog
 // Stores
 import { useInventoryStore } from '@/store/modules/inventory/items'
 import { useLocationsStore } from '@/store/modules/inventory/locations'
-import { useTransactionsStore } from '@/store/modules/inventory/transactions'
+import { useInventoryTransactionsStore } from '@/store/modules/inventory/transactions'
 
 // Initialize stores
 const inventoryStore = useInventoryStore()
 const locationStore = useLocationsStore()
-const transactionStore = useTransactionsStore()
+const transactionStore = useInventoryTransactionsStore()
 const { toast } = useToast()
 
 // Access store state through computed properties
