@@ -301,7 +301,7 @@ const fetchWarehouses = async () => {
 
 const fetchCustomers = async () => {
   try {
-    await customersStore.fetchCustomers()
+    await customersStore.fetchAllCustomers()
   } catch (error) {
     console.error('Error fetching customers:', error)
     toast({
