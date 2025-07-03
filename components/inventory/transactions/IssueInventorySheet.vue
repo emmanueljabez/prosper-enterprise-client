@@ -140,7 +140,7 @@
               <Label for="customer">Customer</Label>
               <Select v-model="form.customerId">
                 <SelectTrigger id="customer">
-                  <SelectValue placeholder="Select customer (optional)" />
+                  <SelectValue placeholder="Select customer" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem v-for="customer in customers" :key="customer.id" :value="customer.id">
