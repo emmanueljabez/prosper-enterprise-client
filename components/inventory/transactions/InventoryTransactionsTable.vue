@@ -54,21 +54,21 @@
           </Select>
         </div>
         <div class="space-y-2">
-          <Label for="locationFilter">Location</Label>
-          <Select v-model="filters.location">
-            <SelectTrigger id="locationFilter">
-              <SelectValue placeholder="Select location" />
+          <Label for="warehouseFilter">Warehouse</Label>
+          <Select v-model="filters.warehouse">
+            <SelectTrigger id="warehouseFilter">
+              <SelectValue placeholder="Select warehouse" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Locations</SelectItem>
-              <SelectGroup v-for="group in locationGroups" :key="group.type">
-                <SelectLabel>{{ formatLocationType(group.type) }}</SelectLabel>
+              <SelectItem value="all">All Warehouses</SelectItem>
+              <SelectGroup v-for="group in warehouseGroups" :key="group.type">
+                <SelectLabel>{{ formatWarehouseType(group.type) }}</SelectLabel>
                 <SelectItem 
-                  v-for="location in group.locations" 
-                  :key="location.id" 
-                  :value="location.id"
+                  v-for="warehouse in group.warehouses" 
+                  :key="warehouse.id" 
+                  :value="warehouse.id"
                 >
-                  {{ location.name }}
+                  {{ warehouse.name }}
                 </SelectItem>
               </SelectGroup>
             </SelectContent>
@@ -190,12 +190,45 @@
           </TableRow>
         </TableHeader>
         <TableBody>
-          <TableRow v-if="loading" class="h-24">
-            <TableCell colSpan="8" class="text-center">
-              <Loader2Icon class="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
-              <div class="mt-2 text-sm text-muted-foreground">Loading transactions...</div>
-            </TableCell>
-          </TableRow>
+          <!-- Skeleton Loading Rows -->
+          <template v-if="loading">
+            <TableRow v-for="i in pagination.pageSize" :key="`skeleton-${i}`" class="animate-pulse">
+              <TableCell>
+                <div class="space-y-2">
+                  <div class="h-4 bg-muted rounded" :class="i % 3 === 0 ? 'w-28' : i % 2 === 0 ? 'w-24' : 'w-32'"></div>
+                  <div class="h-3 bg-muted rounded" :class="i % 2 === 0 ? 'w-16' : 'w-20'"></div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div class="h-6 bg-muted rounded-full" :class="i % 2 === 0 ? 'w-16' : 'w-20'"></div>
+              </TableCell>
+              <TableCell>
+                <div class="space-y-2">
+                  <div class="h-4 bg-muted rounded w-20"></div>
+                  <div class="h-3 bg-muted rounded w-12"></div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div class="space-y-2">
+                  <div class="h-4 bg-muted rounded" :class="i % 3 === 0 ? 'w-36' : 'w-32'"></div>
+                  <div class="h-3 bg-muted rounded" :class="i % 2 === 0 ? 'w-28' : 'w-24'"></div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div class="h-6 bg-muted rounded-full w-14"></div>
+              </TableCell>
+              <TableCell>
+                <div class="h-4 bg-muted rounded" :class="i % 2 === 0 ? 'w-16' : 'w-20'"></div>
+              </TableCell>
+              <TableCell>
+                <div class="h-6 bg-muted rounded-full" :class="i % 3 === 0 ? 'w-20' : 'w-18'"></div>
+              </TableCell>
+              <TableCell class="text-right">
+                <div class="h-8 w-8 bg-muted rounded ml-auto"></div>
+              </TableCell>
+            </TableRow>
+          </template>
+          
           <TableRow v-else-if="paginatedTransactions.length === 0" class="h-24">
             <TableCell colSpan="8" class="text-center">
               <div class="flex flex-col items-center justify-center">
@@ -234,8 +267,8 @@
                 <div class="flex items-center gap-2">
                   <ArrowDownLeftIcon class="h-4 w-4 text-emerald-500" />
                   <div>
-                    <div class="text-sm">From: {{ getLocationName(transaction.sourceLocationId) }}</div>
-                    <div class="text-sm">To: {{ getLocationName(transaction.destinationLocationId) }}</div>
+                    <div class="text-sm">From: {{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
+                    <div class="text-sm">To: {{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
                   </div>
                 </div>
               </div>
@@ -243,8 +276,8 @@
                 <div class="flex items-center gap-2">
                   <ArrowUpRightIcon class="h-4 w-4 text-blue-500" />
                   <div>
-                    <div class="text-sm">From: {{ getLocationName(transaction.sourceLocationId) }}</div>
-                    <div class="text-sm">To: {{ getLocationName(transaction.destinationLocationId) }}</div>
+                    <div class="text-sm">From: {{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
+                    <div class="text-sm">To: {{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
                   </div>
                 </div>
               </div>
@@ -252,8 +285,8 @@
                 <div class="flex items-center gap-2">
                   <MoveHorizontalIcon class="h-4 w-4 text-purple-500" />
                   <div>
-                    <div class="text-sm">From: {{ getLocationName(transaction.sourceLocationId) }}</div>
-                    <div class="text-sm">To: {{ getLocationName(transaction.destinationLocationId) }}</div>
+                    <div class="text-sm">From: {{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
+                    <div class="text-sm">To: {{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
                   </div>
                 </div>
               </div>
@@ -261,7 +294,7 @@
                 <div class="flex items-center gap-2">
                   <ScaleIcon class="h-4 w-4 text-amber-500" />
                   <div>
-                    <div class="text-sm">{{ getLocationName(transaction.destinationLocationId) }}</div>
+                    <div class="text-sm">{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
                     <div class="text-xs text-muted-foreground">
                       Reason: {{ formatAdjustmentReason(transaction.reason) }}
                     </div>
@@ -269,7 +302,7 @@
                 </div>
               </div>
               <div v-else>
-                <div class="text-sm">{{ getLocationName(transaction.destinationLocationId) }}</div>
+                <div class="text-sm">{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
               </div>
             </TableCell>
             <TableCell>
@@ -406,7 +439,7 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  locations: {
+  warehouses: {
     type: Array,
     default: () => []
   }
@@ -424,7 +457,7 @@ const emit = defineEmits([
 const filters = ref({
   search: '',
   transactionType: 'all',
-  location: 'all',
+  warehouse: 'all',
   dateRange: 'all',
   startDate: '',
   endDate: '',
@@ -442,21 +475,21 @@ const pagination = ref({
 })
 
 // Computed properties
-const locationGroups = computed(() => {
-  // Group locations by type
+const warehouseGroups = computed(() => {
+  // Group warehouses by type
   const groups = {}
-  props.locations.forEach(location => {
-    const type = location.type || 'other'
+  props.warehouses.forEach(warehouse => {
+    const type = warehouse.type || 'warehouse'
     if (!groups[type]) {
       groups[type] = []
     }
-    groups[type].push(location)
+    groups[type].push(warehouse)
   })
 
   // Convert to array format for SelectGroup
-  return Object.entries(groups).map(([type, locations]) => ({
+  return Object.entries(groups).map(([type, warehouses]) => ({
     type,
-    locations
+    warehouses
   }))
 })
 
@@ -477,10 +510,10 @@ const filteredTransactions = computed(() => {
     result = result.filter(transaction => transaction.type === filters.value.transactionType)
   }
 
-  if (filters.value.location && filters.value.location !== 'all') {
+  if (filters.value.warehouse && filters.value.warehouse !== 'all') {
     result = result.filter(transaction => 
-      transaction.sourceLocationId === filters.value.location || 
-      transaction.destinationLocationId === filters.value.location
+      transaction.sourceWarehouseId === filters.value.warehouse || 
+      transaction.destinationWarehouseId === filters.value.warehouse
     )
   }
 
@@ -607,7 +640,7 @@ const resetFilters = () => {
   filters.value = {
     search: '',
     transactionType: 'all',
-    location: 'all',
+    warehouse: 'all',
     dateRange: 'all',
     startDate: '',
     endDate: '',
@@ -637,10 +670,10 @@ const printDocument = (transaction) => {
   emit('print-document', transaction)
 }
 
-const getLocationName = (locationId) => {
-  if (!locationId) return 'N/A'
-  const location = props.locations.find(l => l.id === locationId)
-  return location ? location.name : 'Unknown Location'
+const getWarehouseName = (warehouseId) => {
+  if (!warehouseId) return 'N/A'
+  const warehouse = props.warehouses.find(w => w.id === warehouseId)
+  return warehouse ? warehouse.name : 'Unknown Warehouse'
 }
 
 // Formatters
@@ -703,13 +736,13 @@ const formatAdjustmentReason = (reason) => {
   }
 }
 
-const formatLocationType = (type) => {
+const formatWarehouseType = (type) => {
   switch (type) {
     case 'warehouse': return 'Warehouses'
     case 'store': return 'Stores'
     case 'supplier': return 'Suppliers'
     case 'customer': return 'Customers'
-    case 'other': return 'Other Locations'
+    case 'other': return 'Other Warehouses'
     default: return type.charAt(0).toUpperCase() + type.slice(1) + 's'
   }
 }

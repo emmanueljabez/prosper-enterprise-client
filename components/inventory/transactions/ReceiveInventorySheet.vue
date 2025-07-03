@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between p-2">
       <div>
         <h3 class="text-lg font-medium">Receive Inventory</h3>
-        <p class="text-sm text-muted-foreground">Record inventory received from suppliers or other locations</p>
+        <p class="text-sm text-muted-foreground">Record inventory received from suppliers or purchase orders</p>
       </div>
       <Button variant="ghost" size="icon" @click="$emit('close')">
         <XIcon class="h-4 w-4" />
@@ -14,8 +14,92 @@
     
     <div class="flex-1 overflow-y-auto pr-1">
       <form @submit.prevent="handleSubmit" class="space-y-8 p-2">
-        <!-- Transaction Details -->
+        <!-- Transaction Type Selection -->
         <div class="space-y-4">
+          <h4 class="text-sm font-medium">Receive Type</h4>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="receive-type">Transaction Type *</Label>
+              <Select v-model="form.receiveType" @update:model-value="onReceiveTypeChange">
+                <SelectTrigger id="receive-type">
+                  <SelectValue placeholder="Select receive type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SINGLE_ITEM">Single Item Receive</SelectItem>
+                  <SelectItem value="MULTI_ITEM">Multi-Item Receive</SelectItem>
+                  <SelectItem value="MULTI_ITEM_FROM_PO">Multi-Item from Purchase Order</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <!-- Reference Type for Multi-Item from PO -->
+            <div v-if="form.receiveType === 'MULTI_ITEM_FROM_PO'" class="space-y-2">
+              <Label for="reference-type">Reference Type *</Label>
+              <Select v-model="form.referenceType" @update:model-value="onReferenceTypeChange">
+                <SelectTrigger id="reference-type">
+                  <SelectValue placeholder="Select reference type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PURCHASE_ORDER">Purchase Order</SelectItem>
+                  <SelectItem value="MANUAL">Manual Reference</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <!-- Purchase Order Selection -->
+          <div v-if="form.receiveType === 'MULTI_ITEM_FROM_PO' && form.referenceType === 'PURCHASE_ORDER'" class="space-y-2">
+            <Label for="purchase-order">Purchase Order *</Label>
+            <Select v-model="form.genericReferenceId" @update:model-value="onPurchaseOrderSelected">
+              <SelectTrigger id="purchase-order">
+                <SelectValue :placeholder="purchaseOrdersLoading ? 'Loading...' : 'Select purchase order'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem 
+                  v-for="order in purchaseOrders" 
+                  :key="order.id" 
+                  :value="order.id?.toString()"
+                >
+                  PO #{{ order.invoiceNumber }} - {{ order.supplier?.name }}
+                  <span class="text-muted-foreground ml-2">{{ formatCurrency(order.amount, order.currency) }}</span>
+                </SelectItem>
+                
+                <!-- Load More Option -->
+                <SelectItem 
+                  v-if="purchaseOrdersPaginationMeta.hasMore && !purchaseOrdersLoading"
+                  value="load-more"
+                  class="text-blue-600 hover:text-blue-800"
+                >
+                  Load More...
+                </SelectItem>
+                
+                <!-- Loading indicator -->
+                <SelectItem 
+                  v-if="purchaseOrdersLoading"
+                  value="loading"
+                  disabled
+                >
+                  Loading more orders...
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <!-- Selected PO Info -->
+            <div v-if="form.genericReferenceId && getSelectedOrderInfo()" class="p-3 bg-muted/50 rounded-lg">
+              <div class="text-sm">
+                <strong>{{ getSelectedOrderInfo().orderNumber }}</strong> - {{ getSelectedOrderInfo().supplierName }}
+              </div>
+              <div class="text-xs text-muted-foreground mt-1">
+                Total: {{ formatCurrency(getSelectedOrderInfo().amount) }} | 
+                Status: {{ getSelectedOrderInfo().status }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Transaction Details -->
+        <div v-if="form.receiveType !== 'MULTI_ITEM_FROM_PO'" class="space-y-4">
           <h4 class="text-sm font-medium">Transaction Details</h4>
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -30,49 +114,80 @@
             </div>
             
             <div class="space-y-2">
-              <Label for="external-reference">External Reference</Label>
-              <Input 
-                id="external-reference" 
-                v-model="form.externalReference" 
-                placeholder="PO number, invoice number, etc."
-              />
+              <Label for="supplier">Supplier</Label>
+              <Select v-model="form.supplierId">
+                <SelectTrigger id="supplier">
+                  <SelectValue placeholder="Select supplier (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem 
+                    v-for="supplier in suppliers" 
+                    :key="supplier.id" 
+                    :value="supplier.id"
+                  >
+                    {{ supplier.name || supplier.companyName }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label for="source-location">Source (Supplier) *</Label>
-              <Select v-model="form.sourceLocationId" required>
-                <SelectTrigger id="source-location">
-                  <SelectValue placeholder="Select supplier" />
+              <Label for="warehouse">Warehouse *</Label>
+              <Select v-model="form.warehouseId" required>
+                <SelectTrigger id="warehouse">
+                  <SelectValue placeholder="Select warehouse" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">
-                    {{ supplier.name }}
-                  </SelectItem>
+                  <SelectGroup v-for="group in warehouseGroups" :key="group.type">
+                    <SelectLabel>{{ formatLocationType(group.type) }}</SelectLabel>
+                    <SelectItem 
+                      v-for="warehouse in group.warehouses" 
+                      :key="warehouse.id" 
+                      :value="warehouse.id"
+                    >
+                      {{ warehouse.name || warehouse.code }}
+                    </SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
             
             <div class="space-y-2">
-              <Label for="destination-location">Destination *</Label>
-              <Select v-model="form.destinationLocationId" required>
-                <SelectTrigger id="destination-location">
-                  <SelectValue placeholder="Select destination" />
+              <Label for="priority">Priority</Label>
+              <Select v-model="form.priority">
+                <SelectTrigger id="priority">
+                  <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectGroup v-for="group in locationGroups" :key="group.type">
-                    <SelectLabel>{{ formatLocationType(group.type) }}</SelectLabel>
-                    <SelectItem 
-                      v-for="location in group.locations" 
-                      :key="location.id" 
-                      :value="location.id"
-                    >
-                      {{ location.name }}
-                    </SelectItem>
-                  </SelectGroup>
+                  <SelectItem value="LOW">Low</SelectItem>
+                  <SelectItem value="NORMAL">Normal</SelectItem>
+                  <SelectItem value="HIGH">High</SelectItem>
+                  <SelectItem value="URGENT">Urgent</SelectItem>
+                  <SelectItem value="EMERGENCY">Emergency</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="supplier-reference">Supplier Reference</Label>
+              <Input 
+                id="supplier-reference" 
+                v-model="form.supplierReference" 
+                placeholder="Supplier invoice/order number"
+              />
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="packing-slip">Packing Slip Number</Label>
+              <Input 
+                id="packing-slip" 
+                v-model="form.packingSlipNumber" 
+                placeholder="Optional"
+              />
             </div>
           </div>
           
@@ -87,6 +202,88 @@
           </div>
         </div>
         
+        <!-- Purchase Order Transaction Details -->
+        <div v-else class="space-y-4">
+          <h4 class="text-sm font-medium">Purchase Order Receipt Details</h4>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="po-transaction-date">Date *</Label>
+              <Input 
+                id="po-transaction-date" 
+                v-model="form.transactionDate" 
+                type="datetime-local" 
+                required
+              />
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="po-warehouse">Warehouse *</Label>
+              <Select v-model="form.warehouseId" required>
+                <SelectTrigger id="po-warehouse">
+                  <SelectValue placeholder="Select warehouse" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup v-for="group in warehouseGroups" :key="group.type">
+                    <SelectLabel>{{ formatLocationType(group.type) }}</SelectLabel>
+                    <SelectItem 
+                      v-for="warehouse in group.warehouses" 
+                      :key="warehouse.id" 
+                      :value="warehouse.id"
+                    >
+                      {{ warehouse.name || warehouse.code }}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="po-priority">Priority</Label>
+              <Select v-model="form.priority">
+                <SelectTrigger id="po-priority">
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="LOW">Low</SelectItem>
+                  <SelectItem value="NORMAL">Normal</SelectItem>
+                  <SelectItem value="HIGH">High</SelectItem>
+                  <SelectItem value="URGENT">Urgent</SelectItem>
+                  <SelectItem value="EMERGENCY">Emergency</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="po-quality-status">Overall Quality Status</Label>
+              <Select v-model="form.overallQualityStatus">
+                <SelectTrigger id="po-quality-status">
+                  <SelectValue placeholder="Select quality status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PENDING_INSPECTION">Pending Inspection</SelectItem>
+                  <SelectItem value="PASSED">Passed</SelectItem>
+                  <SelectItem value="FAILED">Failed</SelectItem>
+                  <SelectItem value="CONDITIONAL_PASS">Conditional Pass</SelectItem>
+                  <SelectItem value="QUARANTINED">Quarantined</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div class="space-y-2">
+            <Label for="po-notes">Notes</Label>
+            <Textarea 
+              id="po-notes" 
+              v-model="form.notes" 
+              placeholder="Enter any additional information about this purchase order receipt" 
+              rows="3"
+            />
+          </div>
+        </div>
+        
         <Separator />
         
         <!-- Items -->
@@ -94,6 +291,7 @@
           <div class="flex items-center justify-between">
             <h4 class="text-sm font-medium">Items</h4>
             <Button 
+              v-if="form.receiveType !== 'SINGLE_ITEM'"
               type="button" 
               variant="outline" 
               size="sm" 
@@ -124,6 +322,7 @@
               <CardHeader class="bg-muted/60 p-3 flex flex-row items-center justify-between">
                 <CardTitle class="text-sm font-medium">Item {{ index + 1 }}</CardTitle>
                 <Button 
+                  v-if="form.receiveType !== 'SINGLE_ITEM'"
                   type="button"
                   variant="ghost" 
                   size="icon" 
@@ -164,40 +363,43 @@
                 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-2">
-                    <Label :for="`cost-${index}`">Cost per Unit</Label>
+                    <Label :for="`cost-${index}`">Unit Cost *</Label>
                     <div class="relative">
-                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2"></span>
                       <Input 
                         :id="`cost-${index}`" 
-                        v-model.number="item.cost" 
+                        v-model.number="item.unitCost" 
                         type="number" 
                         min="0" 
                         step="0.01" 
                         class="pl-6"
+                        required
                       />
                     </div>
                   </div>
                   
                   <div class="space-y-2">
-                    <Label :for="`lot-${index}`">Lot/Batch Number</Label>
-                    <Input 
-                      :id="`lot-${index}`" 
-                      v-model="item.lot" 
-                      placeholder="Optional"
-                    />
+                    <Label :for="`quality-status-${index}`">Quality Status</Label>
+                    <Select v-model="item.qualityStatus">
+                      <SelectTrigger :id="`quality-status-${index}`">
+                        <SelectValue placeholder="Select quality status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PENDING_INSPECTION">Pending Inspection</SelectItem>
+                        <SelectItem value="PASSED">Passed</SelectItem>
+                        <SelectItem value="FAILED">Failed</SelectItem>
+                        <SelectItem value="CONDITIONAL_PASS">Conditional Pass</SelectItem>
+                        <SelectItem value="QUARANTINED">Quarantined</SelectItem>
+                        <SelectItem value="REJECTED">Rejected</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div class="space-y-2">
-                    <Label :for="`bin-${index}`">Bin Location</Label>
-                    <Input 
-                      :id="`bin-${index}`" 
-                      v-model="item.binLocation" 
-                      placeholder="Optional"
-                    />
-                  </div>
-                  
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-2">
                     <Label :for="`expiration-${index}`">Expiration Date</Label>
                     <Input 
@@ -206,6 +408,54 @@
                       type="date"
                     />
                   </div>
+                  
+                  <div class="space-y-2">
+                    <Label :for="`serial-${index}`">Serial Numbers</Label>
+                    <div class="flex space-x-2">
+                      <Input 
+                        :id="`serial-${index}`" 
+                        v-model="serialNumberInputs[index]" 
+                        placeholder="Add serial numbers"
+                      />
+                      <Button 
+                        type="button" 
+                        variant="outline"
+                        class="shrink-0"
+                        @click="addSerialNumber(index)"
+                      >
+                        <PlusIcon class="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div v-if="item.serialNumbers && item.serialNumbers.length > 0" class="flex flex-wrap gap-1 mt-2">
+                      <Badge 
+                        v-for="(serial, sIndex) in item.serialNumbers" 
+                        :key="sIndex" 
+                        variant="secondary"
+                        class="flex items-center gap-1"
+                      >
+                        {{ serial }}
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          class="h-4 w-4 p-0" 
+                          @click="removeSerialNumber(index, sIndex)"
+                        >
+                          <XIcon class="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="space-y-2">
+                  <Label :for="`item-notes-${index}`">Item Notes</Label>
+                  <Textarea 
+                    :id="`item-notes-${index}`" 
+                    v-model="item.itemNotes" 
+                    placeholder="Optional notes for this item"
+                    rows="2"
+                  />
                 </div>
                 
                 <div class="flex justify-between items-center mt-2 text-sm">
@@ -260,6 +510,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -277,7 +528,7 @@ import {
 } from '@/components/ui/select'
 
 const props = defineProps({
-  locations: {
+  warehouses: {
     type: Array,
     default: () => []
   },
@@ -289,6 +540,22 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  purchaseOrders: {
+    type: Array,
+    default: () => []
+  },
+  purchaseOrdersLoading: {
+    type: Boolean,
+    default: false
+  },
+  purchaseOrdersPaginationMeta: {
+    type: Object,
+    default: () => ({
+      page: 0,
+      totalPages: 0,
+      hasMore: false
+    })
+  },
   // For pre-filling form with a scanned item
   scannedItem: {
     type: Object,
@@ -296,49 +563,163 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'transaction-created'])
+const emit = defineEmits([
+  'close', 
+  'transaction-created', 
+  'multi-receive-from-po',
+  'load-purchase-orders'
+])
 
 // Form state
 const form = reactive({
+  receiveType: 'SINGLE_ITEM', // SINGLE_ITEM, MULTI_ITEM, MULTI_ITEM_FROM_PO
+  referenceType: 'MANUAL', // PURCHASE_ORDER, MANUAL
+  genericReferenceId: null,
+  genericReferenceNumber: '',
   transactionDate: formatCurrentDateTime(),
-  sourceLocationId: '',
-  destinationLocationId: '',
+  warehouseId: null,
+  locationId: null,
+  supplierId: null,
+  priority: 'NORMAL',
+  overallQualityStatus: 'PENDING_INSPECTION',
+  requiresInspection: true,
+  receivedBy: 1, // TODO: Get from auth context
   externalReference: '',
+  supplierReference: '',
+  packingSlipNumber: '',
   notes: '',
-  type: 'receive',
   items: []
 })
 
+const serialNumberInputs = ref({})
 const submitting = ref(false)
 
-// Computed properties
-const locationGroups = computed(() => {
-  // Filter out supplier locations since they're in a separate dropdown
-  const filteredLocations = props.locations.filter(
-    location => location.type !== 'supplier' && location.isActive
-  )
+// Purchase Order handling methods
+const onReceiveTypeChange = (newType) => {
+  // Reset relevant fields when receive type changes
+  form.referenceType = 'MANUAL'
+  form.genericReferenceId = null
+  form.genericReferenceNumber = ''
+  form.externalReference = ''
   
-  // Group locations by type
+  // Clear items for single item receive
+  if (newType === 'SINGLE_ITEM') {
+    form.items = []
+    if (form.items.length === 0) {
+      addItemRow()
+    }
+  }
+  
+  if (newType === 'MULTI_ITEM_FROM_PO') {
+    // Load purchase orders if not already loaded
+    if (props.purchaseOrders.length === 0) {
+      emit('load-purchase-orders', { append: false })
+    }
+  }
+}
+
+const onReferenceTypeChange = (newReferenceType) => {
+  form.genericReferenceId = null
+  form.genericReferenceNumber = ''
+  
+  if (newReferenceType === 'PURCHASE_ORDER') {
+    // Load purchase orders if not already loaded
+    if (props.purchaseOrders.length === 0) {
+      emit('load-purchase-orders', { append: false })
+    }
+  }
+}
+
+const onPurchaseOrderSelected = (selectedId) => {
+  if (selectedId === 'load-more') {
+    emit('load-purchase-orders', {
+      page: props.purchaseOrdersPaginationMeta.page + 1,
+      append: true
+    })
+    // Reset selection
+    form.genericReferenceId = null
+    return
+  }
+  
+  if (selectedId === 'loading') {
+    return
+  }
+  
+  // Get the selected purchase order and populate form fields
+  const selectedPO = props.purchaseOrders.find(po => po.id?.toString() === selectedId?.toString())
+  if (selectedPO) {
+    form.supplierId = selectedPO.supplierId
+    form.genericReferenceNumber = selectedPO.orderNumber
+    form.externalReference = selectedPO.orderNumber
+    // Could also pre-populate items from PO if available
+  }
+}
+
+const getSelectedOrderInfo = () => {
+  if (!form.genericReferenceId) return null
+  return props.purchaseOrders.find(po => po.id?.toString() === form.genericReferenceId?.toString())
+}
+
+const formatCurrency = (value, currencyCode = 'KES') => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currencyCode
+  }).format(value || 0)
+}
+
+// Serial number methods
+function addSerialNumber(index) {
+  const serial = serialNumberInputs.value[index]
+  if (!serial) return
+  
+  if (!form.items[index].serialNumbers) {
+    form.items[index].serialNumbers = []
+  }
+  
+  if (!form.items[index].serialNumbers.includes(serial)) {
+    form.items[index].serialNumbers.push(serial)
+  }
+  
+  serialNumberInputs.value[index] = ''
+}
+
+function removeSerialNumber(itemIndex, serialIndex) {
+  form.items[itemIndex].serialNumbers.splice(serialIndex, 1)
+}
+
+// Computed properties
+const warehouseGroups = computed(() => {
+  // Group active warehouses
+  const activeWarehouses = props.warehouses.filter(warehouse => warehouse.isActive)
+  
+  // Group warehouses by type or treat all as warehouses
   const groups = {}
-  filteredLocations.forEach(location => {
-    const type = location.type || 'other'
+  activeWarehouses.forEach(warehouse => {
+    const type = warehouse.type || 'warehouse'
     if (!groups[type]) {
       groups[type] = []
     }
-    groups[type].push(location)
+    groups[type].push(warehouse)
   })
 
   // Convert to array format for SelectGroup
-  return Object.entries(groups).map(([type, locations]) => ({
+  return Object.entries(groups).map(([type, warehouses]) => ({
     type,
-    locations
+    warehouses
   }))
 })
 
 const isFormValid = computed(() => {
   // Check basic transaction details
-  if (!form.transactionDate || !form.sourceLocationId || !form.destinationLocationId) {
+  if (!form.transactionDate || !form.warehouseId) {
     return false
+  }
+  
+  // For purchase order receives, check PO selection
+  if (form.receiveType === 'MULTI_ITEM_FROM_PO') {
+    if (form.referenceType === 'PURCHASE_ORDER' && !form.genericReferenceId) {
+      return false
+    }
   }
   
   // Check if we have at least one item
@@ -348,7 +729,7 @@ const isFormValid = computed(() => {
   
   // Check that each item has required fields
   for (const item of form.items) {
-    if (!item.itemId || !item.quantity || item.quantity <= 0) {
+    if (!item.itemId || !item.quantity || item.quantity <= 0 || !item.unitCost) {
       return false
     }
   }
@@ -369,7 +750,7 @@ function formatCurrentDateTime() {
 }
 
 function calculateSubtotal(item) {
-  const cost = item.cost || 0
+  const cost = item.unitCost || 0
   const quantity = item.quantity || 0
   return cost * quantity
 }
@@ -381,35 +762,57 @@ function calculateTotal() {
 }
 
 function addItemRow() {
+  const index = form.items.length
+  
+  // For single item receive, only allow one item
+  if (form.receiveType === 'SINGLE_ITEM' && form.items.length >= 1) {
+    return
+  }
+  
   form.items.push({
-    itemId: '',
+    itemId: null,
     quantity: 1,
-    cost: null,
-    lot: '',
-    binLocation: '',
-    expirationDate: ''
+    unitCost: 0,
+    qualityStatus: 'PENDING_INSPECTION',
+    itemNotes: '',
+    expirationDate: '',
+    serialNumbers: []
   })
+  
+  serialNumberInputs.value[index] = ''
 }
 
 function removeItemRow(index) {
+  // For single item receive, don't allow removing the only item
+  if (form.receiveType === 'SINGLE_ITEM') {
+    return
+  }
+  
   form.items.splice(index, 1)
+  
+  // Update serial number inputs
+  const newSerialInputs = {}
+  Object.keys(serialNumberInputs.value).forEach(key => {
+    const keyNum = parseInt(key)
+    if (keyNum < index) {
+      newSerialInputs[keyNum] = serialNumberInputs.value[keyNum]
+    } else if (keyNum > index) {
+      newSerialInputs[keyNum - 1] = serialNumberInputs.value[keyNum]
+    }
+  })
+  serialNumberInputs.value = newSerialInputs
 }
 
 function formatLocationType(type) {
   switch (type) {
     case 'warehouse': return 'Warehouses'
+    case 'main': return 'Main Warehouses'
+    case 'distribution': return 'Distribution Centers'
     case 'store': return 'Stores'
     case 'zone': return 'Zones'
     case 'other': return 'Other Locations'
     default: return type.charAt(0).toUpperCase() + type.slice(1) + 's'
   }
-}
-
-function formatCurrency(value) {
-  return new Intl.NumberFormat('en-US', { 
-    style: 'currency', 
-    currency: 'USD' 
-  }).format(value || 0)
 }
 
 async function handleSubmit() {
@@ -418,29 +821,91 @@ async function handleSubmit() {
   submitting.value = true
   
   try {
-    // Calculate subtotals for each item
-    const items = form.items.map(item => ({
-      ...item,
-      subtotal: calculateSubtotal(item)
-    }))
+    // Set locationId to warehouseId for API compatibility
+    form.locationId = form.warehouseId
     
-    // Create transaction payload
-    const transaction = {
-      type: 'receive',
-      sourceLocationId: form.sourceLocationId,
-      destinationLocationId: form.destinationLocationId,
-      transactionDate: new Date(form.transactionDate).toISOString(),
-      externalReference: form.externalReference,
-      notes: form.notes,
-      items,
-      totalValue: calculateTotal()
+    if (form.receiveType === 'SINGLE_ITEM') {
+      // Single Item Receive Transaction
+      const singleItem = form.items[0]
+      const transaction = {
+        itemId: singleItem.itemId,
+        locationId: form.locationId,
+        quantity: singleItem.quantity,
+        unitCost: singleItem.unitCost,
+        referenceNumber: form.genericReferenceNumber || form.externalReference,
+        referenceType: form.referenceType,
+        referenceId: form.genericReferenceId,
+        supplierId: form.supplierId,
+        qualityStatus: singleItem.qualityStatus,
+        receivedDate: form.transactionDate,
+        supplierReference: form.supplierReference,
+        notes: form.notes
+      }
+      
+      emit('transaction-created', { type: 'single-receive', payload: transaction })
+    } else if (form.receiveType === 'MULTI_ITEM_FROM_PO' && form.referenceType === 'PURCHASE_ORDER') {
+      // Multi-Item Receive from Purchase Order
+      const transaction = {
+        referenceType: 'PURCHASE_ORDER',
+        genericReferenceId: parseInt(form.genericReferenceId),
+        genericReferenceNumber: form.genericReferenceNumber,
+        locationId: form.locationId,
+        warehouseId: form.warehouseId,
+        supplierId: form.supplierId,
+        transactionDate: form.transactionDate,
+        externalReference: form.externalReference,
+        supplierReference: form.supplierReference,
+        packingSlipNumber: form.packingSlipNumber,
+        notes: form.notes,
+        priority: form.priority,
+        overallQualityStatus: form.overallQualityStatus,
+        requiresInspection: form.requiresInspection,
+        receivedBy: form.receivedBy,
+        items: form.items.map(item => ({
+          itemId: item.itemId,
+          quantity: item.quantity,
+          unitCost: item.unitCost,
+          qualityStatus: item.qualityStatus,
+          itemNotes: item.itemNotes,
+          expirationDate: item.expirationDate,
+          serialNumbers: item.serialNumbers
+        }))
+      }
+      
+      emit('multi-receive-from-po', transaction)
+    } else {
+      // Multi-Item Receive Transaction (standard)
+      const transaction = {
+        referenceType: form.referenceType,
+        genericReferenceId: form.genericReferenceId,
+        genericReferenceNumber: form.genericReferenceNumber,
+        locationId: form.locationId,
+        warehouseId: form.warehouseId,
+        supplierId: form.supplierId,
+        transactionDate: form.transactionDate,
+        externalReference: form.externalReference,
+        supplierReference: form.supplierReference,
+        packingSlipNumber: form.packingSlipNumber,
+        notes: form.notes,
+        priority: form.priority,
+        overallQualityStatus: form.overallQualityStatus,
+        requiresInspection: form.requiresInspection,
+        receivedBy: form.receivedBy,
+        items: form.items.map(item => ({
+          itemId: item.itemId,
+          quantity: item.quantity,
+          unitCost: item.unitCost,
+          qualityStatus: item.qualityStatus,
+          itemNotes: item.itemNotes,
+          expirationDate: item.expirationDate,
+          serialNumbers: item.serialNumbers
+        }))
+      }
+      
+      emit('transaction-created', { type: 'multi-receive', payload: transaction })
     }
-    
-    // Emit the transaction to parent for API submission
-    emit('transaction-created', transaction)
   } catch (error) {
     console.error('Error creating transaction:', error)
-    // Error handling would typically be done in the parent component
   } finally {
     submitting.value = false
   }
@@ -465,7 +930,7 @@ onMounted(() => {
     if (matchedItem) {
       form.items[0].itemId = matchedItem.id
       form.items[0].quantity = 1
-      form.items[0].cost = matchedItem.cost
+      form.items[0].unitCost = matchedItem.cost || 0
     }
   }
 })

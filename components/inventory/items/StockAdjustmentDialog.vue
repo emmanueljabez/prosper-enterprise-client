@@ -633,7 +633,7 @@ const formatNumber = (value) => {
   return new Intl.NumberFormat().format(value || 0)
 }
 
-const formatCurrency = (value, currencyCode = 'USD') => {
+const formatCurrency = (value, currencyCode = 'KES') => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: currencyCode

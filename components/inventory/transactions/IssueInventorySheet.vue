@@ -14,6 +14,47 @@
     
     <div class="flex-1 overflow-y-auto pr-1">
       <form @submit.prevent="handleSubmit" class="space-y-8 p-2">
+        <!-- Transaction Type Selection -->
+        <div class="space-y-4">
+          <h4 class="text-sm font-medium">Issue Type</h4>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="issue-type">Transaction Type *</Label>
+              <Select v-model="form.issueType" @update:model-value="onIssueTypeChange">
+                <SelectTrigger id="issue-type">
+                  <SelectValue placeholder="Select issue type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SINGLE_ITEM">Single Item Issue</SelectItem>
+                  <SelectItem value="MULTI_ITEM">Multi-Item Issue</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="purpose">Purpose *</Label>
+              <Select v-model="form.purpose" required>
+                <SelectTrigger id="purpose">
+                  <SelectValue placeholder="Select purpose" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SALE">Sale</SelectItem>
+                  <SelectItem value="PRODUCTION">Production</SelectItem>
+                  <SelectItem value="TRANSFER">Transfer</SelectItem>
+                  <SelectItem value="SAMPLE">Sample</SelectItem>
+                  <SelectItem value="WASTE">Waste</SelectItem>
+                  <SelectItem value="QUALITY_CONTROL">Quality Control</SelectItem>
+                  <SelectItem value="REWORK">Rework</SelectItem>
+                  <SelectItem value="CUSTOMER_RETURN">Customer Return</SelectItem>
+                  <SelectItem value="INTERNAL_USE">Internal Use</SelectItem>
+                  <SelectItem value="CONSIGNMENT">Consignment</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        
         <!-- Transaction Details -->
         <div class="space-y-4">
           <h4 class="text-sm font-medium">Transaction Details</h4>
@@ -30,10 +71,49 @@
             </div>
             
             <div class="space-y-2">
-              <Label for="external-reference">External Reference</Label>
+              <Label for="warehouse">Source Warehouse *</Label>
+              <Select v-model="form.locationId" required @update:model-value="onWarehouseChange">
+                <SelectTrigger id="warehouse">
+                  <SelectValue placeholder="Select source warehouse" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup v-for="group in warehouseGroups" :key="group.type">
+                    <SelectLabel>{{ formatLocationType(group.type) }}</SelectLabel>
+                    <SelectItem 
+                      v-for="warehouse in group.warehouses" 
+                      :key="warehouse.id" 
+                      :value="warehouse.id"
+                    >
+                      {{ warehouse.name || warehouse.code }}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="reference-type">Reference Type</Label>
+              <Select v-model="form.referenceType">
+                <SelectTrigger id="reference-type">
+                  <SelectValue placeholder="Select reference type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SALES_ORDER">Sales Order</SelectItem>
+                  <SelectItem value="WORK_ORDER">Work Order</SelectItem>
+                  <SelectItem value="TRANSFER_ORDER">Transfer Order</SelectItem>
+                  <SelectItem value="MANUAL">Manual</SelectItem>
+                  <SelectItem value="INTERNAL">Internal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="reference-number">Reference Number</Label>
               <Input 
-                id="external-reference" 
-                v-model="form.externalReference" 
+                id="reference-number" 
+                v-model="form.referenceNumber" 
                 placeholder="Order number, request number, etc."
               />
             </div>
@@ -41,48 +121,64 @@
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label for="source-location">Source Location *</Label>
-              <Select v-model="form.sourceLocationId" required>
-                <SelectTrigger id="source-location">
-                  <SelectValue placeholder="Select source location" />
+              <Label for="priority">Priority</Label>
+              <Select v-model="form.priority">
+                <SelectTrigger id="priority">
+                  <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectGroup v-for="group in locationGroups" :key="group.type">
-                    <SelectLabel>{{ formatLocationType(group.type) }}</SelectLabel>
-                    <SelectItem 
-                      v-for="location in group.locations" 
-                      :key="location.id" 
-                      :value="location.id"
-                    >
-                      {{ location.name }}
-                    </SelectItem>
-                  </SelectGroup>
+                  <SelectItem value="LOW">Low</SelectItem>
+                  <SelectItem value="NORMAL">Normal</SelectItem>
+                  <SelectItem value="HIGH">High</SelectItem>
+                  <SelectItem value="URGENT">Urgent</SelectItem>
+                  <SelectItem value="EMERGENCY">Emergency</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
             <div class="space-y-2">
-              <Label for="destination">Destination *</Label>
-              <Select v-model="form.destinationLocationId" required>
-                <SelectTrigger id="destination">
-                  <SelectValue placeholder="Select destination" />
+              <Label for="customer">Customer</Label>
+              <Select v-model="form.customerId">
+                <SelectTrigger id="customer">
+                  <SelectValue placeholder="Select customer (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Customers</SelectLabel>
-                    <SelectItem v-for="customer in customers" :key="customer.id" :value="customer.id">
-                      {{ customer.name }}
-                    </SelectItem>
-                  </SelectGroup>
-                  <SelectGroup>
-                    <SelectLabel>Other Destinations</SelectLabel>
-                    <SelectItem value="internal-use">Internal Use</SelectItem>
-                    <SelectItem value="disposal">Disposal/Write-off</SelectItem>
-                    <SelectItem value="samples">Samples</SelectItem>
-                  </SelectGroup>
+                  <SelectItem v-for="customer in customers" :key="customer.id" :value="customer.id">
+                    {{ customer.name }}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="issued-by">Issued By *</Label>
+              <Input 
+                id="issued-by" 
+                v-model="form.issuedBy" 
+                placeholder="Name of person issuing items"
+                required
+              />
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="authorized-by">Authorized By</Label>
+              <Input 
+                id="authorized-by" 
+                v-model="form.authorizedBy" 
+                placeholder="Name of authorizing person"
+              />
+            </div>
+          </div>
+          
+          <div class="space-y-2">
+            <Label for="customer-reference">Customer Reference</Label>
+            <Input 
+              id="customer-reference" 
+              v-model="form.customerReference" 
+              placeholder="Customer PO, job number, etc."
+            />
           </div>
           
           <div class="space-y-2">
@@ -103,6 +199,7 @@
           <div class="flex items-center justify-between">
             <h4 class="text-sm font-medium">Items</h4>
             <Button 
+              v-if="form.issueType !== 'SINGLE_ITEM'"
               type="button" 
               variant="outline" 
               size="sm" 
@@ -133,6 +230,7 @@
               <CardHeader class="bg-muted/60 p-3 flex flex-row items-center justify-between">
                 <CardTitle class="text-sm font-medium">Item {{ index + 1 }}</CardTitle>
                 <Button 
+                  v-if="form.issueType !== 'SINGLE_ITEM'"
                   type="button"
                   variant="ghost" 
                   size="icon" 
@@ -181,25 +279,54 @@
                 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-2">
-                    <Label :for="`cost-${index}`">Cost per Unit</Label>
+                    <Label :for="`cost-${index}`">Unit Cost *</Label>
                     <div class="relative">
                       <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
                       <Input 
                         :id="`cost-${index}`" 
-                        v-model.number="item.cost" 
+                        v-model.number="item.unitCost" 
                         type="number" 
                         min="0" 
                         step="0.01" 
                         class="pl-6"
+                        required
                       />
                     </div>
                   </div>
                   
                   <div class="space-y-2">
-                    <Label :for="`lot-${index}`">Lot/Batch Number</Label>
+                    <Label :for="`quality-status-${index}`">Quality Status</Label>
+                    <Select v-model="item.qualityStatus">
+                      <SelectTrigger :id="`quality-status-${index}`">
+                        <SelectValue placeholder="Select quality status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PENDING_INSPECTION">Pending Inspection</SelectItem>
+                        <SelectItem value="PASSED">Passed</SelectItem>
+                        <SelectItem value="FAILED">Failed</SelectItem>
+                        <SelectItem value="CONDITIONAL_PASS">Conditional Pass</SelectItem>
+                        <SelectItem value="QUARANTINED">Quarantined</SelectItem>
+                        <SelectItem value="REJECTED">Rejected</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="space-y-2">
+                    <Label :for="`lot-${index}`">Lot Number</Label>
                     <Input 
                       :id="`lot-${index}`" 
-                      v-model="item.lot" 
+                      v-model="item.lotNumber" 
+                      placeholder="Optional"
+                    />
+                  </div>
+                  
+                  <div class="space-y-2">
+                    <Label :for="`batch-${index}`">Batch Number</Label>
+                    <Input 
+                      :id="`batch-${index}`" 
+                      v-model="item.batchNumber" 
                       placeholder="Optional"
                     />
                   </div>
@@ -207,11 +334,11 @@
                 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-2">
-                    <Label :for="`bin-${index}`">Bin Location</Label>
+                    <Label :for="`expiration-${index}`">Expiration Date</Label>
                     <Input 
-                      :id="`bin-${index}`" 
-                      v-model="item.binLocation" 
-                      placeholder="Optional"
+                      :id="`expiration-${index}`" 
+                      v-model="item.expirationDate" 
+                      type="date"
                     />
                   </div>
                   
@@ -252,6 +379,16 @@
                       </Badge>
                     </div>
                   </div>
+                </div>
+                
+                <div class="space-y-2">
+                  <Label :for="`item-notes-${index}`">Item Notes</Label>
+                  <Textarea 
+                    :id="`item-notes-${index}`" 
+                    v-model="item.itemNotes" 
+                    placeholder="Optional notes for this item"
+                    rows="2"
+                  />
                 </div>
                 
                 <div class="flex justify-between items-center mt-2 text-sm">
@@ -324,7 +461,7 @@ import {
 } from '@/components/ui/select'
 
 const props = defineProps({
-  locations: {
+  warehouses: {
     type: Array,
     default: () => []
   },
@@ -336,6 +473,22 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  purchaseOrders: {
+    type: Array,
+    default: () => []
+  },
+  purchaseOrdersLoading: {
+    type: Boolean,
+    default: false
+  },
+  purchaseOrdersPaginationMeta: {
+    type: Object,
+    default: () => ({
+      page: 0,
+      totalPages: 0,
+      hasMore: false
+    })
+  },
   // For pre-filling form with a scanned item
   scannedItem: {
     type: Object,
@@ -343,16 +496,30 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'transaction-created'])
+const emit = defineEmits([
+  'close', 
+  'transaction-created', 
+  'multi-issue-from-po',
+  'load-purchase-orders'
+])
 
 // Form state
 const form = reactive({
+  issueType: 'SINGLE_ITEM', // SINGLE_ITEM, MULTI_ITEM
   transactionDate: formatCurrentDateTime(),
-  sourceLocationId: '',
-  destinationLocationId: '',
-  externalReference: '',
+  locationId: null,
+  purpose: 'SALE',
+  referenceType: 'MANUAL',
+  referenceId: null,
+  referenceNumber: '',
+  priority: 'NORMAL',
+  issuedBy: '',
+  authorizedBy: '',
+  requiresQualityCheck: false,
+  qualityNotes: '',
   notes: '',
-  type: 'issue',
+  customerId: null,
+  customerReference: '',
   items: []
 })
 
@@ -360,33 +527,73 @@ const serialNumberInputs = ref({})
 const submitting = ref(false)
 const itemAvailability = ref({})
 
+// Methods
+const onIssueTypeChange = (newType) => {
+  // Clear items and reset for single item issue
+  if (newType === 'SINGLE_ITEM') {
+    form.items = []
+    if (form.items.length === 0) {
+      addItemRow()
+    }
+  }
+}
+
+const onWarehouseChange = (warehouseId) => {
+  // Update item availability when warehouse changes
+  form.items.forEach((item, index) => {
+    if (item.itemId) {
+      updateItemAvailability(index)
+    }
+  })
+}
+
+// Serial number methods
+function addSerialNumber(index) {
+  const serial = serialNumberInputs.value[index]
+  if (!serial) return
+  
+  if (!form.items[index].serialNumbers) {
+    form.items[index].serialNumbers = []
+  }
+  
+  if (!form.items[index].serialNumbers.includes(serial)) {
+    form.items[index].serialNumbers.push(serial)
+  }
+  
+  serialNumberInputs.value[index] = ''
+}
+
+function removeSerialNumber(itemIndex, serialIndex) {
+  form.items[itemIndex].serialNumbers.splice(serialIndex, 1)
+}
+
 // Computed properties
-const locationGroups = computed(() => {
-  // Filter out customer locations since they're in a separate dropdown
-  const filteredLocations = props.locations.filter(
-    location => location.type !== 'customer' && location.isActive
+const warehouseGroups = computed(() => {
+  // Filter out customer warehouses since they're in a separate dropdown and group by type
+  const filteredWarehouses = props.warehouses.filter(
+    warehouse => warehouse.type !== 'customer' && warehouse.isActive
   )
   
-  // Group locations by type
+  // Group warehouses by type
   const groups = {}
-  filteredLocations.forEach(location => {
-    const type = location.type || 'other'
+  filteredWarehouses.forEach(warehouse => {
+    const type = warehouse.type || 'warehouse'
     if (!groups[type]) {
       groups[type] = []
     }
-    groups[type].push(location)
+    groups[type].push(warehouse)
   })
 
   // Convert to array format for SelectGroup
-  return Object.entries(groups).map(([type, locations]) => ({
+  return Object.entries(groups).map(([type, warehouses]) => ({
     type,
-    locations
+    warehouses
   }))
 })
 
 const isFormValid = computed(() => {
   // Check basic transaction details
-  if (!form.transactionDate || !form.sourceLocationId || !form.destinationLocationId) {
+  if (!form.transactionDate || !form.locationId || !form.purpose || !form.issuedBy) {
     return false
   }
   
@@ -397,7 +604,7 @@ const isFormValid = computed(() => {
   
   // Check that each item has required fields
   for (const item of form.items) {
-    if (!item.itemId || !item.quantity || item.quantity <= 0) {
+    if (!item.itemId || !item.quantity || item.quantity <= 0 || !item.unitCost) {
       return false
     }
   }
@@ -418,7 +625,7 @@ function formatCurrentDateTime() {
 }
 
 function calculateSubtotal(item) {
-  const cost = item.cost || 0
+  const cost = item.unitCost || 0
   const quantity = item.quantity || 0
   return cost * quantity
 }
@@ -431,19 +638,36 @@ function calculateTotal() {
 
 function addItemRow() {
   const index = form.items.length
+  
+  // For single item issue, only allow one item
+  if (form.issueType === 'SINGLE_ITEM' && form.items.length >= 1) {
+    return
+  }
+  
   form.items.push({
-    itemId: '',
+    itemId: null,
     quantity: 1,
-    cost: null,
-    lot: '',
-    binLocation: '',
+    unitCost: 0,
+    lotNumber: '',
+    batchNumber: '',
+    qualityStatus: 'PASSED',
+    qualityNotes: '',
+    itemNotes: '',
+    expirationDate: '',
     serialNumbers: []
   })
+  
   serialNumberInputs.value[index] = ''
 }
 
 function removeItemRow(index) {
+  // For single item issue, don't allow removing the only item
+  if (form.issueType === 'SINGLE_ITEM') {
+    return
+  }
+  
   form.items.splice(index, 1)
+  
   // Update serial number inputs
   const newSerialInputs = {}
   Object.keys(serialNumberInputs.value).forEach(key => {
@@ -455,25 +679,6 @@ function removeItemRow(index) {
     }
   })
   serialNumberInputs.value = newSerialInputs
-}
-
-function addSerialNumber(index) {
-  const serial = serialNumberInputs.value[index]
-  if (!serial) return
-  
-  if (!form.items[index].serialNumbers) {
-    form.items[index].serialNumbers = []
-  }
-  
-  if (!form.items[index].serialNumbers.includes(serial)) {
-    form.items[index].serialNumbers.push(serial)
-  }
-  
-  serialNumberInputs.value[index] = ''
-}
-
-function removeSerialNumber(itemIndex, serialIndex) {
-  form.items[itemIndex].serialNumbers.splice(serialIndex, 1)
 }
 
 function formatLocationType(type) {
@@ -495,18 +700,18 @@ function formatCurrency(value) {
 
 function updateItemAvailability(index) {
   const itemId = form.items[index].itemId
-  if (!itemId) return
+  if (!itemId || !form.locationId) return
   
   // Find the selected item
   const item = props.items.find(i => i.id === itemId)
   if (item) {
     // Get stock availability for the selected source location
-    const locationStock = item.stock?.find(s => s.locationId === form.sourceLocationId)
+    const locationStock = item.stock?.find(s => s.locationId === form.locationId)
     itemAvailability.value[itemId] = locationStock?.quantity || 0
     
     // Default cost to the item's default cost
-    if (!form.items[index].cost && item.cost) {
-      form.items[index].cost = item.cost
+    if (!form.items[index].unitCost && item.cost) {
+      form.items[index].unitCost = item.cost
     }
   }
 }
@@ -527,29 +732,59 @@ async function handleSubmit() {
   submitting.value = true
   
   try {
-    // Calculate subtotals for each item
-    const items = form.items.map(item => ({
-      ...item,
-      subtotal: calculateSubtotal(item)
-    }))
-    
-    // Create transaction payload
-    const transaction = {
-      type: 'issue',
-      sourceLocationId: form.sourceLocationId,
-      destinationLocationId: form.destinationLocationId,
-      transactionDate: new Date(form.transactionDate).toISOString(),
-      externalReference: form.externalReference,
-      notes: form.notes,
-      items,
-      totalValue: calculateTotal()
+    if (form.issueType === 'SINGLE_ITEM') {
+      // Single Item Issue Transaction
+      const singleItem = form.items[0]
+      const transaction = {
+        itemId: singleItem.itemId,
+        locationId: form.locationId,
+        quantity: singleItem.quantity,
+        unitCost: singleItem.unitCost,
+        issueType: form.purpose,
+        referenceNumber: form.referenceNumber,
+        referenceType: form.referenceType,
+        customerId: form.customerId,
+        customerReference: form.customerReference,
+        notes: form.notes
+      }
+      
+      emit('transaction-created', { type: 'single-issue', payload: transaction })
+    } else {
+      // Multi-Item Issue Transaction
+      const transaction = {
+        locationId: form.locationId,
+        transactionDate: form.transactionDate,
+        issueType: form.purpose,
+        referenceType: form.referenceType,
+        referenceId: form.referenceId,
+        referenceNumber: form.referenceNumber,
+        priority: form.priority,
+        purpose: form.purpose,
+        issuedBy: form.issuedBy,
+        authorizedBy: form.authorizedBy,
+        requiresQualityCheck: form.requiresQualityCheck,
+        qualityNotes: form.qualityNotes,
+        notes: form.notes,
+        customerId: form.customerId,
+        customerReference: form.customerReference,
+        items: form.items.map(item => ({
+          itemId: item.itemId,
+          quantity: item.quantity,
+          unitCost: item.unitCost,
+          lotNumber: item.lotNumber,
+          batchNumber: item.batchNumber,
+          qualityStatus: item.qualityStatus,
+          qualityNotes: item.qualityNotes,
+          itemNotes: item.itemNotes,
+          expirationDate: item.expirationDate,
+          serialNumbers: item.serialNumbers
+        }))
+      }
+      
+      emit('transaction-created', { type: 'multi-issue', payload: transaction })
     }
-    
-    // Emit the transaction to parent for API submission
-    emit('transaction-created', transaction)
   } catch (error) {
     console.error('Error creating transaction:', error)
-    // Error handling would typically be done in the parent component
   } finally {
     submitting.value = false
   }
@@ -574,10 +809,10 @@ onMounted(() => {
     if (matchedItem) {
       form.items[0].itemId = matchedItem.id
       form.items[0].quantity = 1
-      form.items[0].cost = matchedItem.cost
+      form.items[0].unitCost = matchedItem.cost || 0
       
       // If we have a source location set, update item availability
-      if (form.sourceLocationId) {
+      if (form.locationId) {
         updateItemAvailability(0)
       }
     }

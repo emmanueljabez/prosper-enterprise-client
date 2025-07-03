@@ -1,124 +1,408 @@
-import axiosInstance from '@/http/axios';
-import type { 
-  TransactionFilters, 
-  TransactionCreateInput, 
-  VoidTransactionRequest,
-  Transaction 
-} from '@/types/inventory/transactions';
+import axiosInstance from '~/http/axios';
+import type {
+  TransactionQueryParams,
+  Transaction,
+  TransactionSummary,
+  StockMovementHistoryItem,
+  CreateMultiItemReceiveRequest,
+  CreateSingleItemReceiveRequest,
+  CreateMultiItemIssueRequest,
+  CreateSingleItemIssueRequest,
+  MultiItemReceiveTransaction,
+  SingleItemReceiveTransaction,
+  MultiItemIssueTransaction,
+  SingleItemIssueTransaction,
+  TransactionStatus,
+  ApiResponse,
+  PaginatedResponse
+} from '~/types/inventory/transactions';
 
-// Define API client for Transaction operations
-export default {
+const BASE_URL = '/tenant/inventory/transactions';
+
+export const inventoryTransactionsApi = {
   /**
-   * Fetch all transactions with optional filters
+   * Get all transactions (with pagination support)
    */
-  fetchTransactions: (params: TransactionFilters = {}) => {
-    return axiosInstance.get('/inventory/transactions', { params });
+  getTransactions(params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<Transaction>>> {
+    return axiosInstance.get(BASE_URL, { params });
   },
-  
+
   /**
-   * Fetch a single transaction by ID
+   * Get transaction by ID
    */
-  fetchTransaction: (id: string) => {
-    return axiosInstance.get(`/inventory/transactions/${id}`);
+  getTransactionById(id: number): Promise<ApiResponse<Transaction>> {
+    return axiosInstance.get(`${BASE_URL}/${id}`);
   },
-  
+
   /**
-   * Create a new transaction
+   * Get transactions by item ID
    */
-  createTransaction: (transaction: TransactionCreateInput) => {
-    return axiosInstance.post('/inventory/transactions', transaction);
+  getTransactionsByItem(itemId: number, params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<Transaction>>> {
+    return axiosInstance.get(`${BASE_URL}/item/${itemId}`, { params });
   },
-  
+
   /**
-   * Update a transaction (typically only allowed for draft status)
+   * Get transactions by location ID
    */
-  updateTransaction: (id: string, transaction: Partial<Transaction>) => {
-    return axiosInstance.put(`/inventory/transactions/${id}`, transaction);
+  getTransactionsByLocation(locationId: number, params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<Transaction>>> {
+    return axiosInstance.get(`${BASE_URL}/location/${locationId}`, { params });
   },
-  
+
   /**
-   * Void a transaction
+   * Get transactions by reference number
    */
-  voidTransaction: (id: string, payload: VoidTransactionRequest) => {
-    return axiosInstance.post(`/inventory/transactions/${id}/void`, payload);
+  getTransactionsByReference(referenceNumber: string, params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<Transaction>>> {
+    return axiosInstance.get(`${BASE_URL}/reference/${encodeURIComponent(referenceNumber)}`, { params });
   },
-  
+
   /**
-   * Change the status of a transaction (e.g., from draft to completed)
+   * Search transactions
    */
-  updateTransactionStatus: (id: string, status: string) => {
-    return axiosInstance.patch(`/inventory/transactions/${id}/status`, { status });
+  searchTransactions(searchTerm: string, params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<Transaction>>> {
+    return axiosInstance.get(`${BASE_URL}/search`, { params: { ...params, searchTerm } });
   },
-  
+
+  // Multi-Item Receive endpoints
   /**
-   * Generate a document (invoice, packing slip, etc.) for a transaction
+   * Create multi-item receive transaction
    */
-  generateTransactionDocument: (id: string, type: string = 'default') => {
-    return axiosInstance.get(`/inventory/transactions/${id}/document`, {
-      params: { type },
+  createMultiItemReceive(request: CreateMultiItemReceiveRequest): Promise<ApiResponse<MultiItemReceiveTransaction>> {
+    return axiosInstance.post(`${BASE_URL}/multi-receive`, request);
+  },
+
+  /**
+   * Get multi-item receive transaction by ID
+   */
+  getMultiItemReceiveById(id: number): Promise<ApiResponse<MultiItemReceiveTransaction>> {
+    return axiosInstance.get(`${BASE_URL}/multi-receive/${id}`);
+  },
+
+  /**
+   * Update multi-item receive transaction
+   */
+  updateMultiItemReceive(id: number, request: Partial<CreateMultiItemReceiveRequest>): Promise<ApiResponse<MultiItemReceiveTransaction>> {
+    return axiosInstance.put(`${BASE_URL}/multi-receive/${id}`, request);
+  },
+
+  /**
+   * Get all multi-item receive transactions
+   */
+  getMultiItemReceives(params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<MultiItemReceiveTransaction>>> {
+    return axiosInstance.get(`${BASE_URL}/multi-receive`, { params });
+  },
+
+  // Single Item Receive endpoints
+  /**
+   * Create single item receive transaction
+   */
+  createSingleItemReceive(request: CreateSingleItemReceiveRequest): Promise<ApiResponse<SingleItemReceiveTransaction>> {
+    return axiosInstance.post(`${BASE_URL}/single-receive`, request);
+  },
+
+  /**
+   * Get single item receive transaction by ID
+   */
+  getSingleItemReceiveById(id: number): Promise<ApiResponse<SingleItemReceiveTransaction>> {
+    return axiosInstance.get(`${BASE_URL}/single-receive/${id}`);
+  },
+
+  /**
+   * Update single item receive transaction
+   */
+  updateSingleItemReceive(id: number, request: Partial<CreateSingleItemReceiveRequest>): Promise<ApiResponse<SingleItemReceiveTransaction>> {
+    return axiosInstance.put(`${BASE_URL}/single-receive/${id}`, request);
+  },
+
+  /**
+   * Get all single item receive transactions
+   */
+  getSingleItemReceives(params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<SingleItemReceiveTransaction>>> {
+    return axiosInstance.get(`${BASE_URL}/single-receive`, { params });
+  },
+
+  // Multi-Item Issue endpoints
+  /**
+   * Create multi-item issue transaction
+   */
+  createMultiItemIssue(request: CreateMultiItemIssueRequest): Promise<ApiResponse<MultiItemIssueTransaction>> {
+    return axiosInstance.post(`${BASE_URL}/multi-issue`, request);
+  },
+
+  /**
+   * Get multi-item issue transaction by ID
+   */
+  getMultiItemIssueById(id: number): Promise<ApiResponse<MultiItemIssueTransaction>> {
+    return axiosInstance.get(`${BASE_URL}/multi-issue/${id}`);
+  },
+
+  /**
+   * Update multi-item issue transaction
+   */
+  updateMultiItemIssue(id: number, request: Partial<CreateMultiItemIssueRequest>): Promise<ApiResponse<MultiItemIssueTransaction>> {
+    return axiosInstance.put(`${BASE_URL}/multi-issue/${id}`, request);
+  },
+
+  /**
+   * Get all multi-item issue transactions
+   */
+  getMultiItemIssues(params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<MultiItemIssueTransaction>>> {
+    return axiosInstance.get(`${BASE_URL}/multi-issue`, { params });
+  },
+
+  // Single Item Issue endpoints
+  /**
+   * Create single item issue transaction
+   */
+  createSingleItemIssue(request: CreateSingleItemIssueRequest): Promise<ApiResponse<SingleItemIssueTransaction>> {
+    return axiosInstance.post(`${BASE_URL}/single-issue`, request);
+  },
+
+  /**
+   * Get single item issue transaction by ID
+   */
+  getSingleItemIssueById(id: number): Promise<ApiResponse<SingleItemIssueTransaction>> {
+    return axiosInstance.get(`${BASE_URL}/single-issue/${id}`);
+  },
+
+  /**
+   * Update single item issue transaction
+   */
+  updateSingleItemIssue(id: number, request: Partial<CreateSingleItemIssueRequest>): Promise<ApiResponse<SingleItemIssueTransaction>> {
+    return axiosInstance.put(`${BASE_URL}/single-issue/${id}`, request);
+  },
+
+  /**
+   * Get all single item issue transactions
+   */
+  getSingleItemIssues(params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<SingleItemIssueTransaction>>> {
+    return axiosInstance.get(`${BASE_URL}/single-issue`, { params });
+  },
+
+  // Transaction status management
+  /**
+   * Update transaction status
+   */
+  updateTransactionStatus(id: number, status: TransactionStatus): Promise<ApiResponse<Transaction>> {
+    return axiosInstance.put(`${BASE_URL}/${id}/status`, { status });
+  },
+
+  /**
+   * Cancel transaction
+   */
+  cancelTransaction(id: number, reason: string): Promise<ApiResponse<Transaction>> {
+    return axiosInstance.post(`${BASE_URL}/${id}/cancel`, { reason });
+  },
+
+  /**
+   * Complete transaction
+   */
+  completeTransaction(id: number): Promise<ApiResponse<Transaction>> {
+    return axiosInstance.post(`${BASE_URL}/${id}/complete`);
+  },
+
+  /**
+   * Void transaction
+   */
+  voidTransaction(id: number, reason: string): Promise<ApiResponse<Transaction>> {
+    return axiosInstance.post(`${BASE_URL}/${id}/void`, { reason });
+  },
+
+  // Stock movement and history
+  /**
+   * Get stock movement history for an item
+   */
+  getStockMovementHistory(itemId: number, locationId?: number): Promise<ApiResponse<StockMovementHistoryItem[]>> {
+    const params = locationId ? { locationId } : undefined;
+    return axiosInstance.get(`${BASE_URL}/stock-movement/item/${itemId}`, { params });
+  },
+
+  /**
+   * Get stock movement history for a location
+   */
+  getLocationStockMovement(locationId: number, params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<StockMovementHistoryItem>>> {
+    return axiosInstance.get(`${BASE_URL}/stock-movement/location/${locationId}`, { params });
+  },
+
+  // Summary and reporting
+  /**
+   * Get transaction summary for dashboard
+   */
+  getTransactionSummary(params?: TransactionQueryParams): Promise<ApiResponse<TransactionSummary>> {
+    return axiosInstance.get(`${BASE_URL}/summary`, { params });
+  },
+
+  /**
+   * Get transaction statistics
+   */
+  getTransactionStatistics(params?: TransactionQueryParams): Promise<ApiResponse<{
+    totalTransactions: number;
+    totalValue: number;
+    averageValue: number;
+    transactionsByDay: Array<{ date: string; count: number; value: number }>;
+    topItems: Array<{ itemId: number; itemName: string; transactionCount: number; totalValue: number }>;
+    topLocations: Array<{ locationId: number; locationName: string; transactionCount: number; totalValue: number }>;
+  }>> {
+    return axiosInstance.get(`${BASE_URL}/statistics`, { params });
+  },
+
+  // Bulk operations
+  /**
+   * Bulk create transactions
+   */
+  bulkCreateTransactions(transactions: Array<CreateMultiItemReceiveRequest | CreateSingleItemReceiveRequest | CreateMultiItemIssueRequest | CreateSingleItemIssueRequest>): Promise<ApiResponse<Transaction[]>> {
+    return axiosInstance.post(`${BASE_URL}/bulk-create`, { transactions });
+  },
+
+  /**
+   * Bulk update transaction status
+   */
+  bulkUpdateStatus(transactionIds: number[], status: TransactionStatus): Promise<ApiResponse<Transaction[]>> {
+    return axiosInstance.post(`${BASE_URL}/bulk-status`, { transactionIds, status });
+  },
+
+  /**
+   * Bulk cancel transactions
+   */
+  bulkCancelTransactions(transactionIds: number[], reason: string): Promise<ApiResponse<Transaction[]>> {
+    return axiosInstance.post(`${BASE_URL}/bulk-cancel`, { transactionIds, reason });
+  },
+
+  // Document generation
+  /**
+   * Generate transaction document (receipt, packing slip, etc.)
+   */
+  generateDocument(id: number, documentType: 'RECEIPT' | 'PACKING_SLIP' | 'DELIVERY_NOTE' | 'INVOICE' = 'RECEIPT'): Promise<Blob> {
+    return axiosInstance.get(`${BASE_URL}/${id}/document`, {
+      params: { type: documentType },
       responseType: 'blob'
     });
   },
-  
+
   /**
-   * Get all transactions related to a specific item
+   * Generate batch document for multiple transactions
    */
-  fetchTransactionsByItem: (itemId: string, params: TransactionFilters = {}) => {
-    return axiosInstance.get(`/inventory/items/${itemId}/transactions`, { params });
-  },
-  
-  /**
-   * Get all transactions related to a specific location
-   */
-  fetchTransactionsByLocation: (locationId: string, params: TransactionFilters = {}) => {
-    return axiosInstance.get(`/inventory/locations/${locationId}/transactions`, { params });
-  },
-  
-  /**
-   * Get a summary of transactions for reporting purposes
-   */
-  getTransactionSummary: (params: TransactionFilters = {}) => {
-    return axiosInstance.get('/inventory/transactions/summary', { params });
-  },
-  
-  /**
-   * Export transactions to CSV, Excel, or PDF format
-   */
-  exportTransactions: (format: 'csv' | 'excel' | 'pdf' = 'csv', filters: TransactionFilters = {}) => {
-    return axiosInstance.get(`/inventory/transactions/export/${format}`, { 
-      params: filters,
+  generateBatchDocument(transactionIds: number[], documentType: 'RECEIPT' | 'PACKING_SLIP' | 'DELIVERY_NOTE' | 'INVOICE' = 'RECEIPT'): Promise<Blob> {
+    return axiosInstance.post(`${BASE_URL}/batch-document`, {
+      transactionIds,
+      documentType
+    }, {
       responseType: 'blob'
     });
   },
-  
+
+  // Export and import
   /**
-   * Get inventory stock movement history for an item
+   * Export transactions
    */
-  getItemStockMovement: (itemId: string, params: TransactionFilters = {}) => {
-    return axiosInstance.get(`/inventory/items/${itemId}/stock-movement`, { params });
+  exportTransactions(params?: TransactionQueryParams & { format?: 'CSV' | 'EXCEL' | 'JSON' }): Promise<Blob> {
+    return axiosInstance.get(`${BASE_URL}/export`, {
+      params,
+      responseType: 'blob'
+    });
   },
-  
+
   /**
-   * Create a stock count transaction (specialized endpoint)
+   * Import transactions from file
    */
-  createStockCount: (payload: {
-    locationId: string,
-    countDate: string,
-    items: Array<{
-      itemId: string,
-      countedQuantity: number,
-      binLocation?: string,
-      notes?: string
-    }>,
-    notes?: string
-  }) => {
-    return axiosInstance.post('/inventory/transactions/stock-count', payload);
+  importTransactionsFromFile(formData: FormData): Promise<ApiResponse<Transaction[]>> {
+    return axiosInstance.post(`${BASE_URL}/import/file`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
   },
-  
+
+  // Validation and checks
   /**
-   * Create a batch of transactions (useful for importing)
+   * Validate transaction data before creation
    */
-  createBatchTransactions: (transactions: TransactionCreateInput[]) => {
-    return axiosInstance.post('/inventory/transactions/batch', { transactions });
+  validateTransaction(transaction: CreateMultiItemReceiveRequest | CreateSingleItemReceiveRequest | CreateMultiItemIssueRequest | CreateSingleItemIssueRequest): Promise<ApiResponse<{ isValid: boolean; errors: string[]; warnings: string[] }>> {
+    return axiosInstance.post(`${BASE_URL}/validate`, transaction);
+  },
+
+  /**
+   * Check if reference number is available
+   */
+  checkReferenceAvailability(referenceNumber: string, excludeId?: number): Promise<ApiResponse<{ available: boolean }>> {
+    return axiosInstance.get(`${BASE_URL}/check-reference`, {
+      params: { referenceNumber, excludeId }
+    });
+  },
+
+  // Recent activity
+  /**
+   * Get recent transactions
+   */
+  getRecentTransactions(limit?: number): Promise<ApiResponse<Transaction[]>> {
+    return axiosInstance.get(`${BASE_URL}/recent`, { params: { limit } });
+  },
+
+  /**
+   * Get pending transactions requiring attention
+   */
+  getPendingTransactions(params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<Transaction>>> {
+    return axiosInstance.get(`${BASE_URL}/pending`, { params });
+  },
+
+  /**
+   * Get failed transactions
+   */
+  getFailedTransactions(params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<Transaction>>> {
+    return axiosInstance.get(`${BASE_URL}/failed`, { params });
+  },
+
+  // Quality control
+  /**
+   * Update quality status for transaction
+   */
+  updateQualityStatus(id: number, qualityStatus: string, notes?: string): Promise<ApiResponse<Transaction>> {
+    return axiosInstance.put(`${BASE_URL}/${id}/quality`, { qualityStatus, notes });
+  },
+
+  /**
+   * Get transactions requiring quality inspection
+   */
+  getTransactionsRequiringInspection(params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<Transaction>>> {
+    return axiosInstance.get(`${BASE_URL}/requiring-inspection`, { params });
+  },
+
+  // Supplier/Customer specific
+  /**
+   * Get transactions by supplier
+   */
+  getTransactionsBySupplier(supplierId: number, params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<Transaction>>> {
+    return axiosInstance.get(`${BASE_URL}/supplier/${supplierId}`, { params });
+  },
+
+  /**
+   * Get transactions by customer
+   */
+  getTransactionsByCustomer(customerId: number, params?: TransactionQueryParams): Promise<ApiResponse<PaginatedResponse<Transaction>>> {
+    return axiosInstance.get(`${BASE_URL}/customer/${customerId}`, { params });
+  },
+
+  // Audit and history
+  /**
+   * Get transaction audit trail
+   */
+  getTransactionHistory(id: number): Promise<ApiResponse<Array<{
+    action: string;
+    timestamp: string;
+    userId: number;
+    userName?: string;
+    changes: Record<string, any>;
+    oldValues?: Record<string, any>;
+    newValues?: Record<string, any>;
+  }>>> {
+    return axiosInstance.get(`${BASE_URL}/${id}/history`);
+  },
+
+  /**
+   * Get transaction template for creation
+   */
+  getTransactionTemplate(transactionType: 'MULTI_RECEIVE' | 'SINGLE_RECEIVE' | 'MULTI_ISSUE' | 'SINGLE_ISSUE'): Promise<ApiResponse<any>> {
+    return axiosInstance.get(`${BASE_URL}/template/${transactionType}`);
   }
 };
+
+export default inventoryTransactionsApi;

@@ -71,6 +71,11 @@
               <div v-if="transaction.externalReference" class="text-muted-foreground">External Ref:</div>
               <div v-if="transaction.externalReference">{{ transaction.externalReference }}</div>
               
+              <div v-if="transaction.purchaseOrderId" class="text-muted-foreground">Purchase Order:</div>
+              <div v-if="transaction.purchaseOrderId" class="font-medium text-blue-600">
+                PO-{{ transaction.purchaseOrderId }}
+              </div>
+              
               <div class="text-muted-foreground">Date:</div>
               <div>{{ formatDate(transaction.transactionDate) }}</div>
               
@@ -95,37 +100,37 @@
           </CardContent>
         </Card>
         
-        <!-- Location Details -->
+        <!-- Warehouse Details -->
         <Card>
           <CardHeader class="pb-2">
-            <CardTitle class="text-base">Location Details</CardTitle>
+            <CardTitle class="text-base">Warehouse Details</CardTitle>
           </CardHeader>
           <CardContent>
             <div class="grid grid-cols-2 gap-2 text-sm">
               <template v-if="transaction.type === 'receive'">
                 <div class="text-muted-foreground">From:</div>
-                <div>{{ getLocationName(transaction.sourceLocationId) }}</div>
+                <div>{{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
                 <div class="text-muted-foreground">To:</div>
-                <div>{{ getLocationName(transaction.destinationLocationId) }}</div>
+                <div>{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
               </template>
               
               <template v-else-if="transaction.type === 'issue'">
                 <div class="text-muted-foreground">From:</div>
-                <div>{{ getLocationName(transaction.sourceLocationId) }}</div>
+                <div>{{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
                 <div class="text-muted-foreground">To:</div>
-                <div>{{ getLocationName(transaction.destinationLocationId) }}</div>
+                <div>{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
               </template>
               
               <template v-else-if="transaction.type === 'transfer'">
                 <div class="text-muted-foreground">From:</div>
-                <div>{{ getLocationName(transaction.sourceLocationId) }}</div>
+                <div>{{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
                 <div class="text-muted-foreground">To:</div>
-                <div>{{ getLocationName(transaction.destinationLocationId) }}</div>
+                <div>{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
               </template>
               
               <template v-else>
-                <div class="text-muted-foreground">Location:</div>
-                <div>{{ getLocationName(transaction.destinationLocationId) }}</div>
+                <div class="text-muted-foreground">Warehouse:</div>
+                <div>{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
               </template>
             </div>
           </CardContent>
@@ -249,7 +254,7 @@ const props = defineProps({
     type: Object,
     required: true
   },
-  locations: {
+  warehouses: {
     type: Array,
     default: () => []
   },
@@ -295,10 +300,10 @@ const calculateTotal = () => {
   }, 0)
 }
 
-const getLocationName = (locationId) => {
-  if (!locationId) return 'N/A'
-  const location = props.locations.find(l => l.id === locationId)
-  return location ? location.name : 'Unknown Location'
+const getWarehouseName = (warehouseId) => {
+  if (!warehouseId) return 'N/A'
+  const warehouse = props.warehouses.find(w => w.id === warehouseId)
+  return warehouse ? warehouse.name : 'Unknown Warehouse'
 }
 
 const getItemName = (itemId) => {
