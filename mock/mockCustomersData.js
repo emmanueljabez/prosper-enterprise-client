@@ -1,7 +1,7 @@
 /**
  * Mock data for customers and customer groups
  */
-import { CustomerStatus, PaymentTermType } from '@/types/price-management/customers';
+// import { PaymentTermType } from '@/types/price-management/customers';
 
 /**
  * Mock customer data
@@ -16,7 +16,7 @@ export const mockCustomers = [
     company: 'Acme Corporation',
     groupId: 'group-001',
     tags: ['vip', 'wholesale'],
-    status: CustomerStatus.ACTIVE,
+    status: 'active',
     billingAddress: {
       line1: '123 Main Street',
       line2: 'Suite 100',
@@ -44,7 +44,7 @@ export const mockCustomers = [
     createdAt: '2021-03-10T09:15:22Z',
     updatedAt: '2023-10-15T14:30:00Z',
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 30
     },
     creditLimit: 100000,
@@ -59,7 +59,7 @@ export const mockCustomers = [
     company: 'TechStart Inc.',
     groupId: 'group-002',
     tags: ['retail'],
-    status: CustomerStatus.ACTIVE,
+    status: 'active',
     billingAddress: {
       line1: '456 Technology Drive',
       city: 'San Francisco',
@@ -84,7 +84,7 @@ export const mockCustomers = [
     createdAt: '2022-01-15T11:22:33Z',
     updatedAt: '2023-11-02T10:45:00Z',
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 15
     },
     creditLimit: 25000,
@@ -99,7 +99,7 @@ export const mockCustomers = [
     company: 'Johnson Distributors',
     groupId: 'group-001',
     tags: ['wholesale', 'international'],
-    status: CustomerStatus.ACTIVE,
+    status: 'active',
     billingAddress: {
       line1: '10 Commerce Street',
       city: 'Chicago',
@@ -125,7 +125,7 @@ export const mockCustomers = [
     createdAt: '2021-06-22T14:30:45Z',
     updatedAt: '2023-09-30T16:20:00Z',
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 45
     },
     creditLimit: 200000,
@@ -140,7 +140,7 @@ export const mockCustomers = [
     company: 'Garcia Imports',
     groupId: 'group-003',
     tags: ['international', 'new'],
-    status: CustomerStatus.PENDING,
+    status: 'active',
     billingAddress: {
       line1: '123 Avenida Central',
       city: 'Mexico City',
@@ -162,7 +162,7 @@ export const mockCustomers = [
     createdAt: '2023-10-05T09:12:30Z',
     updatedAt: '2023-10-05T09:12:30Z',
     paymentTerms: {
-      type: PaymentTermType.DUE_ON_RECEIPT
+      type: 'net'
     },
     creditLimit: 10000,
     accountManager: 'David Wilson'
@@ -176,7 +176,7 @@ export const mockCustomers = [
     company: 'Chen Electronics',
     groupId: 'group-002',
     tags: ['retail', 'tech'],
-    status: CustomerStatus.ACTIVE,
+    status: 'active',
     billingAddress: {
       line1: '789 Market Street',
       city: 'Boston',
@@ -199,7 +199,7 @@ export const mockCustomers = [
     createdAt: '2022-08-14T10:30:00Z',
     updatedAt: '2023-10-25T13:15:00Z',
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 30
     },
     creditLimit: 15000,
@@ -213,7 +213,7 @@ export const mockCustomers = [
     phone: '555-666-1234',
     groupId: 'group-005',
     tags: ['individual'],
-    status: CustomerStatus.ACTIVE,
+    status: 'active',
     billingAddress: {
       line1: '456 Oak Avenue',
       city: 'Portland',
@@ -236,7 +236,7 @@ export const mockCustomers = [
     createdAt: '2023-01-20T15:45:20Z',
     updatedAt: '2023-11-10T11:45:00Z',
     paymentTerms: {
-      type: PaymentTermType.DUE_ON_RECEIPT
+      type: 'net'
     }
   },
   {
@@ -248,7 +248,7 @@ export const mockCustomers = [
     company: 'Wilson Ventures',
     groupId: 'group-004',
     tags: ['investor', 'partner'],
-    status: CustomerStatus.BLOCKED,
+    status: 'active',
     statusReason: 'Payment issues - pending resolution',
     billingAddress: {
       line1: '567 Pine Street',
@@ -273,7 +273,7 @@ export const mockCustomers = [
     createdAt: '2021-11-15T08:20:10Z',
     updatedAt: '2023-10-10T14:25:30Z',
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 30
     },
     creditLimit: 50000,
@@ -288,7 +288,7 @@ export const mockCustomers = [
     company: 'Martinez & Co',
     groupId: 'group-001',
     tags: ['wholesale', 'priority'],
-    status: CustomerStatus.ACTIVE,
+    status: 'active',
     billingAddress: {
       line1: '890 Broadway',
       line2: 'Floor 12',
@@ -315,7 +315,7 @@ export const mockCustomers = [
     createdAt: '2020-05-18T11:30:45Z',
     updatedAt: '2023-11-12T10:15:00Z',
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 60
     },
     creditLimit: 350000,
@@ -330,7 +330,7 @@ export const mockCustomers = [
     company: 'DB Supplies',
     groupId: 'group-002',
     tags: ['retail', 'seasonal'],
-    status: CustomerStatus.INACTIVE,
+    status: 'inactive',
     statusReason: 'Customer requested temporary suspension',
     billingAddress: {
       line1: '432 Maple Drive',
@@ -355,7 +355,7 @@ export const mockCustomers = [
     createdAt: '2022-03-10T09:15:30Z',
     updatedAt: '2023-07-05T14:20:15Z',
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 30
     },
     creditLimit: 40000,
@@ -370,7 +370,7 @@ export const mockCustomers = [
     company: 'Lee Innovations',
     groupId: 'group-003',
     tags: ['tech', 'startup'],
-    status: CustomerStatus.ACTIVE,
+    status: 'active',
     billingAddress: {
       line1: '789 Tech Parkway',
       city: 'Austin',
@@ -393,7 +393,7 @@ export const mockCustomers = [
     createdAt: '2022-09-25T13:45:10Z',
     updatedAt: '2023-11-08T16:30:00Z',
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 15
     },
     creditLimit: 25000,
@@ -416,7 +416,7 @@ export const mockCustomerGroups = [
     minimumOrderAmount: 1000,
     taxExempt: true,
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 30
     },
     pricingTier: 'wholesale',
@@ -436,7 +436,7 @@ export const mockCustomerGroups = [
     minimumOrderAmount: 500,
     taxExempt: false,
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 15
     },
     pricingTier: 'retail',
@@ -456,7 +456,7 @@ export const mockCustomerGroups = [
     minimumOrderAmount: 1000,
     taxExempt: true,
     paymentTerms: {
-      type: PaymentTermType.DUE_ON_RECEIPT
+      type: 'net'
     },
     pricingTier: 'international',
     orderApprovalRequired: true,
@@ -475,7 +475,7 @@ export const mockCustomerGroups = [
     minimumOrderAmount: 0,
     taxExempt: false,
     paymentTerms: {
-      type: PaymentTermType.NET,
+      type: 'net',
       days: 30
     },
     pricingTier: 'vip',
@@ -495,7 +495,7 @@ export const mockCustomerGroups = [
     minimumOrderAmount: 0,
     taxExempt: false,
     paymentTerms: {
-      type: PaymentTermType.DUE_ON_RECEIPT
+      type: 'net'
     },
     pricingTier: 'retail',
     orderApprovalRequired: false,
@@ -640,7 +640,7 @@ export const mockCustomersApi = {
       id: `cust-${Date.now().toString().substr(-6)}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      status: CustomerStatus.ACTIVE,
+      status: 'active',
       totalSpent: 0,
       orderCount: 0,
       ...customerData
