@@ -276,6 +276,7 @@ export const useInventoryTransactionsStore = defineStore('inventoryTransactions'
 
     createMultiItemReceive(request: CreateMultiItemReceiveRequest) {
       this.loading = true;
+      console.log('Creating multi-item receive:', request);
       return new Promise((resolve, reject) => {
         inventoryTransactionsApi.createMultiItemReceive(request)
           .then((response: ApiResponse<MultiItemReceiveTransaction>) => {

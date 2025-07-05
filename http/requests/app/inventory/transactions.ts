@@ -66,8 +66,11 @@ export const inventoryTransactionsApi = {
   /**
    * Create multi-item receive transaction
    */
-  createMultiItemReceive(request: CreateMultiItemReceiveRequest): Promise<ApiResponse<MultiItemReceiveTransaction>> {
-    return axiosInstance.post(`${BASE_URL}/multi-receive`, request);
+  createMultiItemReceive(request: CreateMultiItemReceiveRequest | { type: string; payload: CreateMultiItemReceiveRequest }): Promise<ApiResponse<MultiItemReceiveTransaction>> {
+    // Extract payload if wrapped, otherwise use request directly
+    const payload = 'payload' in request ? request.payload : request;
+    console.log('Creating multi-item receive api:', payload);
+    return axiosInstance.post(`${BASE_URL}/receive/multi-item`, payload);
   },
 
   /**
@@ -95,8 +98,10 @@ export const inventoryTransactionsApi = {
   /**
    * Create single item receive transaction
    */
-  createSingleItemReceive(request: CreateSingleItemReceiveRequest): Promise<ApiResponse<SingleItemReceiveTransaction>> {
-    return axiosInstance.post(`${BASE_URL}/single-receive`, request);
+  createSingleItemReceive(request: CreateSingleItemReceiveRequest | { type: string; payload: CreateSingleItemReceiveRequest }): Promise<ApiResponse<SingleItemReceiveTransaction>> {
+    // Extract payload if wrapped, otherwise use request directly
+    const payload = 'payload' in request ? request.payload : request;
+    return axiosInstance.post(`${BASE_URL}/receive`, payload);
   },
 
   /**
