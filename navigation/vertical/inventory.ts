@@ -5,7 +5,8 @@ import {  Box,
   ClipboardList, 
   Calculator, 
   Send, 
-  RefreshCcw} from 'lucide-vue-next'
+  RefreshCcw,
+  CreditCard} from 'lucide-vue-next'
 
 const inventory: NavigationItem[] = [
   {
@@ -43,7 +44,12 @@ const inventory: NavigationItem[] = [
         title: "Reorder Automation",
         url: "/app/inventory/reorder-automation", 
         icon: RefreshCcw,
-      },  
+      }, 
+      {
+        title: 'POS',
+        url: '/app/inventory/pos',
+        icon: CreditCard,
+      } 
     ],
   },
 ];

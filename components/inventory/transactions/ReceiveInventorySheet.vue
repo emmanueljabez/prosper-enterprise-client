@@ -42,7 +42,13 @@
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PURCHASE_ORDER">Purchase Order</SelectItem>
+                  <SelectItem value="SALES_ORDER">Sales Order</SelectItem>
+                  <SelectItem value="WORK_ORDER">Work Order</SelectItem>
+                  <SelectItem value="TRANSFER_ORDER">Transfer Order</SelectItem>
+                  <SelectItem value="ADJUSTMENT_ORDER">Adjustment Order</SelectItem>
+                  <SelectItem value="QUALITY_CONTROL">Quality Control</SelectItem>
                   <SelectItem value="MANUAL">Manual Reference</SelectItem>
+                  <SelectItem value="INTERNAL">Internal</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -88,11 +94,35 @@
             <!-- Selected PO Info -->
             <div v-if="form.genericReferenceId && getSelectedOrderInfo()" class="p-3 bg-muted/50 rounded-lg">
               <div class="text-sm">
-                <strong>{{ getSelectedOrderInfo().orderNumber }}</strong> - {{ getSelectedOrderInfo().supplierName }}
+                <strong>{{ getSelectedOrderInfo().invoiceNumber || getSelectedOrderInfo().orderNumber || `PO-${getSelectedOrderInfo().id}` }}</strong> - {{ getSelectedOrderInfo().supplier?.name || getSelectedOrderInfo().supplierName }}
               </div>
               <div class="text-xs text-muted-foreground mt-1">
                 Total: {{ formatCurrency(getSelectedOrderInfo().amount) }} | 
                 Status: {{ getSelectedOrderInfo().status }}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Manual Reference ID Input for Non-PO References in Multi-Item from PO -->
+          <div v-if="form.receiveType === 'MULTI_ITEM_FROM_PO' && form.referenceType && form.referenceType !== 'PURCHASE_ORDER'" class="space-y-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <Label for="manual-reference-id-po">Reference ID</Label>
+                <Input 
+                  id="manual-reference-id-po" 
+                  v-model.number="form.genericReferenceId" 
+                  type="number"
+                  placeholder="Enter reference ID"
+                />
+              </div>
+              
+              <div class="space-y-2">
+                <Label for="manual-reference-number-po">Reference Number</Label>
+                <Input 
+                  id="manual-reference-number-po" 
+                  v-model="form.genericReferenceNumber" 
+                  placeholder="Enter reference number"
+                />
               </div>
             </div>
           </div>
@@ -114,6 +144,100 @@
             </div>
             
             <div class="space-y-2">
+              <Label for="reference-type-standard">Reference Type</Label>
+              <Select v-model="form.referenceType" @update:model-value="onReferenceTypeChange">
+                <SelectTrigger id="reference-type-standard">
+                  <SelectValue placeholder="Select reference type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PURCHASE_ORDER">Purchase Order</SelectItem>
+                  <SelectItem value="SALES_ORDER">Sales Order</SelectItem>
+                  <SelectItem value="WORK_ORDER">Work Order</SelectItem>
+                  <SelectItem value="TRANSFER_ORDER">Transfer Order</SelectItem>
+                  <SelectItem value="ADJUSTMENT_ORDER">Adjustment Order</SelectItem>
+                  <SelectItem value="QUALITY_CONTROL">Quality Control</SelectItem>
+                  <SelectItem value="MANUAL">Manual Reference</SelectItem>
+                  <SelectItem value="INTERNAL">Internal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <!-- Purchase Order Selection for Standard Receives -->
+          <div v-if="form.referenceType === 'PURCHASE_ORDER'" class="space-y-2">
+            <Label for="purchase-order-standard">Purchase Order *</Label>
+            <Select v-model="form.genericReferenceId" @update:model-value="onPurchaseOrderSelected">
+              <SelectTrigger id="purchase-order-standard">
+                <SelectValue :placeholder="purchaseOrdersLoading ? 'Loading...' : 'Select purchase order'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem 
+                  v-for="order in purchaseOrders" 
+                  :key="order.id" 
+                  :value="order.id?.toString()"
+                >
+                  PO #{{ order.invoiceNumber }} - {{ order.supplier?.name }}
+                  <span class="text-muted-foreground ml-2">{{ formatCurrency(order.amount, order.currency) }}</span>
+                </SelectItem>
+                
+                <!-- Load More Option -->
+                <SelectItem 
+                  v-if="purchaseOrdersPaginationMeta.hasMore && !purchaseOrdersLoading"
+                  value="load-more"
+                  class="text-blue-600 hover:text-blue-800"
+                >
+                  Load More...
+                </SelectItem>
+                
+                <!-- Loading indicator -->
+                <SelectItem 
+                  v-if="purchaseOrdersLoading"
+                  value="loading"
+                  disabled
+                >
+                  Loading more orders...
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <!-- Selected PO Info for Standard Receives -->
+            <div v-if="form.genericReferenceId && getSelectedOrderInfo()" class="p-3 bg-muted/50 rounded-lg">
+              <div class="text-sm">
+                <strong>{{ getSelectedOrderInfo().invoiceNumber || getSelectedOrderInfo().orderNumber || `PO-${getSelectedOrderInfo().id}` }}</strong> - {{ getSelectedOrderInfo().supplier?.name || getSelectedOrderInfo().supplierName }}
+              </div>
+              <div class="text-xs text-muted-foreground mt-1">
+                Total: {{ formatCurrency(getSelectedOrderInfo().amount) }} | 
+                Status: {{ getSelectedOrderInfo().status }}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Manual Reference ID Input for Non-PO References -->
+          <div v-if="form.referenceType && form.referenceType !== 'PURCHASE_ORDER'" class="space-y-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <Label for="manual-reference-id">Reference ID</Label>
+                <Input 
+                  id="manual-reference-id" 
+                  v-model.number="form.genericReferenceId" 
+                  type="number"
+                  placeholder="Enter reference ID"
+                />
+              </div>
+              
+              <div class="space-y-2">
+                <Label for="manual-reference-number">Reference Number</Label>
+                <Input 
+                  id="manual-reference-number" 
+                  v-model="form.genericReferenceNumber" 
+                  placeholder="Enter reference number"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
               <Label for="supplier">Supplier</Label>
               <Select v-model="form.supplierId">
                 <SelectTrigger id="supplier">
@@ -130,9 +254,7 @@
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
             <div class="space-y-2">
               <Label for="warehouse">Warehouse *</Label>
               <Select v-model="form.warehouseId" required>
@@ -153,7 +275,9 @@
                 </SelectContent>
               </Select>
             </div>
-            
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
               <Label for="priority">Priority</Label>
               <Select v-model="form.priority">
@@ -168,6 +292,10 @@
                   <SelectItem value="EMERGENCY">Emergency</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            
+            <div class="space-y-2">
+              <!-- Empty space for alignment -->
             </div>
           </div>
           
@@ -191,6 +319,74 @@
             </div>
           </div>
           
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="expected-date">Expected Date</Label>
+              <Input 
+                id="expected-date" 
+                v-model="form.expectedDate" 
+                type="datetime-local"
+                placeholder="Expected delivery date"
+              />
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="received-date">Received Date *</Label>
+              <Input 
+                id="received-date" 
+                v-model="form.receivedDate" 
+                type="datetime-local"
+                placeholder="Actual delivery date"
+                required
+              />
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="tracking-number">Tracking Number</Label>
+              <Input 
+                id="tracking-number" 
+                v-model="form.trackingNumber" 
+                placeholder="Shipment tracking number"
+              />
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="freight-cost">Freight Cost</Label>
+              <div class="relative">
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <Input 
+                  id="freight-cost" 
+                  v-model.number="form.freightCost" 
+                  type="number" 
+                  min="0" 
+                  step="0.01" 
+                  class="pl-6"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="customs-cost">Customs Cost</Label>
+              <div class="relative">
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <Input 
+                  id="customs-cost" 
+                  v-model.number="form.customsCost" 
+                  type="number" 
+                  min="0" 
+                  step="0.01" 
+                  class="pl-6"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          </div>
+          
           <div class="space-y-2">
             <Label for="notes">Notes</Label>
             <Textarea 
@@ -203,7 +399,7 @@
         </div>
         
         <!-- Purchase Order Transaction Details -->
-        <div v-else class="space-y-4">
+        <div v-if="form.receiveType === 'MULTI_ITEM_FROM_PO'" class="space-y-4">
           <h4 class="text-sm font-medium">Purchase Order Receipt Details</h4>
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -217,6 +413,26 @@
               />
             </div>
             
+            <div class="space-y-2">
+              <Label for="po-supplier">Supplier</Label>
+              <Select v-model="form.supplierId">
+                <SelectTrigger id="po-supplier">
+                  <SelectValue placeholder="Select supplier (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem 
+                    v-for="supplier in suppliers" 
+                    :key="supplier.id" 
+                    :value="supplier.id"
+                  >
+                    {{ supplier.name || supplier.companyName }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
               <Label for="po-warehouse">Warehouse *</Label>
               <Select v-model="form.warehouseId" required>
@@ -236,6 +452,173 @@
                   </SelectGroup>
                 </SelectContent>
               </Select>
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="po-external-reference">External Reference</Label>
+              <Input 
+                id="po-external-reference" 
+                v-model="form.externalReference" 
+                placeholder="External invoice/reference number"
+              />
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="po-supplier-reference">Supplier Reference</Label>
+              <Input 
+                id="po-supplier-reference" 
+                v-model="form.supplierReference" 
+                placeholder="Supplier invoice/order number"
+              />
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="po-packing-slip">Packing Slip Number</Label>
+              <Input 
+                id="po-packing-slip" 
+                v-model="form.packingSlipNumber" 
+                placeholder="Packing slip number"
+              />
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="po-delivery-note">Delivery Note Number</Label>
+              <Input 
+                id="po-delivery-note" 
+                v-model="form.deliveryNoteNumber" 
+                placeholder="Delivery note number"
+              />
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="po-carrier">Carrier Name</Label>
+              <Input 
+                id="po-carrier" 
+                v-model="form.carrierName" 
+                placeholder="Shipping carrier name"
+              />
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="po-tracking">Tracking Number</Label>
+              <Input 
+                id="po-tracking" 
+                v-model="form.trackingNumber" 
+                placeholder="Shipment tracking number"
+              />
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="po-expected-delivery">Expected Delivery Date</Label>
+              <Input 
+                id="po-expected-delivery" 
+                v-model="form.expectedDeliveryDate" 
+                type="datetime-local"
+                placeholder="Expected delivery date"
+              />
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="po-actual-delivery">Actual Delivery Date</Label>
+              <Input 
+                id="po-actual-delivery" 
+                v-model="form.actualDeliveryDate" 
+                type="datetime-local"
+                placeholder="Actual delivery date"
+              />
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="po-received-date">Received Date *</Label>
+              <Input 
+                id="po-received-date" 
+                v-model="form.receivedDate" 
+                type="datetime-local"
+                placeholder="Date when items were received"
+                required
+              />
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="po-freight-cost">Freight Cost</Label>
+              <div class="relative">
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <Input 
+                  id="po-freight-cost" 
+                  v-model.number="form.freightCost" 
+                  type="number" 
+                  min="0" 
+                  step="0.01" 
+                  class="pl-6"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="po-insurance-cost">Insurance Cost</Label>
+              <div class="relative">
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <Input 
+                  id="po-insurance-cost" 
+                  v-model.number="form.insuranceCost" 
+                  type="number" 
+                  min="0" 
+                  step="0.01" 
+                  class="pl-6"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            
+            <div class="space-y-2">
+              <Label for="po-customs-duty">Customs Duty</Label>
+              <div class="relative">
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <Input 
+                  id="po-customs-duty" 
+                  v-model.number="form.customsCost" 
+                  type="number" 
+                  min="0" 
+                  step="0.01" 
+                  class="pl-6"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="po-other-charges">Other Charges</Label>
+              <div class="relative">
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <Input 
+                  id="po-other-charges" 
+                  v-model.number="form.otherCharges" 
+                  type="number" 
+                  min="0" 
+                  step="0.01" 
+                  class="pl-6"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            
+            <div class="space-y-2">
+              <!-- Empty space for alignment -->
             </div>
           </div>
           
@@ -365,7 +748,7 @@
                   <div class="space-y-2">
                     <Label :for="`cost-${index}`">Unit Cost *</Label>
                     <div class="relative">
-                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2"></span>
+                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
                       <Input 
                         :id="`cost-${index}`" 
                         v-model.number="item.unitCost" 
@@ -397,6 +780,23 @@
                 </div>
                 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="space-y-2">
+                    <Label :for="`lot-number-${index}`">Lot Number</Label>
+                    <Input 
+                      :id="`lot-number-${index}`" 
+                      v-model="item.lotNumber" 
+                      placeholder="Enter lot number"
+                    />
+                  </div>
+                  
+                  <div class="space-y-2">
+                    <Label :for="`batch-number-${index}`">Batch Number</Label>
+                    <Input 
+                      :id="`batch-number-${index}`" 
+                      v-model="item.batchNumber" 
+                      placeholder="Enter batch number"
+                    />
+                  </div>
                 </div>
                 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -577,6 +977,10 @@ const form = reactive({
   genericReferenceId: null,
   genericReferenceNumber: '',
   transactionDate: formatCurrentDateTime(),
+  receivedDate: formatCurrentDateTime(), // Dedicated received date field
+  expectedDate: '',
+  expectedDeliveryDate: '',
+  actualDeliveryDate: '',
   warehouseId: null,
   locationId: null,
   supplierId: null,
@@ -587,6 +991,13 @@ const form = reactive({
   externalReference: '',
   supplierReference: '',
   packingSlipNumber: '',
+  deliveryNoteNumber: '',
+  carrierName: '',
+  trackingNumber: '',
+  freightCost: 0,
+  customsCost: 0,
+  insuranceCost: 0,
+  otherCharges: 0,
   notes: '',
   items: []
 })
@@ -648,9 +1059,12 @@ const onPurchaseOrderSelected = (selectedId) => {
   // Get the selected purchase order and populate form fields
   const selectedPO = props.purchaseOrders.find(po => po.id?.toString() === selectedId?.toString())
   if (selectedPO) {
+    form.genericReferenceId = selectedPO.id
     form.supplierId = selectedPO.supplierId
-    form.genericReferenceNumber = selectedPO.orderNumber
-    form.externalReference = selectedPO.orderNumber
+    // Use invoiceNumber, orderNumber, or purchaseOrder - whichever is available
+    const poNumber = selectedPO.invoiceNumber || selectedPO.orderNumber || selectedPO.purchaseOrder || `PO-${selectedPO.id}`
+    form.genericReferenceNumber = poNumber
+    form.externalReference = poNumber
     // Could also pre-populate items from PO if available
   }
 }
@@ -775,6 +1189,8 @@ function addItemRow() {
     unitCost: 0,
     qualityStatus: 'PENDING_INSPECTION',
     itemNotes: '',
+    lotNumber: '',
+    batchNumber: '',
     expirationDate: '',
     serialNumbers: []
   })
@@ -837,8 +1253,12 @@ async function handleSubmit() {
         referenceId: form.genericReferenceId,
         supplierId: form.supplierId,
         qualityStatus: singleItem.qualityStatus,
-        receivedDate: form.transactionDate,
+        expectedDate: form.expectedDate,
+        receivedDate: form.receivedDate,
+        freightCost: form.freightCost || 0,
+        customsCost: form.customsCost || 0,
         supplierReference: form.supplierReference,
+        trackingNumber: form.trackingNumber,
         notes: form.notes
       }
       
@@ -856,6 +1276,16 @@ async function handleSubmit() {
         externalReference: form.externalReference,
         supplierReference: form.supplierReference,
         packingSlipNumber: form.packingSlipNumber,
+        deliveryNoteNumber: form.deliveryNoteNumber,
+        carrierName: form.carrierName,
+        trackingNumber: form.trackingNumber,
+        expectedDeliveryDate: form.expectedDeliveryDate,
+        actualDeliveryDate: form.actualDeliveryDate || form.transactionDate,
+        receivedDate: form.receivedDate,
+        freightCost: form.freightCost || 0,
+        insuranceCost: form.insuranceCost || 0,
+        customsDuty: form.customsCost || 0,
+        otherCharges: form.otherCharges || 0,
         notes: form.notes,
         priority: form.priority,
         overallQualityStatus: form.overallQualityStatus,
@@ -867,8 +1297,10 @@ async function handleSubmit() {
           unitCost: item.unitCost,
           qualityStatus: item.qualityStatus,
           itemNotes: item.itemNotes,
-          expirationDate: item.expirationDate,
-          serialNumbers: item.serialNumbers
+          // lotNumber: item.lotNumber,
+          // batchNumber: item.batchNumber,
+          // expirationDate: item.expirationDate,
+          // serialNumbers: item.serialNumbers
         }))
       }
       
@@ -886,6 +1318,16 @@ async function handleSubmit() {
         externalReference: form.externalReference,
         supplierReference: form.supplierReference,
         packingSlipNumber: form.packingSlipNumber,
+        deliveryNoteNumber: form.deliveryNoteNumber,
+        carrierName: form.carrierName,
+        trackingNumber: form.trackingNumber,
+        expectedDeliveryDate: form.expectedDeliveryDate,
+        actualDeliveryDate: form.actualDeliveryDate || form.transactionDate,
+        receivedDate: form.receivedDate,
+        freightCost: form.freightCost || 0,
+        insuranceCost: form.insuranceCost || 0,
+        customsDuty: form.customsCost || 0,
+        otherCharges: form.otherCharges || 0,
         notes: form.notes,
         priority: form.priority,
         overallQualityStatus: form.overallQualityStatus,
@@ -897,8 +1339,10 @@ async function handleSubmit() {
           unitCost: item.unitCost,
           qualityStatus: item.qualityStatus,
           itemNotes: item.itemNotes,
-          expirationDate: item.expirationDate,
-          serialNumbers: item.serialNumbers
+          // lotNumber: item.lotNumber,
+          // batchNumber: item.batchNumber,
+          // expirationDate: item.expirationDate,
+          // serialNumbers: item.serialNumbers
         }))
       }
       

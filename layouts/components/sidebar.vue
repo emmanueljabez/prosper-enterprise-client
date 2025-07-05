@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSidebarStore } from '@/store/modules/sidebar';
 import Navbar from '@/layouts/components/navbar.vue';
@@ -48,6 +48,11 @@ const sidebarStore = useSidebarStore();
 const route = useRoute();
 const router = useRouter();
 const isCollapsed = ref(false);
+
+// Check if we're on the POS page to conditionally hide navbar
+const isPosPage = computed(() => {
+  return route.path.includes('/app/inventory/pos')
+});
 
 // Watch for route path changes to update the active route in the store
 watch(
@@ -199,13 +204,14 @@ function setActiveTeam(team: typeof data.teams[number]) {
         <SidebarRail />
       </Sidebar>
       <SidebarInset class="sidebar-inset">
-        <header class="sticky top-0 z-10 bg-background shadow-lg border-b">
+        <header v-if="!isPosPage" class="sticky top-0 z-10 bg-background shadow-lg border-b">
           <div class="flex items-center h-16 px-4 w-full max-w-[calc(100vw-var(--sidebar-width))]">
             <SidebarTrigger class="-ml-1" />
             <Separator orientation="vertical" class="mx-2 h-4" />
             <Navbar class="flex-1" />
           </div>
         </header>
+        
         <div class="content-area">
           <NuxtPage />
         </div>
