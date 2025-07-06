@@ -254,11 +254,11 @@ const showBarcodeScannerDialog = ref(false)
 const fetchTransactions = async (params = {
   page: 0,
   size: 10,
-  itemId: 0,
-  locationId: 0,
-  transactionType: 'all',
-  startDate: 'all',
-  endDate: 'all'
+  // itemId: 0,
+  locationId: '',
+  transactionType: '',
+  startDate: '2025-01-01',
+  endDate: '2025-12-31'
 }) => {
   try {
     await transactionsStore.fetchTransactions({ ...params })
@@ -409,9 +409,10 @@ const openBarcodeScanner = (mode) => {
 const handleTransactionCreated = async (transactionData) => {
   try {
     let result;
+    console.log('Creating transaction with data:', transactionData)
 
     // Determine the transaction type and call the appropriate store method
-    switch (transactionData.transactionType) {
+    switch (transactionData.type) {
       case 'MULTI_ITEM_RECEIVE':
         result = await transactionsStore.createMultiItemReceive(transactionData);
         break;

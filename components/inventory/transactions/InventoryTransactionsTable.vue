@@ -243,17 +243,17 @@
           <TableRow 
             v-for="transaction in paginatedTransactions" 
             :key="transaction.id"
-            :class="{ 'bg-muted/40': transaction.isVoided }"
+            :class="{ 'bg-muted/40': transaction.isReversed }"
           >
             <TableCell>
-              <div class="font-medium">{{ transaction.referenceNumber }}</div>
-              <div class="text-xs text-muted-foreground" v-if="transaction.externalReference">
-                Ref: {{ transaction.externalReference }}
+              <div class="font-medium">{{ transaction.transactionNumber }}</div>
+              <div class="text-xs text-muted-foreground" v-if="transaction.referenceNumber">
+                Ref: {{ transaction.referenceNumber }}
               </div>
             </TableCell>
             <TableCell>
-              <Badge :variant="getTypeVariant(transaction.type)">
-                {{ formatTransactionType(transaction.type) }}
+              <Badge :variant="getTypeVariant(transaction.transactionType)">
+                {{ formatTransactionType(transaction.transactionType) }}
               </Badge>
             </TableCell>
             <TableCell>
@@ -263,56 +263,37 @@
               </div>
             </TableCell>
             <TableCell>
-              <div v-if="transaction.type === 'receive'">
+              <div v-if="transaction.transactionType === 'RECEIVE'">
                 <div class="flex items-center gap-2">
                   <ArrowDownLeftIcon class="h-4 w-4 text-emerald-500" />
                   <div>
-                    <div class="text-sm">From: {{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
-                    <div class="text-sm">To: {{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
+                    <div class="text-sm">To: {{ transaction.effectiveLocation?.name || 'Unknown' }}</div>
+                    <div class="text-xs text-muted-foreground">{{ transaction.effectiveLocation?.code || '' }}</div>
                   </div>
                 </div>
               </div>
-              <div v-else-if="transaction.type === 'issue'">
+              <div v-else-if="transaction.transactionType === 'ISSUE'">
                 <div class="flex items-center gap-2">
                   <ArrowUpRightIcon class="h-4 w-4 text-blue-500" />
                   <div>
-                    <div class="text-sm">From: {{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
-                    <div class="text-sm">To: {{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
-                  </div>
-                </div>
-              </div>
-              <div v-else-if="transaction.type === 'transfer'">
-                <div class="flex items-center gap-2">
-                  <MoveHorizontalIcon class="h-4 w-4 text-purple-500" />
-                  <div>
-                    <div class="text-sm">From: {{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
-                    <div class="text-sm">To: {{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
-                  </div>
-                </div>
-              </div>
-              <div v-else-if="transaction.type === 'adjustment'">
-                <div class="flex items-center gap-2">
-                  <ScaleIcon class="h-4 w-4 text-amber-500" />
-                  <div>
-                    <div class="text-sm">{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
-                    <div class="text-xs text-muted-foreground">
-                      Reason: {{ formatAdjustmentReason(transaction.reason) }}
-                    </div>
+                    <div class="text-sm">From: {{ transaction.effectiveLocation?.name || 'Unknown' }}</div>
+                    <div class="text-xs text-muted-foreground">{{ transaction.effectiveLocation?.code || '' }}</div>
                   </div>
                 </div>
               </div>
               <div v-else>
-                <div class="text-sm">{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
+                <div class="text-sm">{{ transaction.effectiveLocation?.name || 'Unknown' }}</div>
+                <div class="text-xs text-muted-foreground">{{ transaction.effectiveLocation?.code || '' }}</div>
               </div>
             </TableCell>
             <TableCell>
-              <Badge variant="outline">{{ transaction.items.length }} {{ transaction.items.length === 1 ? 'item' : 'items' }}</Badge>
+              <Badge variant="outline">{{ transaction.quantity || 0 }} units</Badge>
             </TableCell>
-            <TableCell>{{ formatCurrency(transaction.totalValue) }}</TableCell>
+            <TableCell>{{ formatCurrency(transaction.totalCost || transaction.totalLandedCost || 0) }}</TableCell>
             <TableCell>
               <div class="space-y-1">
-                <Badge v-if="transaction.isVoided" variant="destructive">
-                  Voided
+                <Badge v-if="transaction.isReversed" variant="destructive">
+                  Reversed
                 </Badge>
                 <Badge v-else :variant="getStatusVariant(transaction.status)">
                   {{ formatStatus(transaction.status) }}
@@ -336,9 +317,9 @@
                     <PrinterIcon class="mr-2 h-4 w-4" />
                     <span>Print Document</span>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator v-if="!transaction.isVoided" />
+                  <DropdownMenuSeparator v-if="!transaction.isReversed" />
                   <DropdownMenuItem 
-                    v-if="!transaction.isVoided"
+                    v-if="!transaction.isReversed"
                     @click="voidTransaction(transaction)" 
                     class="text-destructive focus:text-destructive"
                   >
@@ -500,20 +481,19 @@ const filteredTransactions = computed(() => {
   if (filters.value.search) {
     const searchTerm = filters.value.search.toLowerCase()
     result = result.filter(transaction => 
+      (transaction.transactionNumber && transaction.transactionNumber.toLowerCase().includes(searchTerm)) ||
       (transaction.referenceNumber && transaction.referenceNumber.toLowerCase().includes(searchTerm)) ||
-      (transaction.externalReference && transaction.externalReference.toLowerCase().includes(searchTerm)) ||
       (transaction.notes && transaction.notes.toLowerCase().includes(searchTerm))
     )
   }
 
   if (filters.value.transactionType && filters.value.transactionType !== 'all') {
-    result = result.filter(transaction => transaction.type === filters.value.transactionType)
+    result = result.filter(transaction => transaction.transactionType === filters.value.transactionType)
   }
 
   if (filters.value.warehouse && filters.value.warehouse !== 'all') {
     result = result.filter(transaction => 
-      transaction.sourceWarehouseId === filters.value.warehouse || 
-      transaction.destinationWarehouseId === filters.value.warehouse
+      transaction.effectiveLocation?.id === parseInt(filters.value.warehouse)
     )
   }
 
@@ -702,24 +682,25 @@ const formatCurrency = (value) => {
 
 const formatTransactionType = (type) => {
   switch (type) {
-    case 'receive': return 'Receive'
-    case 'issue': return 'Issue'
-    case 'transfer': return 'Transfer'
-    case 'adjustment': return 'Adjustment'
-    case 'count': return 'Count'
-    case 'return': return 'Return'
-    default: return type.charAt(0).toUpperCase() + type.slice(1)
+    case 'RECEIVE': return 'Receive'
+    case 'ISSUE': return 'Issue'
+    case 'TRANSFER': return 'Transfer'
+    case 'ADJUSTMENT': return 'Adjustment'
+    case 'COUNT': return 'Count'
+    case 'RETURN': return 'Return'
+    default: return type ? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase() : 'Unknown'
   }
 }
 
 const formatStatus = (status) => {
   switch (status) {
-    case 'completed': return 'Completed'
-    case 'pending': return 'Pending'
-    case 'in_progress': return 'In Progress'
-    case 'draft': return 'Draft'
-    case 'cancelled': return 'Cancelled'
-    default: return status.charAt(0).toUpperCase() + status.slice(1)
+    case 'COMPLETED': return 'Completed'
+    case 'PENDING': return 'Pending'
+    case 'IN_PROGRESS': return 'In Progress'
+    case 'DRAFT': return 'Draft'
+    case 'CANCELLED': return 'Cancelled'
+    case 'APPROVED': return 'Approved'
+    default: return status ? status.charAt(0).toUpperCase() + status.slice(1).toLowerCase() : 'Unknown'
   }
 }
 
@@ -767,23 +748,24 @@ const getDateRangeLabel = (range) => {
 
 const getTypeVariant = (type) => {
   switch (type) {
-    case 'receive': return 'success'
-    case 'issue': return 'blue'
-    case 'transfer': return 'purple'
-    case 'adjustment': return 'yellow'
-    case 'count': return 'secondary'
-    case 'return': return 'pink'
+    case 'RECEIVE': return 'success'
+    case 'ISSUE': return 'blue'
+    case 'TRANSFER': return 'purple'
+    case 'ADJUSTMENT': return 'yellow'
+    case 'COUNT': return 'secondary'
+    case 'RETURN': return 'pink'
     default: return 'default'
   }
 }
 
 const getStatusVariant = (status) => {
   switch (status) {
-    case 'completed': return 'success'
-    case 'pending': return 'warning'
-    case 'in_progress': return 'info'
-    case 'draft': return 'outline'
-    case 'cancelled': return 'destructive'
+    case 'COMPLETED': return 'success'
+    case 'PENDING': return 'warning'
+    case 'IN_PROGRESS': return 'info'
+    case 'DRAFT': return 'outline'
+    case 'CANCELLED': return 'destructive'
+    case 'APPROVED': return 'success'
     default: return 'default'
   }
 }

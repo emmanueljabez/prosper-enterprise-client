@@ -60,7 +60,7 @@
           <h4 class="text-sm font-medium">Transaction Details</h4>
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-2">
+            <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
               <Label for="transaction-date">Date *</Label>
               <Input 
                 id="transaction-date" 
@@ -119,7 +119,30 @@
             </div>
           </div>
           
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'MULTI_ITEM'">
+            <div class="space-y-2">
+              <Label for="reference-id">Reference ID</Label>
+              <Input 
+                id="reference-id" 
+                v-model="form.referenceId" 
+                placeholder="Unique reference identifier"
+              />
+            </div>
+            
+            <div class="space-y-2">
+              <div class="flex items-center space-x-2">
+                <input 
+                  id="requires-quality-check" 
+                  v-model="form.requiresQualityCheck" 
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label for="requires-quality-check">Requires Quality Check</Label>
+              </div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'MULTI_ITEM'">
             <div class="space-y-2">
               <Label for="priority">Priority</Label>
               <Select v-model="form.priority">
@@ -135,7 +158,9 @@
                 </SelectContent>
               </Select>
             </div>
-            
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'SINGLE_ITEM'">
             <div class="space-y-2">
               <Label for="customer">Customer</Label>
               <Select v-model="form.customerId">
@@ -162,7 +187,7 @@
               />
             </div>
             
-            <div class="space-y-2">
+            <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
               <Label for="authorized-by">Authorized By</Label>
               <Input 
                 id="authorized-by" 
@@ -173,20 +198,21 @@
           </div>
           
           <div class="space-y-2">
-            <Label for="customer-reference">Customer Reference</Label>
-            <Input 
-              id="customer-reference" 
-              v-model="form.customerReference" 
-              placeholder="Customer PO, job number, etc."
-            />
-          </div>
-          
-          <div class="space-y-2">
             <Label for="notes">Notes</Label>
             <Textarea 
               id="notes" 
               v-model="form.notes" 
               placeholder="Enter any additional information about this issue" 
+              rows="3"
+            />
+          </div>
+          
+          <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
+            <Label for="quality-notes">Quality Notes</Label>
+            <Textarea 
+              id="quality-notes" 
+              v-model="form.qualityNotes" 
+              placeholder="Enter quality control notes for this transaction" 
               rows="3"
             />
           </div>
@@ -267,13 +293,21 @@
                         step="1" 
                         required
                       />
-                      <div v-if="item.itemId && getItemAvailability(item.itemId)" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                      <div v-if="item.itemId && getItemAvailability(item.itemId) > 0" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                         Available: {{ getItemAvailability(item.itemId) }}
                       </div>
                     </div>
-                    <p v-if="item.itemId && isQuantityExceedsAvailable(item)" class="text-xs text-destructive">
-                      Warning: Quantity exceeds available stock
-                    </p>
+                    <div v-if="item.itemId" class="flex items-center justify-between text-xs">
+                      <span class="text-muted-foreground">
+                        Available Stock: 
+                        <span class="font-medium" :class="getItemAvailability(item.itemId) > 0 ? 'text-green-600' : 'text-red-600'">
+                          {{ getItemAvailability(item.itemId) }}
+                        </span>
+                      </span>
+                      <span v-if="isQuantityExceedsAvailable(item)" class="text-destructive font-medium">
+                        ⚠️ Exceeds stock
+                      </span>
+                    </div>
                   </div>
                 </div>
                 
@@ -294,7 +328,7 @@
                     </div>
                   </div>
                   
-                  <div class="space-y-2">
+                  <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
                     <Label :for="`quality-status-${index}`">Quality Status</Label>
                     <Select v-model="item.qualityStatus">
                       <SelectTrigger :id="`quality-status-${index}`">
@@ -312,7 +346,7 @@
                   </div>
                 </div>
                 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'MULTI_ITEM'">
                   <div class="space-y-2">
                     <Label :for="`lot-${index}`">Lot Number</Label>
                     <Input 
@@ -332,7 +366,7 @@
                   </div>
                 </div>
                 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'MULTI_ITEM'">
                   <div class="space-y-2">
                     <Label :for="`expiration-${index}`">Expiration Date</Label>
                     <Input 
@@ -342,7 +376,7 @@
                     />
                   </div>
                   
-                  <div class="space-y-2">
+                  <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
                     <Label :for="`serial-${index}`">Serial Numbers</Label>
                     <div class="flex space-x-2">
                       <Input 
@@ -381,12 +415,22 @@
                   </div>
                 </div>
                 
-                <div class="space-y-2">
+                <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
                   <Label :for="`item-notes-${index}`">Item Notes</Label>
                   <Textarea 
                     :id="`item-notes-${index}`" 
                     v-model="item.itemNotes" 
                     placeholder="Optional notes for this item"
+                    rows="2"
+                  />
+                </div>
+                
+                <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
+                  <Label :for="`item-quality-notes-${index}`">Item Quality Notes</Label>
+                  <Textarea 
+                    :id="`item-quality-notes-${index}`" 
+                    v-model="item.qualityNotes" 
+                    placeholder="Quality control notes for this specific item"
                     rows="2"
                   />
                 </div>
@@ -510,16 +554,15 @@ const form = reactive({
   locationId: null,
   purpose: 'SALE',
   referenceType: 'MANUAL',
-  referenceId: null,
   referenceNumber: '',
+  referenceId: '',
+  requiresQualityCheck: false,
   priority: 'NORMAL',
   issuedBy: '',
   authorizedBy: '',
-  requiresQualityCheck: false,
-  qualityNotes: '',
   notes: '',
+  qualityNotes: '',
   customerId: null,
-  customerReference: '',
   items: []
 })
 
@@ -539,7 +582,7 @@ const onIssueTypeChange = (newType) => {
 }
 
 const onWarehouseChange = (warehouseId) => {
-  // Update item availability when warehouse changes
+  // Update item availability when warehouse changes, only for items that have been selected
   form.items.forEach((item, index) => {
     if (item.itemId) {
       updateItemAvailability(index)
@@ -593,7 +636,12 @@ const warehouseGroups = computed(() => {
 
 const isFormValid = computed(() => {
   // Check basic transaction details
-  if (!form.transactionDate || !form.locationId || !form.purpose || !form.issuedBy) {
+  if (!form.locationId || !form.purpose || !form.issuedBy) {
+    return false
+  }
+  
+  // For multi-item transactions, transactionDate is required
+  if (form.issueType === 'MULTI_ITEM' && !form.transactionDate) {
     return false
   }
   
@@ -644,19 +692,26 @@ function addItemRow() {
     return
   }
   
-  form.items.push({
+  const baseItem = {
     itemId: null,
     quantity: 1,
-    unitCost: 0,
-    lotNumber: '',
-    batchNumber: '',
-    qualityStatus: 'PASSED',
-    qualityNotes: '',
-    itemNotes: '',
-    expirationDate: '',
-    serialNumbers: []
-  })
+    unitCost: 0
+  }
   
+  // Add additional fields for multi-item transactions
+  if (form.issueType === 'MULTI_ITEM') {
+    Object.assign(baseItem, {
+      lotNumber: '',
+      batchNumber: '',
+      qualityStatus: 'PASSED',
+      itemNotes: '',
+      qualityNotes: '',
+      expirationDate: '',
+      serialNumbers: []
+    })
+  }
+  
+  form.items.push(baseItem)
   serialNumberInputs.value[index] = ''
 }
 
@@ -700,19 +755,24 @@ function formatCurrency(value) {
 
 function updateItemAvailability(index) {
   const itemId = form.items[index].itemId
-  if (!itemId || !form.locationId) return
+  if (!itemId) {
+    // Clear availability when no item is selected
+    return
+  }
   
   // Find the selected item
   const item = props.items.find(i => i.id === itemId)
   if (item) {
-    // Get stock availability for the selected source location
-    const locationStock = item.stock?.find(s => s.locationId === form.locationId)
-    itemAvailability.value[itemId] = locationStock?.quantity || 0
+    // Use the item's volume as the available quantity
+    itemAvailability.value[itemId] = item.volume || 0
     
-    // Default cost to the item's default cost
-    if (!form.items[index].unitCost && item.cost) {
-      form.items[index].unitCost = item.cost
+    // Default cost to the item's standard cost, average cost, or last cost
+    if (!form.items[index].unitCost) {
+      form.items[index].unitCost = item.standardCost || item.averageCost || item.lastCost || 0
     }
+  } else {
+    // Clear availability if item not found
+    itemAvailability.value[itemId] = 0
   }
 }
 
@@ -733,7 +793,7 @@ async function handleSubmit() {
   
   try {
     if (form.issueType === 'SINGLE_ITEM') {
-      // Single Item Issue Transaction
+      // Single Item Issue Transaction - matches exact API contract
       const singleItem = form.items[0]
       const transaction = {
         itemId: singleItem.itemId,
@@ -741,47 +801,44 @@ async function handleSubmit() {
         quantity: singleItem.quantity,
         unitCost: singleItem.unitCost,
         issueType: form.purpose,
-        referenceNumber: form.referenceNumber,
-        referenceType: form.referenceType,
-        customerId: form.customerId,
-        customerReference: form.customerReference,
-        notes: form.notes
+        referenceNumber: form.referenceNumber || null,
+        referenceType: form.referenceType || null,
+        customerId: form.customerId || null,
+        notes: form.notes || null
       }
       
-      emit('transaction-created', { type: 'single-issue', payload: transaction })
+      emit('transaction-created', { type: 'SINGLE_ITEM_ISSUE', payload: transaction })
     } else {
-      // Multi-Item Issue Transaction
+      // Multi-Item Issue Transaction - matches exact API contract
       const transaction = {
         locationId: form.locationId,
         transactionDate: form.transactionDate,
         issueType: form.purpose,
-        referenceType: form.referenceType,
-        referenceId: form.referenceId,
-        referenceNumber: form.referenceNumber,
-        priority: form.priority,
-        purpose: form.purpose,
+        referenceType: form.referenceType || null,
+        referenceNumber: form.referenceNumber || null,
+        referenceId: form.referenceId || null,
+        requiresQualityCheck: form.requiresQualityCheck || false,
+        priority: form.priority || 'NORMAL',
         issuedBy: form.issuedBy,
-        authorizedBy: form.authorizedBy,
-        requiresQualityCheck: form.requiresQualityCheck,
-        qualityNotes: form.qualityNotes,
-        notes: form.notes,
-        customerId: form.customerId,
-        customerReference: form.customerReference,
+        authorizedBy: form.authorizedBy || null,
+        notes: form.notes || null,
+        qualityNotes: form.qualityNotes || null,
+        purpose: form.purpose,
         items: form.items.map(item => ({
           itemId: item.itemId,
           quantity: item.quantity,
           unitCost: item.unitCost,
-          lotNumber: item.lotNumber,
-          batchNumber: item.batchNumber,
-          qualityStatus: item.qualityStatus,
-          qualityNotes: item.qualityNotes,
-          itemNotes: item.itemNotes,
-          expirationDate: item.expirationDate,
-          serialNumbers: item.serialNumbers
+          lotNumber: item.lotNumber || null,
+          batchNumber: item.batchNumber || null,
+          qualityStatus: item.qualityStatus || null,
+          expirationDate: item.expirationDate || null,
+          serialNumbers: item.serialNumbers && item.serialNumbers.length > 0 ? item.serialNumbers : null,
+          itemNotes: item.itemNotes || null,
+          qualityNotes: item.qualityNotes || null
         }))
       }
       
-      emit('transaction-created', { type: 'multi-issue', payload: transaction })
+      emit('transaction-created', { type: 'MULTI_ITEM_ISSUE', payload: transaction })
     }
   } catch (error) {
     console.error('Error creating transaction:', error)

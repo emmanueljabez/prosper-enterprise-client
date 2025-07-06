@@ -130,7 +130,8 @@ export const inventoryTransactionsApi = {
    * Create multi-item issue transaction
    */
   createMultiItemIssue(request: CreateMultiItemIssueRequest): Promise<ApiResponse<MultiItemIssueTransaction>> {
-    return axiosInstance.post(`${BASE_URL}/multi-issue`, request);
+    const payload = 'payload' in request ? request.payload : request;
+    return axiosInstance.post(`${BASE_URL}/issue/multi-item`, payload);
   },
 
   /**
@@ -159,7 +160,8 @@ export const inventoryTransactionsApi = {
    * Create single item issue transaction
    */
   createSingleItemIssue(request: CreateSingleItemIssueRequest): Promise<ApiResponse<SingleItemIssueTransaction>> {
-    return axiosInstance.post(`${BASE_URL}/single-issue`, request);
+    const payload = 'payload' in request ? request.payload : request;
+    return axiosInstance.post(`${BASE_URL}/issue`, payload);
   },
 
   /**

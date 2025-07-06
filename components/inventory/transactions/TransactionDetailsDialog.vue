@@ -1,11 +1,11 @@
 <template>
-  <DialogContent class="sm:max-w-3xl">
-    <DialogHeader>
+  <DialogContent class="sm:max-w-5xl max-h-[90vh] flex flex-col">
+    <DialogHeader class="flex-shrink-0">
       <DialogTitle class="flex items-center justify-between">
         <div class="flex items-center">
           <span>Transaction Details</span>
-          <Badge v-if="transaction.isVoided" variant="destructive" class="ml-2">
-            Voided
+          <Badge v-if="transaction.isReversed" variant="destructive" class="ml-2">
+            Reversed
           </Badge>
           <Badge 
             v-else
@@ -26,7 +26,7 @@
             Print
           </Button>
           <Button
-            v-if="!transaction.isVoided"
+            v-if="!transaction.isReversed"
             variant="destructive"
             size="sm"
             @click="handleVoidClick" 
@@ -45,175 +45,339 @@
         </div>
       </DialogTitle>
       <DialogDescription>
-        Transaction #{{ transaction.referenceNumber }}
+        Transaction #{{ transaction.transactionNumber }}
       </DialogDescription>
     </DialogHeader>
     
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-      <!-- Transaction Information -->
-      <div class="space-y-4">
-        <Card>
-          <CardHeader class="pb-2">
-            <CardTitle class="text-base">Transaction Info</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div class="grid grid-cols-2 gap-2 text-sm">
-              <div class="text-muted-foreground">Type:</div>
-              <div>
-                <Badge :variant="getTypeVariant(transaction.type)">
-                  {{ formatTransactionType(transaction.type) }}
-                </Badge>
-              </div>
-              
-              <div class="text-muted-foreground">Reference #:</div>
-              <div class="font-medium">{{ transaction.referenceNumber }}</div>
-              
-              <div v-if="transaction.externalReference" class="text-muted-foreground">External Ref:</div>
-              <div v-if="transaction.externalReference">{{ transaction.externalReference }}</div>
-              
-              <div v-if="transaction.purchaseOrderId" class="text-muted-foreground">Purchase Order:</div>
-              <div v-if="transaction.purchaseOrderId" class="font-medium text-blue-600">
-                PO-{{ transaction.purchaseOrderId }}
-              </div>
-              
-              <div class="text-muted-foreground">Date:</div>
-              <div>{{ formatDate(transaction.transactionDate) }}</div>
-              
-              <div class="text-muted-foreground">Status:</div>
-              <div>{{ formatStatus(transaction.status) }}</div>
-              
-              <div v-if="transaction.reason" class="text-muted-foreground">Reason:</div>
-              <div v-if="transaction.reason">{{ formatAdjustmentReason(transaction.reason) }}</div>
-              
-              <div v-if="transaction.isVoided" class="text-muted-foreground">Voided At:</div>
-              <div v-if="transaction.isVoided" class="text-destructive">{{ formatDate(transaction.voidedAt) }}</div>
-              
-              <div v-if="transaction.isVoided" class="text-muted-foreground">Void Reason:</div>
-              <div v-if="transaction.isVoided" class="text-destructive">{{ transaction.voidReason }}</div>
-              
-              <div class="text-muted-foreground">Created By:</div>
-              <div>{{ transaction.createdBy }}</div>
-              
-              <div class="text-muted-foreground">Created At:</div>
-              <div>{{ formatDate(transaction.createdAt) }}</div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <!-- Warehouse Details -->
-        <Card>
-          <CardHeader class="pb-2">
-            <CardTitle class="text-base">Warehouse Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div class="grid grid-cols-2 gap-2 text-sm">
-              <template v-if="transaction.type === 'receive'">
-                <div class="text-muted-foreground">From:</div>
-                <div>{{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
-                <div class="text-muted-foreground">To:</div>
-                <div>{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
-              </template>
-              
-              <template v-else-if="transaction.type === 'issue'">
-                <div class="text-muted-foreground">From:</div>
-                <div>{{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
-                <div class="text-muted-foreground">To:</div>
-                <div>{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
-              </template>
-              
-              <template v-else-if="transaction.type === 'transfer'">
-                <div class="text-muted-foreground">From:</div>
-                <div>{{ getWarehouseName(transaction.sourceWarehouseId) }}</div>
-                <div class="text-muted-foreground">To:</div>
-                <div>{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
-              </template>
-              
-              <template v-else>
-                <div class="text-muted-foreground">Warehouse:</div>
-                <div>{{ getWarehouseName(transaction.destinationWarehouseId) }}</div>
-              </template>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <!-- Notes -->
-        <Card v-if="transaction.notes">
-          <CardHeader class="pb-2">
-            <CardTitle class="text-base">Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p class="text-sm">{{ transaction.notes }}</p>
-          </CardContent>
-        </Card>
+    <!-- Status Banner -->
+    <div v-if="transaction.isReversed" class="flex-shrink-0 bg-destructive/10 border-l-4 border-destructive p-3 mb-4">
+      <div class="flex items-center">
+        <BanIcon class="h-5 w-5 text-destructive mr-2" />
+        <div>
+          <div class="font-medium text-destructive">This transaction has been reversed</div>
+          <div v-if="transaction.reversalReason" class="text-sm text-destructive/80">
+            Reason: {{ transaction.reversalReason }}
+          </div>
+        </div>
       </div>
-      
-      <!-- Items Section -->
-      <div>
-        <Card>
-          <CardHeader class="pb-2">
-            <CardTitle class="text-base flex items-center justify-between">
-              <span>Items ({{ transaction.items.length }})</span>
-              <span class="text-muted-foreground text-sm">
-                Total: {{ formatCurrency(transaction.totalValue || calculateTotal()) }}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent class="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Cost</TableHead>
-                  <TableHead>Subtotal</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow v-for="item in transaction.items" :key="item.itemId">
-                  <TableCell>
-                    <div class="font-medium">{{ getItemName(item.itemId) }}</div>
-                    <div v-if="item.lot" class="text-xs text-muted-foreground">
-                      Lot: {{ item.lot }}
-                    </div>
-                    <div v-if="item.expirationDate" class="text-xs text-muted-foreground">
-                      Expires: {{ formatDate(item.expirationDate) }}
-                    </div>
-                    <div v-if="item.binLocation || item.sourceBin || item.destinationBin" class="text-xs text-muted-foreground">
-                      <template v-if="item.binLocation">
-                        Bin: {{ item.binLocation }}
-                      </template>
-                      <template v-else-if="transaction.type === 'transfer'">
-                        From: {{ item.sourceBin }} → To: {{ item.destinationBin }}
-                      </template>
-                    </div>
-                  </TableCell>
-                  <TableCell>{{ item.quantity }}</TableCell>
-                  <TableCell>{{ formatCurrency(item.cost) }}</TableCell>
-                  <TableCell>{{ formatCurrency(item.subtotal || (item.quantity * (item.cost || 0))) }}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+    </div>
+    
+    <div class="flex-1 overflow-hidden">
+      <Tabs default-value="overview" class="w-full h-full flex flex-col">
+        <TabsList class="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="items">Items</TabsTrigger>
+          <TabsTrigger value="locations">Locations</TabsTrigger>
+          <TabsTrigger value="audit">Audit Trail</TabsTrigger>
+        </TabsList>
         
-        <!-- Serial Numbers -->
-        <Card v-if="hasSerialNumbers" class="mt-4">
-          <CardHeader class="pb-2">
-            <CardTitle class="text-base">Serial Numbers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div class="flex flex-wrap gap-2">
-              <Badge 
-                v-for="(serial, index) in allSerialNumbers" 
-                :key="index" 
-                variant="outline"
-              >
-                {{ serial }}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <!-- Overview Tab -->
+        <TabsContent value="overview" class="flex-1 overflow-y-auto mt-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Transaction Information -->
+            <Card>
+              <CardHeader>
+                <CardTitle class="text-lg flex items-center">
+                  <FileTextIcon class="h-5 w-5 mr-2" />
+                  Transaction Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-4">
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                  <div class="text-muted-foreground">Type:</div>
+                  <div>
+                    <Badge :variant="getTypeVariant(transaction.transactionType)">
+                      {{ formatTransactionType(transaction.transactionType) }}
+                    </Badge>
+                  </div>
+                  
+                  <div class="text-muted-foreground">Transaction #:</div>
+                  <div class="font-medium">{{ transaction.transactionNumber }}</div>
+                  
+                  <div v-if="transaction.referenceNumber" class="text-muted-foreground">Reference #:</div>
+                  <div v-if="transaction.referenceNumber" class="font-medium">{{ transaction.referenceNumber }}</div>
+                  
+                  <div v-if="transaction.referenceType" class="text-muted-foreground">Reference Type:</div>
+                  <div v-if="transaction.referenceType">{{ transaction.referenceType }}</div>
+                  
+                  <div v-if="transaction.purchaseOrderNumber" class="text-muted-foreground">Purchase Order:</div>
+                  <div v-if="transaction.purchaseOrderNumber" class="font-medium text-blue-600">
+                    {{ transaction.purchaseOrderNumber }}
+                  </div>
+                  
+                  <div class="text-muted-foreground">Date:</div>
+                  <div>{{ formatDate(transaction.transactionDate) }}</div>
+                  
+                  <div class="text-muted-foreground">Status:</div>
+                  <div>
+                    <Badge :variant="getStatusVariant(transaction.status)">
+                      {{ formatStatus(transaction.status) }}
+                    </Badge>
+                  </div>
+                  
+                  <div class="text-muted-foreground">Quantity:</div>
+                  <div>
+                    <Badge :variant="getQuantityVariant(transaction.quantity)" class="text-sm">
+                      {{ transaction.quantity > 0 ? '+' : '' }}{{ transaction.quantity || 0 }} units
+                    </Badge>
+                  </div>
+                  
+                  <div class="text-muted-foreground">Unit Cost:</div>
+                  <div class="font-medium">{{ formatCurrency(transaction.unitCost || 0) }}</div>
+                  
+                  <div class="text-muted-foreground">Total Cost:</div>
+                  <div class="font-semibold text-lg">{{ formatCurrency(transaction.totalCost || transaction.totalLandedCost || 0) }}</div>
+                  
+                  <div v-if="transaction.qualityStatus" class="text-muted-foreground">Quality Status:</div>
+                  <div v-if="transaction.qualityStatus">
+                    <Badge :variant="getQualityVariant(transaction.qualityStatus)">
+                      {{ transaction.qualityStatus }}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <!-- Document References -->
+            <Card v-if="transaction.deliveryNoteNumber || transaction.invoiceNumber || transaction.purchaseOrderNumber">
+              <CardHeader>
+                <CardTitle class="text-lg flex items-center">
+                  <ClipboardListIcon class="h-5 w-5 mr-2" />
+                  Document References
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="space-y-3">
+                  <div v-if="transaction.deliveryNoteNumber" class="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <span class="text-sm font-medium">Delivery Note</span>
+                    <Badge variant="outline">{{ transaction.deliveryNoteNumber }}</Badge>
+                  </div>
+                  <div v-if="transaction.invoiceNumber" class="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <span class="text-sm font-medium">Invoice</span>
+                    <Badge variant="outline">{{ transaction.invoiceNumber }}</Badge>
+                  </div>
+                  <div v-if="transaction.purchaseOrderNumber" class="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <span class="text-sm font-medium">Purchase Order</span>
+                    <Badge variant="secondary">{{ transaction.purchaseOrderNumber }}</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <!-- Additional Costs -->
+            <Card v-if="transaction.freightCost || transaction.insuranceCost || transaction.customsDuty || transaction.otherCharges">
+              <CardHeader>
+                <CardTitle class="text-lg flex items-center">
+                  <DollarSignIcon class="h-5 w-5 mr-2" />
+                  Additional Costs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="space-y-3">
+                  <div v-if="transaction.freightCost" class="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <span class="text-sm font-medium">Freight</span>
+                    <Badge variant="outline">{{ formatCurrency(transaction.freightCost) }}</Badge>
+                  </div>
+                  <div v-if="transaction.insuranceCost" class="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <span class="text-sm font-medium">Insurance</span>
+                    <Badge variant="outline">{{ formatCurrency(transaction.insuranceCost) }}</Badge>
+                  </div>
+                  <div v-if="transaction.customsDuty" class="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <span class="text-sm font-medium">Customs Duty</span>
+                    <Badge variant="outline">{{ formatCurrency(transaction.customsDuty) }}</Badge>
+                  </div>
+                  <div v-if="transaction.otherCharges" class="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <span class="text-sm font-medium">Other Charges</span>
+                    <Badge variant="outline">{{ formatCurrency(transaction.otherCharges) }}</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <!-- Notes -->
+            <Card v-if="transaction.notes">
+              <CardHeader>
+                <CardTitle class="text-lg flex items-center">
+                  <StickyNoteIcon class="h-5 w-5 mr-2" />
+                  Notes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="p-3 bg-muted/30 rounded-lg">
+                  <p class="text-sm">{{ transaction.notes }}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+        
+        <!-- Items Tab -->
+        <TabsContent value="items" class="flex-1 overflow-y-auto mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle class="text-lg flex items-center justify-between">
+                <div class="flex items-center">
+                  <PackageIcon class="h-5 w-5 mr-2" />
+                  Transaction Items
+                </div>
+                <Badge variant="outline">1 Item</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div class="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item Details</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Unit Cost</TableHead>
+                      <TableHead>Total Cost</TableHead>
+                      <TableHead>Quality</TableHead>
+                      <TableHead>Tracking</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>
+                        <div class="space-y-1">
+                          <div class="font-medium">Transaction Item</div>
+                          <div v-if="transaction.expiryDate" class="text-xs text-muted-foreground">
+                            Expires: {{ formatDateShort(transaction.expiryDate) }}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge :variant="getQuantityVariant(transaction.quantity)" class="text-sm">
+                          {{ transaction.quantity > 0 ? '+' : '' }}{{ transaction.quantity || 0 }}
+                        </Badge>
+                      </TableCell>
+                      <TableCell class="font-medium">
+                        {{ formatCurrency(transaction.unitCost || 0) }}
+                      </TableCell>
+                      <TableCell class="font-semibold">
+                        {{ formatCurrency(transaction.totalCost || transaction.totalLandedCost || 0) }}
+                      </TableCell>
+                      <TableCell>
+                        <Badge v-if="transaction.qualityStatus" :variant="getQualityVariant(transaction.qualityStatus)" class="text-xs">
+                          {{ transaction.qualityStatus }}
+                        </Badge>
+                        <span v-else class="text-muted-foreground text-xs">-</span>
+                      </TableCell>
+                      <TableCell>
+                        <div class="space-y-1">
+                          <div v-if="transaction.lotNumber" class="text-xs">
+                            <span class="text-muted-foreground">Lot:</span> {{ transaction.lotNumber }}
+                          </div>
+                          <div v-if="transaction.batchNumber" class="text-xs">
+                            <span class="text-muted-foreground">Batch:</span> {{ transaction.batchNumber }}
+                          </div>
+                          <div v-if="transaction.serialNumber" class="text-xs">
+                            <span class="text-muted-foreground">Serial:</span> {{ transaction.serialNumber }}
+                          </div>
+                          <span v-if="!transaction.lotNumber && !transaction.batchNumber && !transaction.serialNumber" class="text-muted-foreground text-xs">-</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <!-- Locations Tab -->
+        <TabsContent value="locations" class="flex-1 overflow-y-auto mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle class="text-lg flex items-center">
+                <MapPinIcon class="h-5 w-5 mr-2" />
+                Location Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div class="space-y-4">
+                    <h4 class="font-semibold text-base">Primary Location</h4>
+                    <div class="p-4 border rounded-lg space-y-3">
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium">Name:</span>
+                        <span class="text-sm">{{ transaction.effectiveLocation?.name || 'Unknown' }}</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium">Code:</span>
+                        <Badge variant="outline" class="text-xs">{{ transaction.effectiveLocation?.code || 'N/A' }}</Badge>
+                      </div>
+                      <div v-if="transaction.effectiveLocation?.description" class="flex items-center justify-between">
+                        <span class="text-sm font-medium">Description:</span>
+                        <span class="text-sm">{{ transaction.effectiveLocation.description }}</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium">Type:</span>
+                        <Badge variant="secondary" class="text-xs">{{ transaction.effectiveLocation?.locationType || 'N/A' }}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <!-- Audit Trail Tab -->
+        <TabsContent value="audit" class="flex-1 overflow-y-auto mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle class="text-lg flex items-center">
+                <ClockIcon class="h-5 w-5 mr-2" />
+                Audit Trail
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div class="space-y-4">
+                <div class="flex items-start space-x-3 p-3 bg-muted/30 rounded-lg">
+                  <div class="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
+                  <div class="flex-1 space-y-1">
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-medium">Transaction Created</span>
+                      <span class="text-xs text-muted-foreground">{{ formatDate(transaction.created) }}</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground">
+                      Transaction #{{ transaction.transactionNumber }} was created
+                    </div>
+                  </div>
+                </div>
+                
+                <div v-if="transaction.updated !== transaction.created" class="flex items-start space-x-3 p-3 bg-muted/30 rounded-lg">
+                  <div class="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <div class="flex-1 space-y-1">
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-medium">Transaction Updated</span>
+                      <span class="text-xs text-muted-foreground">{{ formatDate(transaction.updated) }}</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground">
+                      Transaction details were modified
+                    </div>
+                  </div>
+                </div>
+                
+                <div v-if="transaction.isReversed" class="flex items-start space-x-3 p-3 bg-destructive/10 rounded-lg border-l-2 border-destructive">
+                  <div class="w-2 h-2 bg-destructive rounded-full mt-2 flex-shrink-0"></div>
+                  <div class="flex-1 space-y-1">
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-medium text-destructive">Transaction Reversed</span>
+                      <span class="text-xs text-muted-foreground">{{ formatDate(transaction.updated) }}</span>
+                    </div>
+                    <div class="text-xs text-destructive/80">
+                      {{ transaction.reversalReason || 'Transaction was reversed' }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   </DialogContent>
 </template>
@@ -224,7 +388,14 @@ import { format } from 'date-fns'
 import {
   BanIcon,
   PrinterIcon,
-  XIcon
+  XIcon,
+  FileTextIcon,
+  ClipboardListIcon,
+  DollarSignIcon,
+  StickyNoteIcon,
+  PackageIcon,
+  MapPinIcon,
+  ClockIcon
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -242,6 +413,12 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@/components/ui/tabs'
 import {
   DialogContent,
   DialogDescription,
@@ -267,20 +444,8 @@ const props = defineProps({
 const emit = defineEmits(['close', 'void-transaction', 'print-document'])
 
 // Computed properties
-const hasSerialNumbers = computed(() => {
-  return props.transaction.items.some(item => 
-    item.serialNumbers && item.serialNumbers.length > 0
-  )
-})
-
-const allSerialNumbers = computed(() => {
-  const serials = []
-  props.transaction.items.forEach(item => {
-    if (item.serialNumbers && item.serialNumbers.length > 0) {
-      serials.push(...item.serialNumbers)
-    }
-  })
-  return serials
+const hasSerialNumber = computed(() => {
+  return transaction.serialNumber && transaction.serialNumber.length > 0
 })
 
 // Methods
@@ -290,14 +455,6 @@ const handleVoidClick = () => {
 
 const handlePrintDocument = () => {
   emit('print-document', props.transaction)
-}
-
-const calculateTotal = () => {
-  return props.transaction.items.reduce((total, item) => {
-    const itemCost = item.cost || 0
-    const itemQuantity = item.quantity || 0
-    return total + (itemCost * itemQuantity)
-  }, 0)
 }
 
 const getWarehouseName = (warehouseId) => {
@@ -322,6 +479,15 @@ const formatDate = (dateString) => {
   }
 }
 
+const formatDateShort = (dateString) => {
+  if (!dateString) return 'N/A'
+  try {
+    return format(new Date(dateString), 'MMM d, yyyy')
+  } catch (e) {
+    return dateString
+  }
+}
+
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-US', { 
     style: 'currency', 
@@ -331,24 +497,25 @@ const formatCurrency = (value) => {
 
 const formatTransactionType = (type) => {
   switch (type) {
-    case 'receive': return 'Receive'
-    case 'issue': return 'Issue'
-    case 'transfer': return 'Transfer'
-    case 'adjustment': return 'Adjustment'
-    case 'count': return 'Count'
-    case 'return': return 'Return'
-    default: return type.charAt(0).toUpperCase() + type.slice(1)
+    case 'RECEIVE': return 'Receive'
+    case 'ISSUE': return 'Issue'
+    case 'TRANSFER': return 'Transfer'
+    case 'ADJUSTMENT': return 'Adjustment'
+    case 'COUNT': return 'Count'
+    case 'RETURN': return 'Return'
+    default: return type ? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase() : 'Unknown'
   }
 }
 
 const formatStatus = (status) => {
   switch (status) {
-    case 'completed': return 'Completed'
-    case 'pending': return 'Pending'
-    case 'in_progress': return 'In Progress'
-    case 'draft': return 'Draft'
-    case 'cancelled': return 'Cancelled'
-    default: return status.charAt(0).toUpperCase() + status.slice(1)
+    case 'COMPLETED': return 'Completed'
+    case 'PENDING': return 'Pending'
+    case 'IN_PROGRESS': return 'In Progress'
+    case 'DRAFT': return 'Draft'
+    case 'CANCELLED': return 'Cancelled'
+    case 'APPROVED': return 'Approved'
+    default: return status ? status.charAt(0).toUpperCase() + status.slice(1).toLowerCase() : 'Unknown'
   }
 }
 
@@ -367,24 +534,45 @@ const formatAdjustmentReason = (reason) => {
 
 const getTypeVariant = (type) => {
   switch (type) {
-    case 'receive': return 'success'
-    case 'issue': return 'blue'
-    case 'transfer': return 'purple'
-    case 'adjustment': return 'yellow'
-    case 'count': return 'secondary'
-    case 'return': return 'pink'
+    case 'RECEIVE': return 'success'
+    case 'ISSUE': return 'blue'
+    case 'TRANSFER': return 'purple'
+    case 'ADJUSTMENT': return 'yellow'
+    case 'COUNT': return 'secondary'
+    case 'RETURN': return 'pink'
     default: return 'default'
   }
 }
 
 const getStatusVariant = (status) => {
   switch (status) {
-    case 'completed': return 'success'
-    case 'pending': return 'warning'
-    case 'in_progress': return 'info'
-    case 'draft': return 'outline'
-    case 'cancelled': return 'destructive'
+    case 'COMPLETED': return 'success'
+    case 'PENDING': return 'warning'
+    case 'IN_PROGRESS': return 'info'
+    case 'DRAFT': return 'outline'
+    case 'CANCELLED': return 'destructive'
+    case 'APPROVED': return 'success'
     default: return 'default'
+  }
+}
+
+const getQuantityVariant = (quantity) => {
+  if (quantity > 0) return 'success'
+  if (quantity < 0) return 'destructive'
+  return 'secondary'
+}
+
+const getQualityVariant = (quality) => {
+  switch (quality?.toLowerCase()) {
+    case 'good': 
+    case 'passed': 
+    case 'approved': return 'success'
+    case 'poor': 
+    case 'failed': 
+    case 'rejected': return 'destructive'
+    case 'pending': 
+    case 'review': return 'warning'
+    default: return 'secondary'
   }
 }
 </script>

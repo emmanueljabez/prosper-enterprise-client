@@ -1262,7 +1262,7 @@ async function handleSubmit() {
         notes: form.notes
       }
       
-      emit('transaction-created', { type: 'single-receive', payload: transaction })
+      emit('transaction-created', { type: 'SINGLE_ITEM_RECEIVE', payload: transaction })
     } else if (form.receiveType === 'MULTI_ITEM_FROM_PO' && form.referenceType === 'PURCHASE_ORDER') {
       // Multi-Item Receive from Purchase Order
       const transaction = {
@@ -1346,7 +1346,7 @@ async function handleSubmit() {
         }))
       }
       
-      emit('transaction-created', { type: 'multi-receive', payload: transaction })
+      emit('transaction-created', { type: 'MULTI_ITEM_RECEIVE', payload: transaction })
     }
   } catch (error) {
     console.error('Error creating transaction:', error)
