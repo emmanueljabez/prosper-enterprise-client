@@ -238,12 +238,17 @@
             </CardHeader>
             <CardContent class="space-y-4">
               <div class="text-center p-4 bg-muted rounded-lg">
-                <div class="text-3xl font-bold mb-1">{{ formatNumber(item.stockOnHand || 0) }}</div>
-                <div class="text-sm text-muted-foreground">Units on Hand</div>
-                <div v-if="isLowStock" class="text-sm text-orange-600 font-medium mt-1">
+                <div class="text-3xl font-bold mb-1">{{ formatNumber(getTotalStock(item)) }}</div>
+                <div class="text-sm text-muted-foreground">
+                  Units on Hand
+                  <span v-if="getLocationCount(item) > 1" class="text-xs ml-1">
+                    ({{ getLocationCount(item) }} locations)
+                  </span>
+                </div>
+                <div v-if="isLowStock(item)" class="text-sm text-orange-600 font-medium mt-1">
                   Low Stock Alert
                 </div>
-                <div v-else-if="isOutOfStock" class="text-sm text-red-600 font-medium mt-1">
+                <div v-else-if="isOutOfStock(item)" class="text-sm text-red-600 font-medium mt-1">
                   Out of Stock
                 </div>
               </div>
@@ -251,15 +256,15 @@
               <div class="space-y-3">
                 <div class="flex justify-between">
                   <span class="text-sm text-muted-foreground">Available:</span>
-                  <span class="font-medium">{{ formatNumber(item.availableStock || item.stockOnHand || 0) }}</span>
+                  <span class="font-medium">{{ formatNumber(getTotalStock(item)) }}</span>
                 </div>
                 <div class="flex justify-between">
                   <span class="text-sm text-muted-foreground">Reserved:</span>
-                  <span class="font-medium">{{ formatNumber(item.reservedStock || 0) }}</span>
+                  <span class="font-medium">{{ formatNumber(getTotalReserved(item)) }}</span>
                 </div>
                 <div class="flex justify-between">
-                  <span class="text-sm text-muted-foreground">On Order:</span>
-                  <span class="font-medium">{{ formatNumber(item.onOrderStock || 0) }}</span>
+                  <span class="text-sm text-muted-foreground">Allocated:</span>
+                  <span class="font-medium">{{ formatNumber(getTotalAllocated(item)) }}</span>
                 </div>
                 <div class="flex justify-between border-t pt-2">
                   <span class="text-sm text-muted-foreground">Reorder Point:</span>
@@ -268,6 +273,21 @@
                 <div class="flex justify-between">
                   <span class="text-sm text-muted-foreground">Reorder Qty:</span>
                   <span class="font-medium">{{ formatNumber(item.reorderQuantity || 0) }}</span>
+                </div>
+              </div>
+
+              <!-- Stock by Location -->
+              <div v-if="item.inventoryStocks && item.inventoryStocks.length > 1" class="pt-4 border-t">
+                <div class="text-sm font-medium text-muted-foreground mb-2">Stock by Location:</div>
+                <div class="space-y-1 max-h-32 overflow-y-auto">
+                  <div 
+                    v-for="stock in item.inventoryStocks" 
+                    :key="stock.id"
+                    class="flex justify-between text-xs"
+                  >
+                    <span class="truncate mr-2">{{ stock.location.name }}</span>
+                    <span>{{ formatNumber(stock.quantityAvailable) }}</span>
+                  </div>
                 </div>
               </div>
 
@@ -431,22 +451,10 @@ const hasPhysicalProperties = computed(() => {
   )
 })
 
-const isLowStock = computed(() => {
-  if (!props.item) return false
-  const stock = props.item.stockOnHand || 0
-  const reorderPoint = props.item.reorderPoint || 0
-  return stock <= reorderPoint && stock > 0
-})
-
-const isOutOfStock = computed(() => {
-  if (!props.item) return false
-  return (props.item.stockOnHand || 0) === 0
-})
-
 const totalValue = computed(() => {
   if (!props.item) return 0
   const cost = props.item.standardCost || props.item.averageCost || props.item.lastCost || 0
-  const quantity = props.item.stockOnHand || 0
+  const quantity = getTotalStock(props.item)
   return cost * quantity
 })
 
@@ -458,7 +466,7 @@ const formatNumber = (value) => {
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD'
+    currency: 'KES'
   }).format(value || 0)
 }
 
@@ -472,6 +480,38 @@ const getUnitName = (unitId) => {
   if (!unitId) return 'N/A'
   const unit = props.units.find(u => u.id === unitId)
   return unit?.name || unit?.code || 'N/A'
+}
+
+// Stock calculation methods using inventoryStocks array
+const getTotalStock = (item) => {
+  if (!item?.inventoryStocks?.length) return 0
+  return item.inventoryStocks.reduce((sum, stock) => sum + (stock.quantityAvailable || 0), 0)
+}
+
+const getTotalReserved = (item) => {
+  if (!item?.inventoryStocks?.length) return 0
+  return item.inventoryStocks.reduce((sum, stock) => sum + (stock.quantityReserved || 0), 0)
+}
+
+const getTotalAllocated = (item) => {
+  if (!item?.inventoryStocks?.length) return 0
+  return item.inventoryStocks.reduce((sum, stock) => sum + (stock.quantityAllocated || 0), 0)
+}
+
+const getLocationCount = (item) => {
+  return item?.inventoryStocks?.length || 0
+}
+
+const isLowStock = (item) => {
+  if (!item) return false
+  const totalStock = getTotalStock(item)
+  const reorderPoint = item.reorderPoint || 0
+  return totalStock <= reorderPoint && totalStock > 0
+}
+
+const isOutOfStock = (item) => {
+  if (!item) return false
+  return getTotalStock(item) === 0
 }
 
 // Image upload methods

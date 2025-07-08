@@ -627,8 +627,8 @@ const createItem = async () => {
       width: parseFloat(formData.width) || undefined,
       height: parseFloat(formData.height) || undefined,
       notes: formData.notes || undefined,
-      isActive: formData.isActive
-      // imageUrl: formData.imageUrl || undefined // TODO: Enable when backend supports it
+      isActive: formData.isActive,
+      imageUrl: props.imageUrl || undefined
     }
 
     emit('item-created', itemData)

@@ -202,7 +202,7 @@
           :upload-error="fileUploadStore.getError"
           :image-url="fileUploadStore.getUploadedUrl"
           @item-created="handleItemCreated"
-          @close="showItemWizard = false"
+          @close="closeItemWizard"
           @upload-image="handleImageUpload"
           @remove-image="handleImageRemove"
         />
@@ -241,9 +241,9 @@
           :units="units"
           :is-uploading="fileUploadStore.getIsUploading"
           :upload-error="fileUploadStore.getError"
-          :image-url="selectedItem?.imageUrl"
+          :image-url="editorImageUrl"
           @item-updated="handleItemUpdated"
-          @close="showItemEditorSheet = false"
+          @close="closeItemEditor"
           @upload-image="handleImageUpload"
           @remove-image="handleImageRemove"
         />
@@ -440,6 +440,12 @@ const purchaseOrdersPaginationMeta = computed(() => ({
 const warehouses = computed(() => locationsStore.getActiveWarehouses)
 const warehousesLoading = computed(() => locationsStore.getIsLoading)
 
+// Image URL computation for editor (prioritize uploaded URL over existing item URL)
+const editorImageUrl = computed(() => {
+  const uploadedUrl = fileUploadStore.getUploadedUrl
+  return uploadedUrl || selectedItem.value?.imageUrl || ''
+})
+
 // State management
 const selectedBulkItems = ref([])
 const itemToDelete = ref(null)
@@ -484,6 +490,16 @@ const refreshItems = async () => {
 // Dialog and sheet handlers
 const openItemWizard = () => {
   showItemWizard.value = true
+}
+
+const closeItemWizard = () => {
+  showItemWizard.value = false
+  fileUploadStore.clearUploadedUrl()
+}
+
+const closeItemEditor = () => {
+  showItemEditorSheet.value = false
+  fileUploadStore.clearUploadedUrl()
 }
 
 const openItemDetails = async (item) => {
@@ -687,6 +703,9 @@ const handleItemCreated = async (newItem) => {
     await inventoryItemsStore.createItem(newItem)
     showItemWizard.value = false
     
+    // Clear uploaded URL from store
+    fileUploadStore.clearUploadedUrl()
+    
     toast({
       title: 'Success',
       description: 'Item created successfully',
@@ -710,7 +729,11 @@ const handleItemUpdated = async (updateData) => {
     if (!itemId) return
     
     await inventoryItemsStore.updateItem(itemId, updateData)
+    console.log('Item updated:', updateData)
     showItemEditorSheet.value = false
+    
+    // Clear uploaded URL from store
+    fileUploadStore.clearUploadedUrl()
     
     toast({
       title: 'Success',

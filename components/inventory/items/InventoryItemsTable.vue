@@ -154,7 +154,11 @@
             </TableCell>
             <TableCell class="text-right">
               <div class="flex flex-col items-end">
-                <span class="font-medium">{{ formatNumber(item.stockOnHand || 0) }}</span>
+                <span class="font-medium">{{ formatNumber(getTotalStock(item)) }}</span>
+                <span v-if="hasMultipleLocations(item)" class="text-xs text-blue-600 cursor-help" 
+                      :title="`Stock across ${item.inventoryStocks.length} locations`">
+                  {{ item.inventoryStocks.length }} locations
+                </span>
                 <span v-if="isLowStock(item)" class="text-xs text-orange-600">
                   Low Stock
                 </span>
@@ -458,19 +462,46 @@ const bulkDelete = () => {
   console.log('Bulk delete:', selectedItems.value)
 }
 
+const getTotalStock = (item) => {
+  if (item.inventoryStocks && Array.isArray(item.inventoryStocks)) {
+    return item.inventoryStocks.reduce((total, stock) => {
+      return total + (stock.quantityAvailable || 0)
+    }, 0)
+  }
+  return item.stockOnHand || item.currentStock || 0
+}
+
+const getStockByLocation = (item) => {
+  if (item.inventoryStocks && Array.isArray(item.inventoryStocks)) {
+    return item.inventoryStocks.map(stock => ({
+      locationName: stock.location?.name || 'Unknown',
+      locationCode: stock.location?.code || '',
+      quantity: stock.quantityAvailable || 0,
+      reserved: stock.quantityReserved || 0,
+      allocated: stock.quantityAllocated || 0
+    }))
+  }
+  return []
+}
+
+const hasMultipleLocations = (item) => {
+  return item.inventoryStocks && Array.isArray(item.inventoryStocks) && item.inventoryStocks.length > 1
+}
+
 const isLowStock = (item) => {
-  const stock = item.stockOnHand || 0
-  const reorderPoint = item.reorderPoint || 0
-  return stock <= reorderPoint && stock > 0
+  const stock = getTotalStock(item)
+  const reorderPoint = item.reorderPoint || item.reorderLevel || 0
+  const minStock = item.minStockLevel || item.minimumStock || 0
+  return stock <= Math.max(reorderPoint, minStock) && stock > 0
 }
 
 const isOutOfStock = (item) => {
-  return (item.stockOnHand || 0) === 0
+  return getTotalStock(item) === 0
 }
 
 const getItemValue = (item) => {
   const cost = item.standardCost || item.averageCost || item.lastCost || 0
-  const quantity = item.stockOnHand || 0
+  const quantity = getTotalStock(item)
   return cost * quantity
 }
 
