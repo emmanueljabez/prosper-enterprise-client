@@ -35,38 +35,10 @@
           </DropdownMenuContent>
         </DropdownMenu> -->
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button>
-              <PlusIcon class="h-4 w-4 mr-2" />
-              New Transaction
-              <ChevronDown class="h-4 w-4 ml-2" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem @click="openReceiveDialog()">
-              <DownloadIcon class="h-4 w-4 mr-2" />
-              Receive Inventory
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="openIssueDialog()">
-              <UploadIcon class="h-4 w-4 mr-2" />
-              Issue Inventory
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="openAdjustmentDialog()">
-              <EditIcon class="h-4 w-4 mr-2" />
-              Inventory Adjustment
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="openTransferDialog()">
-              <MoveHorizontalIcon class="h-4 w-4 mr-2" />
-              Transfer Stock
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem @click="openStockCountDialog()">
-              <ClipboardListIcon class="h-4 w-4 mr-2" />
-              Stock Count
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button @click="openCreateTransactionDialog()">
+          <PlusIcon class="h-4 w-4 mr-2" />
+          New Transaction
+        </Button>
       </div>
     </div>
 
@@ -82,51 +54,25 @@
         @print-document="handlePrintDocument" @close="showTransactionDetailsDialog = false" />
     </Dialog>
 
-    <!-- Receive Inventory Dialog -->
-    <Sheet v-model:open="showReceiveDialog" position="right" size="lg">
-      <SheetContent class="w-full sm:max-w-xl lg:max-w-2xl">
-        <ReceiveInventorySheet v-if="showReceiveDialog" :warehouses="warehouses" :items="items" :suppliers="suppliers"
-          :purchase-orders="purchaseOrders" :purchase-orders-loading="purchaseOrdersLoading"
-          :purchase-orders-pagination-meta="purchaseOrdersPaginationMeta"
-          @transaction-created="handleTransactionCreated" @multi-receive-from-po="handleMultiReceiveFromPO"
-          @load-purchase-orders="handleLoadPurchaseOrders" @close="showReceiveDialog = false" />
-      </SheetContent>
-    </Sheet>
-
-    <!-- Issue Inventory Dialog -->
-    <Sheet v-model:open="showIssueDialog" position="right" size="lg">
-      <SheetContent class="w-full sm:max-w-xl lg:max-w-2xl">
-        <IssueInventorySheet v-if="showIssueDialog" :warehouses="warehouses" :items="items" :customers="customers"
-          :purchase-orders="purchaseOrders" :purchase-orders-loading="purchaseOrdersLoading"
-          :purchase-orders-pagination-meta="purchaseOrdersPaginationMeta"
-          @transaction-created="handleTransactionCreated" @multi-issue-from-po="handleMultiIssueFromPO"
-          @load-purchase-orders="handleLoadPurchaseOrders" @close="showIssueDialog = false" />
-      </SheetContent>
-    </Sheet>
-
-    <!-- Adjustment Dialog -->
-    <Sheet v-model:open="showAdjustmentDialog" position="right" size="lg">
-      <SheetContent class="w-full sm:max-w-xl lg:max-w-2xl">
-        <InventoryAdjustmentSheet v-if="showAdjustmentDialog" :warehouses="warehouses" :items="items"
-          @transaction-created="handleTransactionCreated" @close="showAdjustmentDialog = false" />
-      </SheetContent>
-    </Sheet>
-
-    <!-- Transfer Dialog -->
-    <Sheet v-model:open="showTransferDialog" position="right" size="lg">
-      <SheetContent class="w-full sm:max-w-xl lg:max-w-2xl">
-        <StockTransferSheet v-if="showTransferDialog" :warehouses="warehouses" :items="items"
-          @transaction-created="handleTransactionCreated" @close="showTransferDialog = false" />
-      </SheetContent>
-    </Sheet>
-
-    <!-- Stock Count Dialog -->
-    <Sheet v-model:open="showStockCountDialog" position="right" size="lg">
-      <SheetContent class="w-full sm:max-w-xl lg:max-w-2xl">
-        <StockCountSheet v-if="showStockCountDialog" :warehouses="warehouses" :items="items"
-          @transaction-created="handleTransactionCreated" @close="showStockCountDialog = false" />
-      </SheetContent>
-    </Sheet>
+    <!-- Create Transaction Dialog -->
+    <Dialog v-model:open="showCreateTransactionDialog">
+      <CreateTransactionDialog 
+        v-if="showCreateTransactionDialog"
+        :warehouses="warehouses"
+        :items="items"
+        :customers="customers"
+        :suppliers="suppliers"
+        :purchase-orders="purchaseOrders"
+        :purchase-orders-loading="purchaseOrdersLoading"
+        :purchase-orders-pagination-meta="purchaseOrdersPaginationMeta"
+        :scanned-item="null"
+        @transaction-created="handleTransactionCreated"
+        @multi-receive-from-po="handleMultiReceiveFromPO"
+        @multi-issue-from-po="handleMultiIssueFromPO"
+        @load-purchase-orders="handleLoadPurchaseOrders"
+        @close="showCreateTransactionDialog = false"
+      />
+    </Dialog>
 
     <!-- Void Transaction Dialog -->
     <Dialog v-model:open="showVoidDialog">
@@ -150,39 +96,21 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import {
-  PlusIcon, ChevronDown,
-  DownloadIcon, UploadIcon, EditIcon,
-  MoveHorizontalIcon, ClipboardListIcon,
+  PlusIcon,
   ScanBarcodeIcon, ListChecksIcon
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import {
-  Sheet,
-  SheetContent
-} from '@/components/ui/sheet'
-import {
   Dialog,
   DialogContent
 } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator
-} from '@/components/ui/dropdown-menu'
 import { useToast } from '@/components/ui/toast'
 
 // Components
 import InventoryTransactionsTable from '@/components/inventory/transactions/InventoryTransactionsTable.vue'
 import TransactionDetailsDialog from '@/components/inventory/transactions/TransactionDetailsDialog.vue'
-import ReceiveInventorySheet from '@/components/inventory/transactions/ReceiveInventorySheet.vue'
-import IssueInventorySheet from '@/components/inventory/transactions/IssueInventorySheet.vue'
-import InventoryAdjustmentSheet from '@/components/inventory/transactions/InventoryAdjustmentSheet.vue'
-import StockTransferSheet from '@/components/inventory/transactions/StockTransferSheet.vue'
-import StockCountSheet from '@/components/inventory/transactions/StockCountSheet.vue'
+import CreateTransactionDialog from '@/components/inventory/transactions/CreateTransactionDialog.vue'
 import VoidTransactionDialog from '@/components/inventory/transactions/VoidTransactionDialog.vue'
-// import BarcodeScannerDialog from '@/components/inventory/transactions/BarcodeScannerDialog.vue'
 // import BarcodeScannerDialog from '@/components/inventory/transactions/BarcodeScannerDialog.vue'
 
 // Stores
@@ -242,11 +170,7 @@ const filters = ref({
 
 // UI control
 const showTransactionDetailsDialog = ref(false)
-const showReceiveDialog = ref(false)
-const showIssueDialog = ref(false)
-const showAdjustmentDialog = ref(false)
-const showTransferDialog = ref(false)
-const showStockCountDialog = ref(false)
+const showCreateTransactionDialog = ref(false)
 const showVoidDialog = ref(false)
 const showBarcodeScannerDialog = ref(false)
 
@@ -375,24 +299,8 @@ const openTransactionDetails = (transaction) => {
   showTransactionDetailsDialog.value = true
 }
 
-const openReceiveDialog = () => {
-  showReceiveDialog.value = true
-}
-
-const openIssueDialog = () => {
-  showIssueDialog.value = true
-}
-
-const openAdjustmentDialog = () => {
-  showAdjustmentDialog.value = true
-}
-
-const openTransferDialog = () => {
-  showTransferDialog.value = true
-}
-
-const openStockCountDialog = () => {
-  showStockCountDialog.value = true
+const openCreateTransactionDialog = () => {
+  showCreateTransactionDialog.value = true
 }
 
 const openVoidTransactionDialog = (transaction) => {

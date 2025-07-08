@@ -172,7 +172,44 @@
             </li>
           </ul>
         </CardContent>
-      </Card>      <!-- Inventory Settings -->
+      </Card>      <!-- Business Rules -->
+      <Card class="flex flex-col h-full hover:shadow-lg transition-shadow">
+        <CardHeader class="pb-3">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-yellow-100 rounded-lg">
+              <SlidersIcon class="h-6 w-6 text-yellow-600" />
+            </div>
+            <div>
+              <CardTitle class="text-lg">Business Rules</CardTitle>
+              <p class="text-sm text-muted-foreground">Configure business logic and automation</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent class="flex-grow">
+          <ul class="space-y-3">
+            <li>
+              <NuxtLink to="/app/rules/visibility" class="block p-2 rounded-md hover:bg-gray-50 transition-colors">
+                <span class="text-sm font-medium">Visibility Rules</span>
+                <p class="text-xs text-muted-foreground">Control data visibility</p>
+              </NuxtLink>
+            </li>
+            <li>
+              <NuxtLink to="/app/rules/trigger-configuration" class="block p-2 rounded-md hover:bg-gray-50 transition-colors">
+                <span class="text-sm font-medium">Trigger Configuration</span>
+                <p class="text-xs text-muted-foreground">Set up automated triggers</p>
+              </NuxtLink>
+            </li>
+            <li>
+              <NuxtLink to="/app/rules/sync-schedules" class="block p-2 rounded-md hover:bg-gray-50 transition-colors">
+                <span class="text-sm font-medium">Sync Schedules</span>
+                <p class="text-xs text-muted-foreground">Manage synchronization timing</p>
+              </NuxtLink>
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      <!-- Inventory Settings -->
       <Card class="flex flex-col h-full hover:shadow-lg transition-shadow">
         <CardHeader class="pb-3">
           <div class="flex items-center gap-3">
@@ -244,6 +281,6 @@ import {
   PackageIcon, WrenchIcon, LinkIcon, ShieldIcon,
   BarChartIcon, ServerIcon, MessageSquareIcon, PercentIcon,
   ZapIcon, PuzzleIcon, CodeIcon, SearchIcon, XIcon,
-  SettingsIcon
+  SettingsIcon, SlidersIcon
 } from 'lucide-vue-next';
 </script>

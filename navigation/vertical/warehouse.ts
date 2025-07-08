@@ -6,6 +6,7 @@ import {
   GitBranch, 
   Send,
   ClipboardList,
+  NetworkIcon,
   ShoppingCart
 } from 'lucide-vue-next'
 
@@ -16,6 +17,11 @@ const warehouse: NavigationItem[] = [
     icon: Warehouse,
     isActive: false,
     children: [
+      {
+        title: "Location Hierarchy",
+        url: "/app/locations/location-hierarchy",
+        icon: NetworkIcon,
+      },
       {
         title: "Receiving Dashboard",
         url: "/app/warehouse/receiving-dashboard",

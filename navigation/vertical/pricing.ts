@@ -13,21 +13,22 @@ const pricing: NavigationItem[] = [
     icon: CoinsIcon,
     isActive: false,
     children: [
+      // {
+      //   title: "Sales Channel Pricing",
+      //   url: "/app/price-management/sales-channels",
+      //   icon: StoreIcon, 
+      // },
       {
-        title: "Sales Channel Pricing",
-        url: "/app/price-management/sales-channels",
-        icon: StoreIcon, 
-      },
+        title: "Promotions & Discounts",
+        url: "/app/price-management/discounts-and-promotions",
+        icon: BadgePercentIcon,
+      }, 
       {
         title: "Customer Pricing",
         url: "/app/price-management/customer-based-pricing",
         icon: UsersIcon,         
       },
-      {
-        title: "Promotions & Discounts",
-        url: "/app/price-management/discounts-and-promotions",
-        icon: BadgePercentIcon,
-      },     
+          
     ],
   },
 ];

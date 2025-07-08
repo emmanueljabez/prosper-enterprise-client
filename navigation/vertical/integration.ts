@@ -8,7 +8,7 @@ import {
 
 const integration: NavigationItem[] = [
   {
-    title: "Integration",
+    title: "Production",
     url: "",
     icon: Network,
     isActive: false,

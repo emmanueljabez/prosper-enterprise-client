@@ -257,7 +257,7 @@ function formatType(type) {
 
 function formatCurrency(value) {
   if (typeof value !== 'number') return '—'
-  return value.toLocaleString(undefined, { style: 'currency', currency: 'USD' })
+  return value.toLocaleString(undefined, { style: 'currency', currency: 'KES' })
 }
 
 const pageSize = 20
