@@ -278,8 +278,43 @@ const selectedTable = ref(null)
 const menuItems = computed(() => inventoryItemsStore.getItems)
 const menuCategories = computed(() => itemCategoriesStore.getActiveCategories)
 const inventoryLevels = ref({})
-const lowStockItems = ref([])
-const outOfStockItems = ref([])
+
+// Stock alert calculations using inventoryStocks array
+const lowStockItems = computed(() => {
+  return menuItems.value.filter(item => {
+    if (!item.inventoryStocks?.length) return false
+    const totalStock = item.inventoryStocks.reduce((sum, stock) => sum + (stock.quantityAvailable || 0), 0)
+    const reorderPoint = item.reorderPoint || 0
+    return totalStock <= reorderPoint && totalStock > 0
+  }).map(item => ({
+    id: item.id,
+    name: item.name,
+    currentStock: item.inventoryStocks.reduce((sum, stock) => sum + (stock.quantityAvailable || 0), 0),
+    minimumStock: item.reorderPoint || 0,
+    unit: item.baseUnitOfMeasureId || item.unitOfMeasureId || 'units',
+    category: getCategoryName(item.categoryId),
+    lastSold: item.lastSold || null,
+    isHighPriority: item.isHighPriority || false,
+    hasUpcomingPromotion: item.hasUpcomingPromotion || false
+  }))
+})
+
+const outOfStockItems = computed(() => {
+  return menuItems.value.filter(item => {
+    if (!item.inventoryStocks?.length) return false
+    const totalStock = item.inventoryStocks.reduce((sum, stock) => sum + (stock.quantityAvailable || 0), 0)
+    return totalStock === 0
+  }).map(item => ({
+    id: item.id,
+    name: item.name,
+    currentStock: 0,
+    unit: item.baseUnitOfMeasureId || item.unitOfMeasureId || 'units',
+    category: getCategoryName(item.categoryId),
+    lastSold: item.lastSold || null,
+    isHighPriority: item.isHighPriority || false,
+    hasUpcomingPromotion: item.hasUpcomingPromotion || false
+  }))
+})
 
 // Orders
 const activeOrders = ref([])
@@ -317,6 +352,13 @@ const notifications = ref([])
 
 // WebSocket connection for real-time updates
 let websocket = null
+
+// Helper functions
+const getCategoryName = (categoryId) => {
+  if (!categoryId) return 'Uncategorized'
+  const category = menuCategories.value.find(cat => cat.id === categoryId)
+  return category?.name || 'Uncategorized'
+}
 
 // Table Management Handlers
 const handleTableSelect = (table) => {

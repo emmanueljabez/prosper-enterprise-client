@@ -53,6 +53,10 @@ export const useFileUploadStore = defineStore('fileUpload', {
       this.uploadedUrl = url;
     },
 
+    clearUploadedUrl() {
+      this.uploadedUrl = null;
+    },
+
     // Clear error
     clearError() {
       this.error = null;

@@ -507,7 +507,7 @@ const formData = reactive({
   height: null,
   notes: '',
   isActive: true,
-  imageUrl: '' // TODO: Enable this field when backend supports it
+  imageUrl: ''
 })
 
 // Computed
@@ -559,7 +559,7 @@ const loadItemData = () => {
     formData.height = props.item.height || null
     formData.notes = props.item.notes || ''
     formData.isActive = props.item.isActive !== undefined ? props.item.isActive : true
-    formData.imageUrl = props.item.imageUrl || '' // TODO: Enable when backend supports it
+    formData.imageUrl = props.item.imageUrl || '' 
     
     // Convert IDs to strings for selects
     if (props.item.categoryId) {
@@ -656,8 +656,8 @@ const updateItem = async () => {
       width: parseFloat(formData.width) || undefined,
       height: parseFloat(formData.height) || undefined,
       notes: formData.notes || undefined,
-      isActive: formData.isActive
-      // imageUrl: formData.imageUrl || undefined // TODO: Enable when backend supports it
+      isActive: formData.isActive,
+      imageUrl: formData.imageUrl || undefined
     }
 
     emit('item-updated', updateData)
@@ -681,6 +681,11 @@ const formatDate = (date) => {
 
 // Watchers
 watch(() => props.item, loadItemData, { immediate: true })
+watch(() => props.imageUrl, (newImageUrl) => {
+  if (newImageUrl) {
+    formData.imageUrl = newImageUrl
+  }
+})
 
 // Initialize
 onMounted(() => {

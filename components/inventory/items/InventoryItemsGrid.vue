@@ -157,8 +157,11 @@
             <!-- Stock Info -->
             <div class="flex items-center justify-between pt-2 border-t">
               <div class="text-center">
-                <div class="text-lg font-bold">{{ formatNumber(item.stockOnHand || 0) }}</div>
+                <div class="text-lg font-bold">{{ formatNumber(getTotalStock(item)) }}</div>
                 <div class="text-xs text-muted-foreground">Stock</div>
+                <div v-if="hasMultipleLocations(item)" class="text-xs text-blue-600">
+                  {{ item.inventoryStocks.length }} locations
+                </div>
                 <div v-if="isLowStock(item)" class="text-xs text-orange-600 font-medium">
                   Low Stock
                 </div>
@@ -351,19 +354,46 @@ const hasMoreItems = computed(() => {
 })
 
 // Methods
+const getTotalStock = (item) => {
+  if (item.inventoryStocks && Array.isArray(item.inventoryStocks)) {
+    return item.inventoryStocks.reduce((total, stock) => {
+      return total + (stock.quantityAvailable || 0)
+    }, 0)
+  }
+  return item.stockOnHand || item.currentStock || 0
+}
+
+const getStockByLocation = (item) => {
+  if (item.inventoryStocks && Array.isArray(item.inventoryStocks)) {
+    return item.inventoryStocks.map(stock => ({
+      locationName: stock.location?.name || 'Unknown',
+      locationCode: stock.location?.code || '',
+      quantity: stock.quantityAvailable || 0,
+      reserved: stock.quantityReserved || 0,
+      allocated: stock.quantityAllocated || 0
+    }))
+  }
+  return []
+}
+
+const hasMultipleLocations = (item) => {
+  return item.inventoryStocks && Array.isArray(item.inventoryStocks) && item.inventoryStocks.length > 1
+}
+
 const isLowStock = (item) => {
-  const stock = item.stockOnHand || 0
-  const reorderPoint = item.reorderPoint || 0
-  return stock <= reorderPoint && stock > 0
+  const stock = getTotalStock(item)
+  const reorderPoint = item.reorderPoint || item.reorderLevel || 0
+  const minStock = item.minStockLevel || item.minimumStock || 0
+  return stock <= Math.max(reorderPoint, minStock) && stock > 0
 }
 
 const isOutOfStock = (item) => {
-  return (item.stockOnHand || 0) === 0
+  return getTotalStock(item) === 0
 }
 
 const getItemValue = (item) => {
   const cost = item.standardCost || item.averageCost || item.lastCost || 0
-  const quantity = item.stockOnHand || 0
+  const quantity = getTotalStock(item)
   return cost * quantity
 }
 
@@ -374,7 +404,7 @@ const formatNumber = (value) => {
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD'
+    currency: 'KES'
   }).format(value)
 }
 
@@ -431,6 +461,7 @@ const clearFilters = () => {
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
