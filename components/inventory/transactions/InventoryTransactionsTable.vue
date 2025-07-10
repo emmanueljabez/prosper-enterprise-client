@@ -97,18 +97,19 @@
       <div v-if="filters.dateRange === 'custom'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="space-y-2">
           <Label for="startDate">Start Date</Label>
-          <Input
-            id="startDate"
+          <DatePicker
             v-model="filters.startDate"
-            type="date"
+            placeholder="Select start date"
+            class="w-full"
           />
         </div>
         <div class="space-y-2">
           <Label for="endDate">End Date</Label>
-          <Input
-            id="endDate"
+          <DatePicker
             v-model="filters.endDate"
-            type="date"
+            placeholder="Select end date"
+            class="w-full"
+            :calendar-disabled="(date) => filters.startDate && date < new Date(filters.startDate)"
           />
         </div>
       </div>
@@ -386,6 +387,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { DatePicker } from '@/components/ui/date-picker'
 import {
   Table,
   TableBody,

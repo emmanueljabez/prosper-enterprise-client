@@ -19,12 +19,12 @@
         
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-2">
-            <Label for="transaction-date">Count Date *</Label>
-            <Input 
-              id="transaction-date" 
-              v-model="form.transactionDate" 
-              type="datetime-local" 
-              required
+            <Label for="transaction-date">Count Date & Time *</Label>
+            <DatePicker
+              v-model="form.transactionDate"
+              placeholder="Select count date and time"
+              class="w-full"
+              :include-time="true"
             />
           </div>
           
@@ -380,6 +380,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
+import { DatePicker } from '@/components/ui/date-picker'
+import { formatCurrentDateTime, ensureDateTimeFormat } from '@/utils/dateUtils'
 import {
   Alert,
   AlertTitle,
@@ -531,17 +533,6 @@ const totalVariance = computed(() => {
 })
 
 // Methods
-function formatCurrentDateTime() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const hours = String(now.getHours()).padStart(2, '0')
-  const minutes = String(now.getMinutes()).padStart(2, '0')
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}`
-}
-
 function formatLocationType(type) {
   switch (type) {
     case 'warehouse': return 'Warehouses'
@@ -668,7 +659,7 @@ async function handleSubmit() {
     const transaction = {
       type: 'count',
       locationId: form.locationId,
-      transactionDate: new Date(form.transactionDate).toISOString(),
+      transactionDate: ensureDateTimeFormat(form.transactionDate),
       externalReference: form.externalReference,
       notes: form.notes,
       createAdjustments: form.createAdjustments,

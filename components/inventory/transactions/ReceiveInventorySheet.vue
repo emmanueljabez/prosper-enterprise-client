@@ -134,12 +134,12 @@
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label for="transaction-date">Date *</Label>
-              <Input 
-                id="transaction-date" 
-                v-model="form.transactionDate" 
-                type="datetime-local" 
-                required
+              <Label for="transaction-date">Date & Time *</Label>
+              <DatePicker
+                v-model="form.transactionDate"
+                placeholder="Select transaction date and time"
+                class="w-full"
+                :include-time="true"
               />
             </div>
             
@@ -176,8 +176,8 @@
                   :key="order.id" 
                   :value="order.id?.toString()"
                 >
-                  PO #{{ order.invoiceNumber }} - {{ order.supplier?.name }}
-                  <span class="text-muted-foreground ml-2">{{ formatCurrency(order.amount, order.currency) }}</span>
+                  PO #{{ order.poNumber }} - {{ order.supplier?.name }}
+                  <span class="text-muted-foreground ml-2">{{ formatCurrency(order.totalAmount, order.currency) }}</span>
                 </SelectItem>
                 
                 <!-- Load More Option -->
@@ -239,7 +239,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
               <Label for="supplier">Supplier</Label>
-              <Select v-model="form.supplierId">
+              <Select v-model="form.supplierId" @update:model-value="onSupplierChange">
                 <SelectTrigger id="supplier">
                   <SelectValue placeholder="Select supplier (optional)" />
                 </SelectTrigger>
@@ -307,6 +307,9 @@
                 v-model="form.supplierReference" 
                 placeholder="Supplier invoice/order number"
               />
+              <p v-if="form.supplierId && form.supplierReference" class="text-xs text-muted-foreground">
+                Auto-filled from selected supplier
+              </p>
             </div>
             
             <div class="space-y-2">
@@ -321,23 +324,22 @@
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label for="expected-date">Expected Date</Label>
-              <Input 
-                id="expected-date" 
-                v-model="form.expectedDate" 
-                type="datetime-local"
-                placeholder="Expected delivery date"
+              <Label for="expected-date">Expected Date & Time</Label>
+              <DatePicker
+                v-model="form.expectedDate"
+                placeholder="Select expected delivery date and time"
+                class="w-full"
+                :include-time="true"
               />
             </div>
             
             <div class="space-y-2">
-              <Label for="received-date">Received Date *</Label>
-              <Input 
-                id="received-date" 
-                v-model="form.receivedDate" 
-                type="datetime-local"
-                placeholder="Actual delivery date"
-                required
+              <Label for="received-date">Received Date & Time *</Label>
+              <DatePicker
+                v-model="form.receivedDate"
+                placeholder="Select actual delivery date and time"
+                class="w-full"
+                :include-time="true"
               />
             </div>
           </div>
@@ -405,17 +407,17 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
               <Label for="po-transaction-date">Date *</Label>
-              <Input 
-                id="po-transaction-date" 
-                v-model="form.transactionDate" 
-                type="datetime-local" 
-                required
+              <DatePicker
+                v-model="form.transactionDate"
+                placeholder="Select transaction date"
+                class="w-full"
+                :include-time="true"
               />
             </div>
             
             <div class="space-y-2">
               <Label for="po-supplier">Supplier</Label>
-              <Select v-model="form.supplierId">
+              <Select v-model="form.supplierId" @update:model-value="onSupplierChange">
                 <SelectTrigger id="po-supplier">
                   <SelectValue placeholder="Select supplier (optional)" />
                 </SelectTrigger>
@@ -472,6 +474,9 @@
                 v-model="form.supplierReference" 
                 placeholder="Supplier invoice/order number"
               />
+              <p v-if="form.supplierId && form.supplierReference" class="text-xs text-muted-foreground">
+                Auto-filled from selected supplier
+              </p>
             </div>
             
             <div class="space-y-2">
@@ -516,11 +521,11 @@
             
             <div class="space-y-2">
               <Label for="po-expected-delivery">Expected Delivery Date</Label>
-              <Input 
-                id="po-expected-delivery" 
-                v-model="form.expectedDeliveryDate" 
-                type="datetime-local"
-                placeholder="Expected delivery date"
+              <DatePicker
+                v-model="form.expectedDeliveryDate"
+                placeholder="Select expected delivery date"
+                class="w-full"
+                :include-time="true"
               />
             </div>
           </div>
@@ -528,22 +533,21 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
               <Label for="po-actual-delivery">Actual Delivery Date</Label>
-              <Input 
-                id="po-actual-delivery" 
-                v-model="form.actualDeliveryDate" 
-                type="datetime-local"
-                placeholder="Actual delivery date"
+              <DatePicker
+                v-model="form.actualDeliveryDate"
+                placeholder="Select actual delivery date"
+                class="w-full"
+                :include-time="true"
               />
             </div>
             
             <div class="space-y-2">
               <Label for="po-received-date">Received Date *</Label>
-              <Input 
-                id="po-received-date" 
-                v-model="form.receivedDate" 
-                type="datetime-local"
-                placeholder="Date when items were received"
-                required
+              <DatePicker
+                v-model="form.receivedDate"
+                placeholder="Select date when items were received"
+                class="w-full"
+                :include-time="true"
               />
             </div>
           </div>
@@ -802,10 +806,10 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-2">
                     <Label :for="`expiration-${index}`">Expiration Date</Label>
-                    <Input 
-                      :id="`expiration-${index}`" 
-                      v-model="item.expirationDate" 
-                      type="date"
+                    <DatePicker
+                      v-model="item.expirationDate"
+                      placeholder="Select expiration date"
+                      class="w-full"
                     />
                   </div>
                   
@@ -911,6 +915,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { DatePicker } from '@/components/ui/date-picker'
+import { formatCurrentDateTime, ensureDateTimeFormat } from '@/utils/dateUtils'
 import {
   Card,
   CardContent,
@@ -1065,6 +1071,12 @@ const onPurchaseOrderSelected = (selectedId) => {
     const poNumber = selectedPO.poNumber || selectedPO.orderNumber || selectedPO.purchaseOrder || `PO-${selectedPO.id}`
     form.genericReferenceNumber = poNumber
     form.externalReference = poNumber
+    
+    // Autofill supplier reference if supplier is selected from PO
+    if (selectedPO.supplierId) {
+      onSupplierChange(selectedPO.supplierId)
+    }
+    
     // Could also pre-populate items from PO if available
   }
 }
@@ -1072,6 +1084,28 @@ const onPurchaseOrderSelected = (selectedId) => {
 const getSelectedOrderInfo = () => {
   if (!form.genericReferenceId) return null
   return props.purchaseOrders.find(po => po.id?.toString() === form.genericReferenceId?.toString())
+}
+
+const onSupplierChange = (supplierId) => {
+  if (supplierId) {
+    // Find the selected supplier and autofill the supplier reference
+    const selectedSupplier = props.suppliers.find(supplier => supplier.id?.toString() === supplierId?.toString())
+    if (selectedSupplier) {
+      // Use the supplier name or company name as the reference
+      form.supplierReference = selectedSupplier.name || selectedSupplier.companyName || `Supplier-${supplierId}`
+    } else {
+      // If supplier not found in suppliers array, check if it's from a selected PO
+      const selectedPO = getSelectedOrderInfo()
+      if (selectedPO && selectedPO.supplier) {
+        form.supplierReference = selectedPO.supplier.name || selectedPO.supplierName || `Supplier-${supplierId}`
+      } else {
+        form.supplierReference = `Supplier-${supplierId}`
+      }
+    }
+  } else {
+    // Clear supplier reference when no supplier is selected
+    form.supplierReference = ''
+  }
 }
 
 const formatCurrency = (value, currencyCode = 'KES') => {
@@ -1152,17 +1186,6 @@ const isFormValid = computed(() => {
 })
 
 // Methods
-function formatCurrentDateTime() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const hours = String(now.getHours()).padStart(2, '0')
-  const minutes = String(now.getMinutes()).padStart(2, '0')
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}`
-}
-
 function calculateSubtotal(item) {
   const cost = item.unitCost || 0
   const quantity = item.quantity || 0
@@ -1253,8 +1276,8 @@ async function handleSubmit() {
         referenceId: form.genericReferenceId,
         supplierId: form.supplierId,
         qualityStatus: singleItem.qualityStatus,
-        expectedDate: form.expectedDate,
-        receivedDate: form.receivedDate,
+        expectedDate: ensureDateTimeFormat(form.expectedDate),
+        receivedDate: ensureDateTimeFormat(form.receivedDate),
         freightCost: form.freightCost || 0,
         customsCost: form.customsCost || 0,
         supplierReference: form.supplierReference,
@@ -1272,16 +1295,16 @@ async function handleSubmit() {
         locationId: form.locationId,
         warehouseId: form.warehouseId,
         supplierId: form.supplierId,
-        transactionDate: form.transactionDate,
+        transactionDate: ensureDateTimeFormat(form.transactionDate),
         externalReference: form.externalReference,
         supplierReference: form.supplierReference,
         packingSlipNumber: form.packingSlipNumber,
         deliveryNoteNumber: form.deliveryNoteNumber,
         carrierName: form.carrierName,
         trackingNumber: form.trackingNumber,
-        expectedDeliveryDate: form.expectedDeliveryDate,
-        actualDeliveryDate: form.actualDeliveryDate || form.transactionDate,
-        receivedDate: form.receivedDate,
+        expectedDeliveryDate: ensureDateTimeFormat(form.expectedDeliveryDate),
+        actualDeliveryDate: ensureDateTimeFormat(form.actualDeliveryDate || form.transactionDate),
+        receivedDate: ensureDateTimeFormat(form.receivedDate),
         freightCost: form.freightCost || 0,
         insuranceCost: form.insuranceCost || 0,
         customsDuty: form.customsCost || 0,
@@ -1314,16 +1337,16 @@ async function handleSubmit() {
         locationId: form.locationId,
         warehouseId: form.warehouseId,
         supplierId: form.supplierId,
-        transactionDate: form.transactionDate,
+        transactionDate: ensureDateTimeFormat(form.transactionDate),
         externalReference: form.externalReference,
         supplierReference: form.supplierReference,
         packingSlipNumber: form.packingSlipNumber,
         deliveryNoteNumber: form.deliveryNoteNumber,
         carrierName: form.carrierName,
         trackingNumber: form.trackingNumber,
-        expectedDeliveryDate: form.expectedDeliveryDate,
-        actualDeliveryDate: form.actualDeliveryDate || form.transactionDate,
-        receivedDate: form.receivedDate,
+        expectedDeliveryDate: ensureDateTimeFormat(form.expectedDeliveryDate),
+        actualDeliveryDate: ensureDateTimeFormat(form.actualDeliveryDate || form.transactionDate),
+        receivedDate: ensureDateTimeFormat(form.receivedDate),
         freightCost: form.freightCost || 0,
         insuranceCost: form.insuranceCost || 0,
         customsDuty: form.customsCost || 0,

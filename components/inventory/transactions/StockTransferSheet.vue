@@ -19,12 +19,12 @@
         
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-2">
-            <Label for="transaction-date">Date *</Label>
-            <Input 
-              id="transaction-date" 
-              v-model="form.transactionDate" 
-              type="datetime-local" 
-              required
+            <Label for="transaction-date">Date & Time *</Label>
+            <DatePicker
+              v-model="form.transactionDate"
+              placeholder="Select transaction date and time"
+              class="w-full"
+              :include-time="true"
             />
           </div>
           
@@ -315,6 +315,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { DatePicker } from '@/components/ui/date-picker'
+import { formatCurrentDateTime, ensureDateTimeFormat } from '@/utils/dateUtils'
 import {
   Alert,
   AlertTitle,
@@ -424,17 +426,6 @@ const isFormValid = computed(() => {
 })
 
 // Methods
-function formatCurrentDateTime() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const hours = String(now.getHours()).padStart(2, '0')
-  const minutes = String(now.getMinutes()).padStart(2, '0')
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}`
-}
-
 function filteredDestinationLocations(locations) {
   if (!form.sourceLocationId) return locations
   // Filter out the source location from the destination options
@@ -557,7 +548,7 @@ async function handleSubmit() {
       type: 'transfer',
       sourceLocationId: form.sourceLocationId,
       destinationLocationId: form.destinationLocationId,
-      transactionDate: new Date(form.transactionDate).toISOString(),
+      transactionDate: ensureDateTimeFormat(form.transactionDate),
       externalReference: form.externalReference,
       notes: form.notes,
       items: form.items

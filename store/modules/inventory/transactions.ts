@@ -352,6 +352,7 @@ export const useInventoryTransactionsStore = defineStore('inventoryTransactions'
 
     createSingleItemReceive(request: CreateSingleItemReceiveRequest) {
       this.loading = true;
+      console.log('Creating single item receive:', request);
       return new Promise((resolve, reject) => {
         inventoryTransactionsApi.createSingleItemReceive(request)
           .then((response: ApiResponse<SingleItemReceiveTransaction>) => {
