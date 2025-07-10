@@ -61,12 +61,12 @@
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
-              <Label for="transaction-date">Date *</Label>
-              <Input 
-                id="transaction-date" 
-                v-model="form.transactionDate" 
-                type="datetime-local" 
-                required
+              <Label for="transaction-date">Date & Time *</Label>
+              <DatePicker
+                v-model="form.transactionDate"
+                placeholder="Select transaction date and time"
+                class="w-full"
+                :include-time="true"
               />
             </div>
             
@@ -369,10 +369,10 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'MULTI_ITEM'">
                   <div class="space-y-2">
                     <Label :for="`expiration-${index}`">Expiration Date</Label>
-                    <Input 
-                      :id="`expiration-${index}`" 
-                      v-model="item.expirationDate" 
-                      type="date"
+                    <DatePicker
+                      v-model="item.expirationDate"
+                      placeholder="Select expiration date"
+                      class="w-full"
                     />
                   </div>
                   
@@ -488,6 +488,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { DatePicker } from '@/components/ui/date-picker'
+import { formatCurrentDateTime, ensureDateTimeFormat } from '@/utils/dateUtils'
 import {
   Card,
   CardContent,
@@ -661,17 +663,6 @@ const isFormValid = computed(() => {
 })
 
 // Methods
-function formatCurrentDateTime() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const hours = String(now.getHours()).padStart(2, '0')
-  const minutes = String(now.getMinutes()).padStart(2, '0')
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}`
-}
-
 function calculateSubtotal(item) {
   const cost = item.unitCost || 0
   const quantity = item.quantity || 0
@@ -812,7 +803,7 @@ async function handleSubmit() {
       // Multi-Item Issue Transaction - matches exact API contract
       const transaction = {
         locationId: form.locationId,
-        transactionDate: form.transactionDate,
+        transactionDate: ensureDateTimeFormat(form.transactionDate),
         issueType: form.purpose,
         referenceType: form.referenceType || null,
         referenceNumber: form.referenceNumber || null,
@@ -831,7 +822,7 @@ async function handleSubmit() {
           lotNumber: item.lotNumber || null,
           batchNumber: item.batchNumber || null,
           qualityStatus: item.qualityStatus || null,
-          expirationDate: item.expirationDate || null,
+          expirationDate: ensureDateTimeFormat(item.expirationDate) || null,
           serialNumbers: item.serialNumbers && item.serialNumbers.length > 0 ? item.serialNumbers : null,
           itemNotes: item.itemNotes || null,
           qualityNotes: item.qualityNotes || null

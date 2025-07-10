@@ -38,7 +38,6 @@
     "pinia": "^2.3.0",
     "query-string": "^9.1.1",
     "radix-vue": "^1.9.12",
-    "reconnecting-websocket": "^4.4.0",
     "reka-ui": "^2.2.1",
     "shadcn-nuxt": "^0.11.3",
     "tailwind-merge": "^2.6.0",

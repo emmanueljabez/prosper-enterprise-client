@@ -177,7 +177,7 @@ const showBarcodeScannerDialog = ref(false)
 // Fetch data from APIs
 const fetchTransactions = async (params = {
   page: 0,
-  size: 10,
+  size: 20,
   // itemId: 0,
   locationId: '',
   transactionType: '',
@@ -358,8 +358,6 @@ const handleTransactionCreated = async (transactionData) => {
 
     // Refresh data
     await fetchTransactions()
-    await fetchItems() // Refresh inventory items since stock levels have changed
-    await fetchTransactionSummary()
   } catch (error) {
     console.error('Error creating transaction:', error)
     toast({

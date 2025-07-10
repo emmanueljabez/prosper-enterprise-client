@@ -20,12 +20,12 @@
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label for="transaction-date">Date *</Label>
-              <Input 
-                id="transaction-date" 
-                v-model="form.transactionDate" 
-                type="datetime-local" 
-                required
+              <Label for="transaction-date">Date & Time *</Label>
+              <DatePicker
+                v-model="form.transactionDate"
+                placeholder="Select transaction date and time"
+                class="w-full"
+                :include-time="true"
               />
             </div>
             
@@ -261,6 +261,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
+import { DatePicker } from '@/components/ui/date-picker'
+import { formatCurrentDateTime, ensureDateTimeFormat } from '@/utils/dateUtils'
 import {
   Card,
   CardContent,
@@ -352,17 +354,6 @@ const isFormValid = computed(() => {
 })
 
 // Methods
-function formatCurrentDateTime() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const hours = String(now.getHours()).padStart(2, '0')
-  const minutes = String(now.getMinutes()).padStart(2, '0')
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}`
-}
-
 function addItemRow() {
   form.items.push({
     itemId: '',
@@ -439,7 +430,7 @@ async function handleSubmit() {
     const transaction = {
       type: 'adjustment',
       destinationLocationId: form.locationId, // For adjustments, only destinationLocationId is used
-      transactionDate: new Date(form.transactionDate).toISOString(),
+      transactionDate: ensureDateTimeFormat(form.transactionDate),
       reason: form.reason,
       notes: form.notes,
       items: mappedItems
