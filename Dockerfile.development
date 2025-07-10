@@ -1,5 +1,5 @@
 # ---- Build Stage ----
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -8,11 +8,14 @@ WORKDIR /app
 ENV NODE_ENV=development
 ENV NUXT_PUBLIC_NODE_ENV=development
 
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++ libc6-compat
+
 # Copy package files first (for better caching)
 COPY package.json package-lock.json ./
 
-# Install all dependencies
-RUN npm ci
+# Install all dependencies with legacy peer deps to avoid conflicts
+RUN npm ci --legacy-peer-deps
 
 # Copy application code
 COPY . .
@@ -21,7 +24,7 @@ COPY . .
 RUN npm run build
 
 # ---- Runtime Stage ----
-FROM node:18-alpine AS runtime
+FROM node:20-alpine AS runtime
 
 # Set working directory
 WORKDIR /app
@@ -31,15 +34,15 @@ ENV NODE_ENV=development
 ENV PORT=3001
 ENV NUXT_PUBLIC_NODE_ENV=development
 
-# Install curl for healthchecks
-RUN apk add --no-cache curl
+# Install curl for healthchecks and runtime dependencies
+RUN apk add --no-cache curl libc6-compat
 
 # Copy only the built application
 COPY --from=builder /app/.output /app/.output
 COPY --from=builder /app/package.json /app/package-lock.json ./
 
 # Install only production dependencies
-RUN npm ci --omit=dev --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts --legacy-peer-deps
 
 # Expose the port
 EXPOSE 3001
