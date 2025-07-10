@@ -269,10 +269,14 @@ const fetchPurchaseOrders = async (options = {}) => {
       endCreatedDate: 'all',
       raisedById: 0,
       vendorId: 0,
-      status: 'all',
+      // status: 'all',
       startDueDate: 'all',
-      paymentTermsId: 0,
-      endDueDate: 'all',
+      requisitionId: 0,
+      approvalStatus: 'all',
+      deliveryStatus: 'all',
+      paymentStatus: 'all',
+      // paymentTermsId: 0,
+      // endDueDate: 'all',
     }
 
     if (append && page > 0) {

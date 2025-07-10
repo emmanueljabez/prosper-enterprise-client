@@ -67,8 +67,8 @@
                   :key="order.id" 
                   :value="order.id?.toString()"
                 >
-                  PO #{{ order.invoiceNumber }} - {{ order.supplier?.name }}
-                  <span class="text-muted-foreground ml-2">{{ formatCurrency(order.amount, order.currency) }}</span>
+                  PO #{{ order.poNumber }} - {{ order.supplier?.name }}
+                  <span class="text-muted-foreground ml-2">{{ formatCurrency(order.totalAmount, order.currency) }}</span>
                 </SelectItem>
                 
                 <!-- Load More Option -->
@@ -94,10 +94,10 @@
             <!-- Selected PO Info -->
             <div v-if="form.genericReferenceId && getSelectedOrderInfo()" class="p-3 bg-muted/50 rounded-lg">
               <div class="text-sm">
-                <strong>{{ getSelectedOrderInfo().invoiceNumber || getSelectedOrderInfo().orderNumber || `PO-${getSelectedOrderInfo().id}` }}</strong> - {{ getSelectedOrderInfo().supplier?.name || getSelectedOrderInfo().supplierName }}
+                <strong>{{ getSelectedOrderInfo().poNumber|| getSelectedOrderInfo().orderNumber || `PO-${getSelectedOrderInfo().id}` }}</strong> - {{ getSelectedOrderInfo().supplier?.name || getSelectedOrderInfo().supplierName }}
               </div>
               <div class="text-xs text-muted-foreground mt-1">
-                Total: {{ formatCurrency(getSelectedOrderInfo().amount) }} | 
+                Total: {{ formatCurrency(getSelectedOrderInfo().totalAmount) }} | 
                 Status: {{ getSelectedOrderInfo().status }}
               </div>
             </div>
@@ -357,7 +357,7 @@
             <div class="space-y-2">
               <Label for="freight-cost">Freight Cost</Label>
               <div class="relative">
-                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2"></span>
                 <Input 
                   id="freight-cost" 
                   v-model.number="form.freightCost" 
@@ -373,7 +373,7 @@
             <div class="space-y-2">
               <Label for="customs-cost">Customs Cost</Label>
               <div class="relative">
-                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2"></span>
                 <Input 
                   id="customs-cost" 
                   v-model.number="form.customsCost" 
@@ -552,7 +552,7 @@
             <div class="space-y-2">
               <Label for="po-freight-cost">Freight Cost</Label>
               <div class="relative">
-                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">KES</span>
                 <Input 
                   id="po-freight-cost" 
                   v-model.number="form.freightCost" 
@@ -570,7 +570,7 @@
             <div class="space-y-2">
               <Label for="po-insurance-cost">Insurance Cost</Label>
               <div class="relative">
-                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">KES</span>
                 <Input 
                   id="po-insurance-cost" 
                   v-model.number="form.insuranceCost" 
@@ -586,7 +586,7 @@
             <div class="space-y-2">
               <Label for="po-customs-duty">Customs Duty</Label>
               <div class="relative">
-                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">KES</span>
                 <Input 
                   id="po-customs-duty" 
                   v-model.number="form.customsCost" 
@@ -604,7 +604,7 @@
             <div class="space-y-2">
               <Label for="po-other-charges">Other Charges</Label>
               <div class="relative">
-                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2">KES</span>
                 <Input 
                   id="po-other-charges" 
                   v-model.number="form.otherCharges" 
@@ -748,7 +748,7 @@
                   <div class="space-y-2">
                     <Label :for="`cost-${index}`">Unit Cost *</Label>
                     <div class="relative">
-                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2">KES</span>
                       <Input 
                         :id="`cost-${index}`" 
                         v-model.number="item.unitCost" 
@@ -1062,7 +1062,7 @@ const onPurchaseOrderSelected = (selectedId) => {
     form.genericReferenceId = selectedPO.id
     form.supplierId = selectedPO.supplierId
     // Use invoiceNumber, orderNumber, or purchaseOrder - whichever is available
-    const poNumber = selectedPO.invoiceNumber || selectedPO.orderNumber || selectedPO.purchaseOrder || `PO-${selectedPO.id}`
+    const poNumber = selectedPO.poNumber || selectedPO.orderNumber || selectedPO.purchaseOrder || `PO-${selectedPO.id}`
     form.genericReferenceNumber = poNumber
     form.externalReference = poNumber
     // Could also pre-populate items from PO if available

@@ -8,37 +8,29 @@
     </DialogHeader>
     
     <div class="flex-1 overflow-y-auto">
-      <div class="space-y-6 p-4">
-        <!-- Transaction Type Selection -->
-        <div v-if="!selectedTransactionType" class="space-y-4">
-          <Label>Transaction Type</Label>
-          <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <Button 
-              v-for="type in transactionTypes" 
-              :key="type.value"
-              variant="outline" 
-              @click="selectTransactionType(type.value)"
-              class="flex flex-col items-center p-4 h-auto hover:bg-primary/10 hover:border-primary hover:text-primary"
-            >
-              <component :is="type.icon" class="h-8 w-8 mb-2" />
-              <span class="text-sm font-medium">{{ type.label }}</span>
-            </Button>
-          </div>
+      <!-- Tabs -->
+      <div class="border-b border-border">
+        <div class="flex space-x-8 px-4">
+          <button
+            v-for="type in transactionTypes"
+            :key="type.value"
+            @click="selectedTransactionType = type.value"
+            :class="[
+              'flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors',
+              selectedTransactionType === type.value
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'
+            ]"
+          >
+            <component :is="type.icon" class="h-4 w-4" />
+            {{ type.label }}
+          </button>
         </div>
-        
-        <!-- Back to Type Selection -->
-        <div v-if="selectedTransactionType" class="flex items-center gap-2 pb-2 border-b">
-          <Button variant="ghost" size="sm" @click="selectedTransactionType = ''" class="text-muted-foreground">
-            ← Back to Transaction Types
-          </Button>
-          <div class="flex items-center gap-2">
-            <component :is="getSelectedTypeIcon()" class="h-5 w-5" />
-            <span class="font-medium">{{ getSelectedTypeLabel() }}</span>
-          </div>
-        </div>
-        
-        <!-- Transaction Form Content -->
-        <div v-if="selectedTransactionType" class="min-h-0">
+      </div>
+      
+      <!-- Tab Content -->
+      <div class="p-4">
+        <div class="min-h-0">
           <!-- Receive Inventory Form -->
           <div v-if="selectedTransactionType === 'receive'" class="receive-form-container">
             <ReceiveInventorySheet 
@@ -109,7 +101,7 @@
       </div>
     </div>
     
-    <DialogFooter v-if="!selectedTransactionType" class="mt-2 pt-2 border-t">
+    <DialogFooter class="mt-2 pt-2 border-t">
       <Button variant="outline" @click="closeDialog">
         Cancel
       </Button>
@@ -192,7 +184,7 @@ const transactionTypes = [
 ]
 
 // State
-const selectedTransactionType = ref('')
+const selectedTransactionType = ref('receive')
 
 // Computed properties
 const showAdjustmentForm = computed(() => {
@@ -201,22 +193,8 @@ const showAdjustmentForm = computed(() => {
 })
 
 // Methods
-function selectTransactionType(type) {
-  selectedTransactionType.value = type
-}
-
-function getSelectedTypeIcon() {
-  const type = transactionTypes.find(t => t.value === selectedTransactionType.value)
-  return type ? type.icon : null
-}
-
-function getSelectedTypeLabel() {
-  const type = transactionTypes.find(t => t.value === selectedTransactionType.value)
-  return type ? type.label : ''
-}
-
 function closeDialog() {
-  selectedTransactionType.value = ''
+  selectedTransactionType.value = 'receive'
   emit('close')
 }
 

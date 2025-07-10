@@ -6,7 +6,7 @@
         <span>Stock Transaction</span>
       </DialogTitle>
       <DialogDescription>
-        Create stock transaction for {{ item?.itemName || 'selected item' }}
+        Create stock transaction for {{ item?.name || item?.itemName || 'selected item' }}
       </DialogDescription>
     </DialogHeader>
 
@@ -14,12 +14,12 @@
       <!-- Current Stock Info -->
       <div class="bg-muted/50 rounded-lg p-4">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-sm font-medium">{{ item.itemName }}</span>
+          <span class="text-sm font-medium">{{ item.name }}</span>
           <Badge variant="outline">{{ item.itemCode }}</Badge>
         </div>
         <div class="flex items-center justify-between">
           <span class="text-sm text-muted-foreground">Current Stock:</span>
-          <span class="text-lg font-semibold">{{ formatNumber(item.stockOnHand || 0) }} {{ item.baseUnitOfMeasure?.name || 'UNIT' }}</span>
+          <span class="text-lg font-semibold">{{ formatNumber(getCurrentStockOnHand()) }} {{ getUnitName() }}</span>
         </div>
       </div>
 
@@ -104,7 +104,7 @@
               required
             />
             <div class="flex items-center px-3 bg-muted rounded-md min-w-[60px] justify-center">
-              <span class="text-sm text-muted-foreground">{{ item.baseUnitOfMeasure?.name || 'UNIT' }}</span>
+              <span class="text-sm text-muted-foreground">{{ getUnitName() }}</span>
             </div>
           </div>
           <p v-if="errors.quantity" class="text-sm text-red-500">{{ errors.quantity }}</p>
@@ -156,7 +156,7 @@
             <SelectTrigger :class="{ 'border-red-500': errors.referenceId }">
               <div class="flex items-center justify-between w-full">
                 <span v-if="formData.referenceId" class="truncate">
-                  {{ getSelectedOrderInvoiceNumber() }}
+                  {{ getSelectedOrderPONumber() }}
                 </span>
                 <span v-else class="text-muted-foreground">
                   Select purchase order
@@ -174,14 +174,14 @@
               >
                 <div class="flex flex-col space-y-1 w-full">
                   <div class="flex items-center justify-between">
-                    <span class="font-medium">{{ order.transactionDate }}</span>
+                    <span class="font-medium">{{ order.created}}</span>
                     <span class="text-xs text-muted-foreground">{{ order.currency }}</span>
                   </div>
                   <div class="flex items-center justify-between text-sm">
-                    <span class="font-semibold">{{ formatCurrency(order.amount, order.currency) }}</span>
+                    <span class="font-semibold">{{ formatCurrency(order.totalAmount, order.currency) }}</span>
                   </div>
-                  <div v-if="order.invoiceNumber" class="text-xs text-muted-foreground">
-                    Invoice: {{ order.invoiceNumber }}
+                  <div v-if="order.poNumber" class="text-xs text-muted-foreground">
+                    PO: {{ order.poNumber }}
                   </div>
                 </div>
               </SelectItem>
@@ -228,18 +228,38 @@
             id="referenceNumber"
             v-model="formData.referenceNumber"
             placeholder="PO#, Invoice#, etc."
+            :disabled="formData.referenceType === 'PURCHASE_ORDER' && formData.referenceId"
+            :class="{ 'bg-muted': formData.referenceType === 'PURCHASE_ORDER' && formData.referenceId }"
           />
+          <p v-if="formData.referenceType === 'PURCHASE_ORDER' && formData.referenceId" class="text-xs text-muted-foreground">
+            Auto-filled from selected purchase order
+          </p>
         </div>
 
         <!-- Supplier (for receives) -->
         <div v-if="isReceiveTransaction" class="space-y-2">
           <Label for="supplierId">Supplier</Label>
-          <Input
-            id="supplierId"
-            v-model="formData.supplierId"
-            type="number"
-            placeholder="Enter supplier ID"
-          />
+          <Select v-model="formData.supplierId">
+            <SelectTrigger :class="{ 'border-red-500': errors.supplierId }">
+              <SelectValue placeholder="Select supplier" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem 
+                v-for="supplier in suppliers" 
+                :key="supplier.id" 
+                :value="supplier.id"
+              >
+                {{ supplier.name }} ({{ supplier.contactPhoneNumber}})
+                <span v-if="supplier.email" class="text-xs text-muted-foreground ml-2">
+                  - {{ supplier.email }}
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <p v-if="errors.supplierId" class="text-sm text-red-500">{{ errors.supplierId }}</p>
+          <p class="text-xs text-muted-foreground">
+            Select the supplier for this transaction
+          </p>
         </div>
 
         <!-- Quality Status -->
@@ -275,20 +295,20 @@
         <!-- Expected Date -->
         <div class="space-y-2">
           <Label for="expectedDate">Expected Date</Label>
-          <Input
-            id="expectedDate"
+          <DatePicker
             v-model="formData.expectedDate"
-            type="datetime-local"
+            placeholder="Select expected date"
+            class="w-full"
           />
         </div>
 
         <!-- Received Date -->
         <div class="space-y-2">
           <Label for="receivedDate">Received Date</Label>
-          <Input
-            id="receivedDate"
+          <DatePicker
             v-model="formData.receivedDate"
-            type="datetime-local"
+            placeholder="Select received date"
+            class="w-full"
           />
         </div>
 
@@ -323,7 +343,12 @@
             id="supplierReference"
             v-model="formData.supplierReference"
             placeholder="Supplier invoice number, etc."
+            :disabled="formData.supplierId"
+            :class="{ 'bg-muted': formData.supplierId }"
           />
+          <p v-if="formData.supplierId" class="text-xs text-muted-foreground">
+            Auto-filled from selected supplier
+          </p>
         </div>
 
         <!-- Tracking Number -->
@@ -341,7 +366,7 @@
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium text-blue-900">New Stock Level:</span>
             <span class="text-lg font-semibold text-blue-900">
-              {{ formatNumber(getNewStockLevel()) }} {{ item.baseUnitOfMeasure?.name || 'UNIT' }}
+              {{ formatNumber(getNewStockLevel()) }} {{ getUnitName() }}
             </span>
           </div>
           <div class="text-xs text-blue-700 mt-1">
@@ -385,6 +410,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { DatePicker } from '@/components/ui/date-picker'
 import { 
   DialogContent, 
   DialogDescription, 
@@ -411,6 +437,10 @@ const props = defineProps({
     default: () => []
   },
   warehouses: {
+    type: Array,
+    default: () => []
+  },
+  suppliers: {
     type: Array,
     default: () => []
   },
@@ -442,6 +472,7 @@ const purchaseOrders = computed(() => props.purchaseOrders)
 const purchaseOrdersLoading = computed(() => props.purchaseOrdersLoading)
 const warehouses = computed(() => props.warehouses)
 const warehousesLoading = computed(() => props.warehousesLoading)
+const suppliers = computed(() => props.suppliers)
 const purchaseOrdersPaginationMeta = computed(() => props.purchaseOrdersPaginationMeta)
 
 // Pagination state for purchase orders
@@ -463,7 +494,7 @@ const formData = reactive({
   supplierId: null,
   qualityStatus: '',
   expectedDate: '',
-  receivedDate: new Date().toISOString().slice(0, 16),
+  receivedDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
   freightCost: null,
   customsCost: null,
   supplierReference: '',
@@ -517,7 +548,7 @@ const getQuantityLabel = () => {
 }
 
 const getNewStockLevel = () => {
-  const currentStock = props.item?.stockOnHand || 0
+  const currentStock = getCurrentStockOnHand()
   const quantity = parseFloat(formData.quantity) || 0
   
   switch (formData.transactionType) {
@@ -547,8 +578,33 @@ const getNewStockLevel = () => {
   }
 }
 
+const getCurrentStockOnHand = () => {
+  // Handle different data structures for stock information
+  if (props.item?.stockOnHand !== undefined) {
+    return props.item.stockOnHand
+  }
+  
+  // Calculate total stock from inventoryStocks array
+  if (props.item?.inventoryStocks && Array.isArray(props.item.inventoryStocks)) {
+    return props.item.inventoryStocks.reduce((total, stock) => {
+      return total + (stock.quantityOnHand || 0)
+    }, 0)
+  }
+  
+  // Fallback to currentStock or 0
+  return props.item?.currentStock || 0
+}
+
+const getUnitName = () => {
+  // Try different possible unit field names
+  return props.item?.baseUnitOfMeasure?.name || 
+         props.item?.unitOfMeasure?.name || 
+         props.item?.unit?.name || 
+         'UNIT'
+}
+
 const getTransactionChangeText = () => {
-  const currentStock = props.item?.stockOnHand || 0
+  const currentStock = getCurrentStockOnHand()
   const newStock = getNewStockLevel()
   const change = newStock - currentStock
   
@@ -612,13 +668,23 @@ const createTransaction = async () => {
       transactionType: formData.transactionType
     }
 
-    // Adjust quantity based on transaction type
+    // Determine transaction category and adjust quantity for issue types
+    const receiveTypes = ['RECEIVE', 'PRODUCTION_RECEIPT', 'WORK_ORDER_RECEIPT', 'RETURN']
     const issueTypes = ['ISSUE', 'PRODUCTION_ISSUE', 'WORK_ORDER_ISSUE', 'SCRAP', 'QUARANTINE', 'QUALITY_HOLD']
-    if (issueTypes.includes(formData.transactionType)) {
-      transactionData.quantity = -Math.abs(transactionData.quantity)
+    
+    // Add transaction category to help parent component choose the right store method
+    if (receiveTypes.includes(formData.transactionType)) {
+      transactionData.category = 'RECEIVE'
+    } else if (issueTypes.includes(formData.transactionType)) {
+      transactionData.category = 'ISSUE'
+      // For issue transactions, keep quantity positive (do not negate)
+      transactionData.quantity = Math.abs(transactionData.quantity)
     } else if (['COUNT', 'CYCLE_COUNT', 'PHYSICAL_COUNT', 'SPOT_COUNT'].includes(formData.transactionType)) {
+      transactionData.category = 'COUNT'
       // For count transactions, calculate the difference
-      transactionData.quantity = transactionData.quantity - (props.item?.stockOnHand || 0)
+      transactionData.quantity = transactionData.quantity - getCurrentStockOnHand()
+    } else {
+      transactionData.category = 'OTHER'
     }
 
     emit('transaction-created', transactionData)
@@ -651,25 +717,23 @@ const loadMorePurchaseOrders = () => {
   })
 }
 
-const getSelectedOrderInvoiceNumber = () => {
+const getSelectedOrderPONumber = () => {
   if (!formData.referenceId) return ''
   
   const selectedOrder = purchaseOrders.value.find(order => 
     order.id?.toString() === formData.referenceId?.toString()
   )
   
-  return selectedOrder?.invoiceNumber || `Order #${formData.referenceId}`
+  return selectedOrder?.poNumber || `Order #${formData.referenceId}`
 }
 
-// Load purchase orders when reference type changes to purchase order
-watch(() => formData.referenceType, (newType) => {
-  if (newType === 'PURCHASE_ORDER' && purchaseOrders.value.length === 0) {
-    emit('load-purchase-orders', {
-      page: 0,
-      append: false
-    })
+// Watch for pagination metadata changes
+watch(() => props.purchaseOrdersPaginationMeta, (newMeta) => {
+  if (newMeta) {
+    purchaseOrdersPagination.value.hasMore = newMeta.hasMore
+    purchaseOrdersPagination.value.page = newMeta.page
   }
-})
+}, { deep: true })
 
 // Handle load more selection
 watch(() => formData.referenceId, (newValue) => {
@@ -679,10 +743,47 @@ watch(() => formData.referenceId, (newValue) => {
     nextTick(() => {
       formData.referenceId = null
     })
+  } else if (newValue && formData.referenceType === 'PURCHASE_ORDER') {
+    // Auto-fill reference number with PO number when a purchase order is selected
+    const selectedOrder = purchaseOrders.value.find(order => 
+      order.id?.toString() === newValue?.toString()
+    )
+    if (selectedOrder?.poNumber) {
+      formData.referenceNumber = selectedOrder.poNumber
+    }
   }
 })
 
-// Watch for pagination metadata changes
+// Clear reference number when reference type changes away from purchase order
+watch(() => formData.referenceType, (newType, oldType) => {
+  if (newType === 'PURCHASE_ORDER' && purchaseOrders.value.length === 0) {
+    emit('load-purchase-orders', {
+      page: 0,
+      append: false
+    })
+  }
+  
+  // Clear reference number and ID when changing reference type
+  if (oldType === 'PURCHASE_ORDER' && newType !== 'PURCHASE_ORDER') {
+    formData.referenceNumber = ''
+    formData.referenceId = null
+  }
+})
+
+// Auto-fill supplier reference when supplier is selected
+watch(() => formData.supplierId, (newSupplierId) => {
+  if (newSupplierId && isReceiveTransaction.value) {
+    const selectedSupplier = suppliers.value.find(supplier => 
+      supplier.id?.toString() === newSupplierId?.toString()
+    )
+    if (selectedSupplier?.name) {
+      formData.supplierReference = selectedSupplier.name
+    }
+  } else if (!newSupplierId) {
+    // Clear supplier reference when no supplier is selected
+    formData.supplierReference = ''
+  }
+})
 watch(() => props.purchaseOrdersPaginationMeta, (newMeta) => {
   if (newMeta) {
     purchaseOrdersPagination.value.hasMore = newMeta.hasMore

@@ -6,7 +6,7 @@ import type {
   ApiResponse
 } from '~/types/purchase-orders/purchase-orders';
 
-const BASE_URL = '/tenant/bills';
+const BASE_URL = '/tenant/purchaseOrders';
 
 export const purchaseOrdersApi = {
   /**

@@ -210,6 +210,7 @@
                   </Button>
                   <Loader2 v-if="isUploading" class="h-5 w-5 animate-spin text-muted-foreground mx-auto" />
                 </div>
+                
                 <!-- Upload Error -->
                 <div v-if="uploadError" class="text-xs text-red-500 text-center">
                   {{ uploadError }}
@@ -384,7 +385,7 @@
 import { computed, ref, watch } from 'vue'
 import { 
   PackageIcon, Package, Pencil, Copy, MoreHorizontal, ChevronDown, 
-  History, BarChart3, FileText, Download, Share, ImageIcon, Upload, X
+  History, BarChart3, FileText, Download, Share, ImageIcon, Upload, X, Loader2
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -406,6 +407,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+
 // Props
 const props = defineProps({
   open: {
@@ -435,7 +437,7 @@ const props = defineProps({
 })
 
 // Emits
-const emit = defineEmits(['update:open', 'edit', 'duplicate', 'adjust-stock', 'image-updated', 'upload-image', 'remove-image'])
+const emit = defineEmits(['update:open', 'edit', 'duplicate', 'adjust-stock', 'upload-image', 'remove-image'])
 
 // State
 const fileInput = ref(null)

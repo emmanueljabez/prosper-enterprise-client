@@ -11,6 +11,8 @@ export type ReceivingStatus = 'NOT_RECEIVED' | 'PARTIALLY_RECEIVED' | 'FULLY_REC
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REQUIRES_REAPPROVAL';
 
+export type PaymentStatus = 'PAID' | 'UNPAID' | 'PARTIALLY_PAID';
+
 // Supplier interface
 export interface Supplier {
   id: number;
@@ -185,6 +187,10 @@ export interface PurchaseOrderQueryParams {
   startDueDate: string | 'all';
   paymentTermsId: number | 0;
   endDueDate: string | 'all';
+  requisitionId: number | 0;
+  approvalStatus: ApprovalStatus | 'all';
+  deliveryStatus: ReceivingStatus | 'all';
+  paymentStatus: PaymentStatus | 'all';
 }
 
 // Purchase Order Receiving interfaces
