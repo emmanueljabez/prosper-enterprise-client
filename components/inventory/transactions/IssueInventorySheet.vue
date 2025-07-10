@@ -315,7 +315,7 @@
                   <div class="space-y-2">
                     <Label :for="`cost-${index}`">Unit Cost *</Label>
                     <div class="relative">
-                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2">$</span>
+                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2"></span>
                       <Input 
                         :id="`cost-${index}`" 
                         v-model.number="item.unitCost" 

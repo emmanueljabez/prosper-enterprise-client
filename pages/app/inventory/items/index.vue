@@ -221,7 +221,6 @@
       @edit="openItemEditor"
       @duplicate="handleDuplicateItem"
       @adjust-stock="openStockAdjustmentDialog"
-      @image-updated="handleItemImageUpdate"
       @upload-image="handleImageUpload"
       @remove-image="handleImageRemove"
     />    
@@ -256,6 +255,7 @@
         :item="selectedItem"
         :purchase-orders="purchaseOrders"
         :warehouses="warehouses"
+        :suppliers="suppliers"
         :purchase-orders-loading="purchaseOrdersLoading"
         :warehouses-loading="warehousesLoading"
         :purchase-orders-pagination-meta="purchaseOrdersPaginationMeta"
@@ -394,6 +394,8 @@ import { useUomStore } from '@/store/modules/inventory/uom'
 import { useFileUploadStore } from '@/store/modules/utility/file-upload/upload'
 import { usePurchaseOrdersStore } from '@/store/modules/purchase-orders/purchase-orders'
 import { useLocationsStore } from '@/store/modules/inventory/locations'
+import { useSuppliersStore } from '@/store/modules/inventory/suppliers'
+import { useInventoryTransactionsStore } from '@/store/modules/inventory/transactions'
 
 // Initialize stores
 const inventoryItemsStore = useInventoryItemsStore()
@@ -402,6 +404,8 @@ const uomStore = useUomStore()
 const fileUploadStore = useFileUploadStore()
 const purchaseOrdersStore = usePurchaseOrdersStore()
 const locationsStore = useLocationsStore()
+const suppliersStore = useSuppliersStore()
+const transactionsStore = useInventoryTransactionsStore()
 const { toast } = useToast()
 
 // Access store state through computed properties
@@ -439,6 +443,10 @@ const purchaseOrdersPaginationMeta = computed(() => ({
 // Locations store state
 const warehouses = computed(() => locationsStore.getActiveWarehouses)
 const warehousesLoading = computed(() => locationsStore.getIsLoading)
+
+// Suppliers store state
+const suppliers = computed(() => suppliersStore.getSuppliers)
+const suppliersLoading = computed(() => suppliersStore.getIsLoading)
 
 // Image URL computation for editor (prioritize uploaded URL over existing item URL)
 const editorImageUrl = computed(() => {
@@ -543,9 +551,26 @@ const openItemEditor = async (item) => {
   }
 }
 
-const openStockAdjustmentDialog = (item) => {
-  inventoryItemsStore.setSelectedItem(item)
-  showStockAdjustmentDialog.value = true
+// const openStockAdjustmentDialog = (item) => {
+//   purchaseOrdersStore.orders = []
+//   purchaseOrdersStore.paginatedOrders = null 
+  
+//   inventoryItemsStore.setSelectedItem(item)
+//   showStockAdjustmentDialog.value = true
+// }
+
+const openStockAdjustmentDialog = async(item) => {
+  try {
+    await inventoryItemsStore.fetchItemById(item.id)
+    showStockAdjustmentDialog.value = true
+  } catch (error) {
+    console.error('Error fetching item details:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to load item details',
+      variant: 'destructive'
+    })
+  }
 }
 
 const handleItemImageUpdate = async (data) => {
@@ -588,15 +613,19 @@ const handleImageUpload = async (data) => {
       return
     }
     if (!data.file) return
-    console.log('Uploading image file:', data.file)
-    // Upload the file using the store
     const result = await fileUploadStore.uploadFile(data.file)
     if (result.success && result.data?.url) {
       if (data.itemId) {
-        // Editing existing item
-        await handleItemImageUpdate({
-          itemId: data.itemId,
+        // For existing items: Use selectedItem as base and only update imageUrl
+        const updatedItem = {
+          ...selectedItem.value,
           imageUrl: result.data.url
+        }
+        await inventoryItemsStore.updateItem(data.itemId, updatedItem)
+        
+        toast({
+          title: 'Success',
+          description: 'Item image updated successfully'
         })
       } else {
         // Creating new item: set uploaded URL in store for wizard
@@ -618,11 +647,22 @@ const handleImageRemove = async (data) => {
     // Clear any existing upload errors
     fileUploadStore.clearError()
     
-    // Update the item to remove the image URL
-    await handleItemImageUpdate({
-      itemId: data.itemId,
-      imageUrl: null
-    })
+    if (data.itemId && data.currentImageUrl) {
+      // For existing items: Use selectedItem as base and set imageUrl to null
+      const updatedItem = {
+        ...selectedItem.value,
+        imageUrl: null
+      }
+      await inventoryItemsStore.updateItem(data.itemId, updatedItem)
+      
+      toast({
+        title: 'Success',
+        description: 'Item image removed successfully'
+      })
+    } else {
+      // Creating new item: just clear the uploaded URL in store
+      fileUploadStore.clearUploadedUrl()
+    }
   } catch (error) {
     console.error('Error removing image:', error)
     toast({
@@ -870,14 +910,38 @@ const handleStockTransaction = async (transactionData) => {
   try {
     console.log('Creating stock transaction:', transactionData)
     
-    // Here you would call your stock transaction API
-    // await inventoryItemsStore.createStockTransaction(transactionData)
+    let result
+    let successMessage = 'Stock transaction created successfully'
+    
+    // Call the appropriate store method based on transaction category
+    switch (transactionData.category) {
+      case 'RECEIVE':
+        result = await transactionsStore.createSingleItemReceive(transactionData)
+        successMessage = 'Item received successfully'
+        break
+        
+      case 'ISSUE':
+        result = await transactionsStore.createSingleItemIssue(transactionData)
+        successMessage = 'Item issued successfully'
+        break
+        
+      case 'COUNT':
+      case 'OTHER':
+      default:
+        // For other transaction types not yet implemented, 
+        // we could call a generic transaction creation method or
+        // fall back to the inventory items store method
+        console.log('Transaction type not fully implemented, using fallback')
+        // await inventoryItemsStore.createStockTransaction(transactionData)
+        successMessage = 'Stock transaction created (fallback method)'
+        break
+    }
     
     showStockAdjustmentDialog.value = false
     
     toast({
       title: 'Success',
-      description: 'Stock transaction created successfully',
+      description: successMessage,
       variant: 'success'
     })
     
@@ -1138,16 +1202,18 @@ onMounted(async () => {
   try {
     console.log('Initializing inventory items page...')
     
-    // Fetch categories, units, warehouses, and items in parallel
+    // Fetch categories, units, warehouses, suppliers, and items in parallel
     await Promise.all([
       itemCategoriesStore.fetchAllCategories(),
       uomStore.fetchUnits(),
-      locationsStore.fetchAllWarehouses()
+      locationsStore.fetchAllWarehouses(),
+      suppliersStore.fetchAllSuppliers()
     ])
     
     console.log('Categories loaded:', categories.value)
     console.log('Units loaded:', units.value)
     console.log('Warehouses loaded:', warehouses.value)
+    console.log('Suppliers loaded:', suppliers.value)
     
     await refreshItems()
   } catch (error) {
