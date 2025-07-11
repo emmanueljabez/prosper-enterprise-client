@@ -157,16 +157,85 @@
             <!-- Stock Info -->
             <div class="flex items-center justify-between pt-2 border-t">
               <div class="text-center">
-                <div class="text-lg font-bold">{{ formatNumber(getTotalStock(item)) }}</div>
-                <div class="text-xs text-muted-foreground">Stock</div>
-                <div v-if="hasMultipleLocations(item)" class="text-xs text-blue-600">
-                  {{ item.inventoryStocks.length }} locations
-                </div>
-                <div v-if="isLowStock(item)" class="text-xs text-orange-600 font-medium">
-                  Low Stock
-                </div>
-                <div v-else-if="isOutOfStock(item)" class="text-xs text-red-600 font-medium">
-                  Out of Stock
+                <Popover v-if="hasMultipleLocations(item)" :open="hoveredItemId === item.id">
+                  <PopoverTrigger asChild>
+                    <div 
+                      class="cursor-pointer hover:bg-muted/50 rounded px-2 py-1 transition-colors"
+                      @mouseenter="handleStockHover(item.id)"
+                      @mouseleave="handleStockLeave"
+                    >
+                      <div class="text-lg font-bold">{{ formatNumber(getTotalStock(item)) }}</div>
+                      <div class="text-xs text-muted-foreground">Stock</div>
+                      <div class="text-xs text-blue-600 underline decoration-dotted">
+                        {{ item.inventoryStocks.length }} locations
+                      </div>
+                      <div v-if="isLowStock(item)" class="text-xs text-orange-600 font-medium">
+                        Low Stock
+                      </div>
+                      <div v-else-if="isOutOfStock(item)" class="text-xs text-red-600 font-medium">
+                        Out of Stock
+                      </div>
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent 
+                    class="w-96" 
+                    align="center"
+                    @mouseenter="handleStockHover(item.id)"
+                    @mouseleave="handleStockLeave"
+                  >
+                    <div class="space-y-3">
+                      <div class="flex items-center justify-between pb-2 border-b">
+                        <h4 class="font-medium">Stock by Location</h4>
+                        <span class="text-sm text-muted-foreground">
+                          Total: {{ formatNumber(getTotalStock(item)) }}
+                        </span>
+                      </div>
+                      
+                      <div class="space-y-2 max-h-64 overflow-y-auto">
+                        <div 
+                          v-for="location in getStockByLocation(item)" 
+                          :key="location.locationCode"
+                          class="flex items-center justify-between p-2 bg-muted/30 rounded-lg"
+                        >
+                          <div class="flex flex-col">
+                            <span class="font-medium text-sm">{{ location.locationName }}</span>
+                            <span class="text-xs text-muted-foreground">{{ location.locationCode }}</span>
+                          </div>
+                          <div class="flex flex-col items-end space-y-1">
+                            <div class="flex items-center space-x-4 text-sm">
+                              <div class="text-center">
+                                <div class="font-medium">{{ formatNumber(location.quantity) }}</div>
+                                <div class="text-xs text-muted-foreground">Available</div>
+                              </div>
+                              <div v-if="location.reserved > 0" class="text-center">
+                                <div class="font-medium text-orange-600">{{ formatNumber(location.reserved) }}</div>
+                                <div class="text-xs text-muted-foreground">Reserved</div>
+                              </div>
+                              <div v-if="location.allocated > 0" class="text-center">
+                                <div class="font-medium text-blue-600">{{ formatNumber(location.allocated) }}</div>
+                                <div class="text-xs text-muted-foreground">Allocated</div>
+                              </div>
+                            </div>
+                            <div v-if="location.quantity <= 0" class="text-xs text-red-600">
+                              Out of Stock
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                
+                <!-- Single location or no locations -->
+                <div v-else>
+                  <div class="text-lg font-bold">{{ formatNumber(getTotalStock(item)) }}</div>
+                  <div class="text-xs text-muted-foreground">Stock</div>
+                  <div v-if="isLowStock(item)" class="text-xs text-orange-600 font-medium">
+                    Low Stock
+                  </div>
+                  <div v-else-if="isOutOfStock(item)" class="text-xs text-red-600 font-medium">
+                    Out of Stock
+                  </div>
                 </div>
               </div>
               <div class="text-center">
@@ -280,6 +349,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -346,6 +416,7 @@ const categoryFilter = ref('_all')
 const statusFilter = ref('_all')
 const sortBy = ref('')
 const searchTimeout = ref(null)
+const hoveredItemId = ref(null)
 
 // Computed
 const hasMoreItems = computed(() => {
@@ -364,16 +435,23 @@ const getTotalStock = (item) => {
 }
 
 const getStockByLocation = (item) => {
-  if (item.inventoryStocks && Array.isArray(item.inventoryStocks)) {
-    return item.inventoryStocks.map(stock => ({
-      locationName: stock.location?.name || 'Unknown',
-      locationCode: stock.location?.code || '',
-      quantity: stock.quantityAvailable || 0,
-      reserved: stock.quantityReserved || 0,
-      allocated: stock.quantityAllocated || 0
-    }))
+  if (!item.inventoryStocks || !Array.isArray(item.inventoryStocks)) {
+    return []
   }
-  return []
+  
+  return item.inventoryStocks.map(stock => ({
+    locationCode: stock.location?.code || 'Unknown',
+    locationName: stock.location?.name || 'Unknown Location',
+    quantity: Number(stock.quantity || stock.quantityAvailable) || 0,
+    reserved: Number(stock.reserved || stock.quantityReserved) || 0,
+    allocated: Number(stock.allocated || stock.quantityAllocated) || 0,
+  })).sort((a, b) => {
+    // Sort by quantity descending, then by location name
+    if (b.quantity !== a.quantity) {
+      return b.quantity - a.quantity
+    }
+    return a.locationName.localeCompare(b.locationName)
+  })
 }
 
 const hasMultipleLocations = (item) => {
@@ -418,6 +496,15 @@ const getUnitName = (unitId) => {
   if (!unitId) return 'N/A'
   const unit = props.units.find(u => u.id === unitId)
   return unit?.name || unit?.code || 'N/A'
+}
+
+// Hover handlers for stock popover
+const handleStockHover = (itemId) => {
+  hoveredItemId.value = itemId
+}
+
+const handleStockLeave = () => {
+  hoveredItemId.value = null
 }
 
 // Filter and search handlers
