@@ -51,11 +51,11 @@
               <div class="grid grid-cols-2 gap-4">
                 <div>
                   <Label class="text-sm font-medium text-muted-foreground">Category</Label>
-                  <Badge variant="outline">{{ getCategoryName(item.categoryId) }}</Badge>
+                  <Badge variant="outline">{{ getCategoryName(item.category.id) }}</Badge>
                 </div>
                 <div>
                   <Label class="text-sm font-medium text-muted-foreground">Unit of Measure</Label>
-                  <Badge variant="secondary">{{ getUnitName(item.baseUnitOfMeasureId || item.unitOfMeasureId) }}</Badge>
+                  <Badge variant="secondary">{{ getUnitName(item.baseUnit.id) }}</Badge>
                 </div>
               </div>
             </CardContent>

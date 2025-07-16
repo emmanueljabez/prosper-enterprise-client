@@ -55,7 +55,17 @@
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem v-for="category in props.categories" :key="category.id" :value="category.id.toString()">
+                      <SelectItem 
+                        v-for="category in categoryOptions" 
+                        :key="category.id" 
+                        :value="category.id?.toString()"
+                        :class="{ 
+                          'pl-6': category.level > 0, 
+                          'font-semibold text-foreground': category.level === 0, 
+                          'text-muted-foreground font-normal': category.level > 0,
+                          'border-l-2 border-muted ml-2': category.level > 0
+                        }"
+                      >
                         {{ category.name }}
                       </SelectItem>
                     </SelectContent>
@@ -69,8 +79,18 @@
                       <SelectValue placeholder="Select UOM" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem v-for="uom in props.units" :key="uom.id" :value="uom.id.toString()">
-                        {{ uom.name }} ({{ uom.code }})
+                      <SelectItem 
+                        v-for="uom in uomOptions" 
+                        :key="uom.id" 
+                        :value="uom.id?.toString()"
+                        :class="{ 
+                          'pl-6': uom.level > 0, 
+                          'font-semibold text-foreground': uom.level === 0, 
+                          'text-muted-foreground font-normal': uom.level > 0,
+                          'border-l-2 border-muted ml-2': uom.level > 0
+                        }"
+                      >
+                        {{ uom.name }}
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -457,6 +477,14 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  categoryHierarchy: {
+    type: Array,
+    default: () => []
+  },
+  unitHierarchy: {
+    type: Array,
+    default: () => []
+  },
   isUploading: {
     type: Boolean,
     default: false
@@ -515,6 +543,65 @@ const isFormValid = computed(() => {
   return formData.itemCode && formData.name && formData.categoryId && formData.unitOfMeasureId
 })
 
+// Hierarchical option rendering functions
+const renderCategoryOptions = (categories, level = 0) => {
+  const options = []
+  if (!categories || !Array.isArray(categories)) return options
+  
+  for (const category of categories) {
+    if (!category || !category.id) continue
+    
+    const prefix = level === 0 ? '' : '  '.repeat(level)
+    options.push({
+      id: category.id,
+      name: `${prefix}${category.name || 'Unnamed Category'}`,
+      level,
+      isParent: level === 0
+    })
+    
+    // Check for both children and subCategories properties
+    const childCategories = category.children || category.subCategories || []
+    if (childCategories && childCategories.length > 0) {
+      options.push(...renderCategoryOptions(childCategories, level + 1))
+    }
+  }
+  return options
+}
+
+const renderUOMOptions = (units, level = 0) => {
+  const options = []
+  if (!units || !Array.isArray(units)) return options
+  
+  for (const unit of units) {
+    if (!unit || !unit.id) continue
+    
+    const prefix = level === 0 ? '' : '  '.repeat(level)
+    const displayName = unit.name || 'Unnamed Unit'
+    const codeDisplay = unit.code ? ` (${unit.code})` : ''
+    
+    options.push({
+      id: unit.id,
+      name: `${prefix}${displayName}${codeDisplay}`,
+      code: unit.code,
+      level,
+      isParent: level === 0
+    })
+    
+    if (unit.children && unit.children.length > 0) {
+      options.push(...renderUOMOptions(unit.children, level + 1))
+    }
+  }
+  return options
+}
+
+const categoryOptions = computed(() => {
+  return renderCategoryOptions(props.categoryHierarchy || [])
+})
+
+const uomOptions = computed(() => {
+  return renderUOMOptions(props.unitHierarchy || [])
+})
+
 // Image upload methods
 const onImageSelect = (event) => {
   const file = event.target.files?.[0]
@@ -529,9 +616,6 @@ const onRemoveImage = () => {
 // Methods
 const loadItemData = () => {
   if (props.item) {
-    console.log('Loading item data:', props.item)
-    console.log('Available categories:', props.categories)
-    console.log('Available units:', props.units)
     
     // Map API fields to form fields
     formData.itemCode = props.item.itemCode || ''
@@ -566,13 +650,13 @@ const loadItemData = () => {
       formData.categoryId = props.item.categoryId.toString()
       console.log('Set categoryId to:', formData.categoryId)
       
-      // Check if category exists in the available categories
-      const categoryExists = props.categories.find(cat => cat.id === props.item.categoryId)
+      // Check if category exists in the hierarchical options
+      const categoryExists = categoryOptions.value.find(cat => cat.id.toString() === formData.categoryId)
       if (!categoryExists) {
-        console.warn('Category with ID', props.item.categoryId, 'not found in available categories')
-        console.log('Available category IDs:', props.categories.map(cat => ({ id: cat.id, name: cat.name })))
+        console.warn('Category with ID', props.item.categoryId, 'not found in hierarchical category options')
+        console.log('Available category option IDs:', categoryOptions.value.map(cat => ({ id: cat.id, name: cat.name, level: cat.level })))
       } else {
-        console.log('Found category:', categoryExists.name)
+        console.log('Found category in hierarchy:', categoryExists.name, 'at level', categoryExists.level)
       }
     }
     if (props.item.baseUnitOfMeasureId || props.item.unitOfMeasureId) {
@@ -580,13 +664,13 @@ const loadItemData = () => {
       formData.unitOfMeasureId = unitId.toString()
       console.log('Set unitOfMeasureId to:', formData.unitOfMeasureId)
       
-      // Check if unit exists in the available units
-      const unitExists = props.units.find(unit => unit.id === unitId)
+      // Check if unit exists in the hierarchical options
+      const unitExists = uomOptions.value.find(unit => unit.id.toString() === formData.unitOfMeasureId)
       if (!unitExists) {
-        console.warn('Unit with ID', unitId, 'not found in available units')
-        console.log('Available unit IDs:', props.units.map(unit => ({ id: unit.id, name: unit.name, code: unit.code })))
+        console.warn('Unit with ID', unitId, 'not found in hierarchical UOM options')
+        console.log('Available UOM option IDs:', uomOptions.value.map(unit => ({ id: unit.id, name: unit.name, level: unit.level })))
       } else {
-        console.log('Found unit:', unitExists.name, '(' + unitExists.code + ')')
+        console.log('Found unit in hierarchy:', unitExists.name, 'at level', unitExists.level)
       }
     }
   }

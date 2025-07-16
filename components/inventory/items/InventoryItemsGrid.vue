@@ -147,32 +147,42 @@
             <!-- Category -->
             <div class="flex items-center gap-2">
               <Badge variant="outline" class="text-xs">
-                {{ getCategoryName(item.categoryId) }}
+                {{ getCategoryName(item.category.id) }}
               </Badge>
-              <Badge v-if="getUnitName(item.baseUnitOfMeasureId)" variant="secondary" class="text-xs">
-                {{ getUnitName(item.baseUnitOfMeasureId) }}
+              <Badge v-if="getUnitName(item.baseUnit.id)" variant="secondary" class="text-xs">
+                {{ getUnitName(item.baseUnit.id) }}
               </Badge>
             </div>
 
+            <!-- Created Date -->
+            <div class="text-xs text-muted-foreground">
+              Created: {{ formatDate(item.created || item.createdDate) }}
+            </div>
+
             <!-- Stock Info -->
-            <div class="flex items-center justify-between pt-2 border-t">
-              <div class="text-center">
+            <div class="flex items-start justify-between pt-2 border-t gap-2">
+              <div class="flex-1 min-w-0">
                 <Popover v-if="hasMultipleLocations(item)" :open="hoveredItemId === item.id">
                   <PopoverTrigger asChild>
                     <div 
-                      class="cursor-pointer hover:bg-muted/50 rounded px-2 py-1 transition-colors"
+                      class="cursor-pointer hover:bg-muted/50 rounded p-2 transition-colors"
                       @mouseenter="handleStockHover(item.id)"
                       @mouseleave="handleStockLeave"
                     >
-                      <div class="text-lg font-bold">{{ formatNumber(getTotalStock(item)) }}</div>
-                      <div class="text-xs text-muted-foreground">Stock</div>
-                      <div class="text-xs text-blue-600 underline decoration-dotted">
+                      <Badge 
+                        :variant="getStockBadgeVariant(item)" 
+                        class="w-full justify-center text-xs font-mono"
+                      >
+                        {{ formatCompactNumber(getTotalStock(item)) }}
+                      </Badge>
+                      <div class="text-xs text-muted-foreground text-center mt-1">Stock</div>
+                      <div class="text-xs text-blue-600 underline decoration-dotted text-center">
                         {{ item.inventoryStocks.length }} locations
                       </div>
-                      <div v-if="isLowStock(item)" class="text-xs text-orange-600 font-medium">
+                      <div v-if="isLowStock(item)" class="text-xs text-orange-600 font-medium text-center mt-1">
                         Low Stock
                       </div>
-                      <div v-else-if="isOutOfStock(item)" class="text-xs text-red-600 font-medium">
+                      <div v-else-if="isOutOfStock(item)" class="text-xs text-red-600 font-medium text-center mt-1">
                         Out of Stock
                       </div>
                     </div>
@@ -227,24 +237,33 @@
                 </Popover>
                 
                 <!-- Single location or no locations -->
-                <div v-else>
-                  <div class="text-lg font-bold">{{ formatNumber(getTotalStock(item)) }}</div>
-                  <div class="text-xs text-muted-foreground">Stock</div>
-                  <div v-if="isLowStock(item)" class="text-xs text-orange-600 font-medium">
+                <div v-else class="p-2">
+                  <Badge 
+                    :variant="getStockBadgeVariant(item)" 
+                    class="w-full justify-center text-xs font-mono"
+                  >
+                    {{ formatCompactNumber(getTotalStock(item)) }}
+                  </Badge>
+                  <div class="text-xs text-muted-foreground text-center mt-1">Stock</div>
+                  <div v-if="isLowStock(item)" class="text-xs text-orange-600 font-medium text-center mt-1">
                     Low Stock
                   </div>
-                  <div v-else-if="isOutOfStock(item)" class="text-xs text-red-600 font-medium">
+                  <div v-else-if="isOutOfStock(item)" class="text-xs text-red-600 font-medium text-center mt-1">
                     Out of Stock
                   </div>
                 </div>
               </div>
-              <div class="text-center">
-                <div class="text-lg font-bold">{{ formatCurrency(item.standardCost || item.averageCost || 0) }}</div>
-                <div class="text-xs text-muted-foreground">Unit Price</div>
+              <div class="flex-1 min-w-0 text-center">
+                <Badge variant="outline" class="w-full justify-center text-xs font-mono">
+                  {{ formatCurrency(item.standardCost || item.averageCost || 0) }}
+                </Badge>
+                <div class="text-xs text-muted-foreground mt-1">Unit Price</div>
               </div>
-              <div class="text-center">
-                <div class="text-lg font-bold">{{ formatCurrency(getItemValue(item)) }}</div>
-                <div class="text-xs text-muted-foreground">Total Value</div>
+              <div class="flex-1 min-w-0 text-center">
+                <Badge variant="secondary" class="w-full justify-center text-xs font-mono">
+                  {{ formatCurrency(getItemValue(item)) }}
+                </Badge>
+                <div class="text-xs text-muted-foreground mt-1">Total Value</div>
               </div>
             </div>
 
@@ -421,7 +440,9 @@ const hoveredItemId = ref(null)
 // Computed
 const hasMoreItems = computed(() => {
   if (!props.pagination) return false
-  return props.pagination.page < props.pagination.totalPages - 1
+  const currentPage = props.pagination.page ?? props.pagination.number ?? 0
+  const totalPages = props.pagination.totalPages ?? Math.ceil(props.pagination.totalElements / props.pagination.size)
+  return currentPage < totalPages - 1
 })
 
 // Methods
@@ -479,11 +500,39 @@ const formatNumber = (value) => {
   return new Intl.NumberFormat().format(value)
 }
 
+const formatCompactNumber = (value) => {
+  if (value >= 1000000) {
+    return (value / 1000000).toFixed(1) + 'M'
+  } else if (value >= 1000) {
+    return (value / 1000).toFixed(1) + 'K'
+  }
+  return formatNumber(value)
+}
+
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'KES'
   }).format(value)
+}
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A'
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  }).format(date)
+}
+
+const getStockBadgeVariant = (item) => {
+  if (isOutOfStock(item)) {
+    return 'destructive'
+  } else if (isLowStock(item)) {
+    return 'secondary'
+  }
+  return 'default'
 }
 
 const getCategoryName = (categoryId) => {

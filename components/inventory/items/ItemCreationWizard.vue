@@ -47,14 +47,12 @@
             <div v-if="currentStep === 0" class="space-y-4">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-2">
-                  <Label for="itemCode">Item Code *</Label>
+                  <Label for="sku">SKU</Label>
                   <Input
-                    id="itemCode"
-                    v-model="formData.itemCode"
-                    placeholder="Enter unique item code"
-                    :class="{ 'border-red-500': errors.itemCode }"
+                    id="sku"
+                    v-model="formData.sku"
+                    placeholder="Enter SKU (optional)"
                   />
-                  <p v-if="errors.itemCode" class="text-sm text-red-500">{{ errors.itemCode }}</p>
                 </div>
                 <div class="space-y-2">
                   <Label for="barcode">Barcode</Label>
@@ -70,11 +68,11 @@
                 <Label for="name">Item Name *</Label>
                 <Input
                   id="name"
-                  v-model="formData.name"
+                  v-model="formData.itemName"
                   placeholder="Enter item name"
-                  :class="{ 'border-red-500': errors.name }"
+                  :class="{ 'border-red-500': errors.itemName }"
                 />
-                <p v-if="errors.name" class="text-sm text-red-500">{{ errors.name }}</p>
+                <p v-if="errors.itemName" class="text-sm text-red-500">{{ errors.itemName }}</p>
               </div>
 
               <div class="space-y-2">
@@ -89,13 +87,42 @@
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-2">
+                  <Label for="brand">Brand</Label>
+                  <Input
+                    id="brand"
+                    v-model="formData.brand"
+                    placeholder="Enter brand (optional)"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <Label for="manufacturer">Manufacturer</Label>
+                  <Input
+                    id="manufacturer"
+                    v-model="formData.manufacturer"
+                    placeholder="Enter manufacturer (optional)"
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
                   <Label for="category">Category *</Label>
                   <Select v-model="formData.categoryId">
                     <SelectTrigger :class="{ 'border-red-500': errors.categoryId }">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem v-for="category in props.categories" :key="category.id" :value="category.id.toString()">
+                      <SelectItem 
+                        v-for="category in categoryOptions" 
+                        :key="category.id" 
+                        :value="category.id?.toString()"
+                        :class="{ 
+                          'pl-6': category.level > 0, 
+                          'font-semibold text-foreground': category.level === 0, 
+                          'text-muted-foreground font-normal': category.level > 0,
+                          'border-l-2 border-muted ml-2': category.level > 0
+                        }"
+                      >
                         {{ category.name }}
                       </SelectItem>
                     </SelectContent>
@@ -104,17 +131,57 @@
                 </div>
                 <div class="space-y-2">
                   <Label for="unitOfMeasure">Unit of Measure *</Label>
-                  <Select v-model="formData.unitOfMeasureId">
-                    <SelectTrigger :class="{ 'border-red-500': errors.unitOfMeasureId }">
+                  <Select v-model="formData.baseUnitOfMeasureId">
+                    <SelectTrigger :class="{ 'border-red-500': errors.baseUnitOfMeasureId }">
                       <SelectValue placeholder="Select UOM" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem v-for="uom in props.units" :key="uom.id" :value="uom.id.toString()">
-                        {{ uom.name }} ({{ uom.code }})
+                      <SelectItem 
+                        v-for="uom in uomOptions" 
+                        :key="uom.id" 
+                        :value="uom.id?.toString()"
+                        :class="{ 
+                          'pl-6': uom.level > 0, 
+                          'font-semibold text-foreground': uom.level === 0, 
+                          'text-muted-foreground font-normal': uom.level > 0,
+                          'border-l-2 border-muted ml-2': uom.level > 0
+                        }"
+                      >
+                        {{ uom.name }}
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                  <p v-if="errors.unitOfMeasureId" class="text-sm text-red-500">{{ errors.unitOfMeasureId }}</p>
+                  <p v-if="errors.baseUnitOfMeasureId" class="text-sm text-red-500">{{ errors.baseUnitOfMeasureId }}</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <Label for="itemType">Item Type</Label>
+                  <Select v-model="formData.itemType">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select item type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="INVENTORY">Inventory</SelectItem>
+                      <SelectItem value="NON_INVENTORY">Non-Inventory</SelectItem>
+                      <SelectItem value="SERVICE">Service</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div class="space-y-2">
+                  <Label for="valuationMethod">Valuation Method</Label>
+                  <Select v-model="formData.valuationMethod">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select valuation method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="FIFO">FIFO</SelectItem>
+                      <SelectItem value="LIFO">LIFO</SelectItem>
+                      <SelectItem value="AVERAGE">Average Cost</SelectItem>
+                      <SelectItem value="STANDARD">Standard Cost</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
@@ -133,10 +200,10 @@
                   />
                 </div>
                 <div class="space-y-2">
-                  <Label for="listPrice">List Price</Label>
+                  <Label for="averageCost">Average Cost</Label>
                   <Input
-                    id="listPrice"
-                    v-model="formData.listPrice"
+                    id="averageCost"
+                    v-model="formData.averageCost"
                     type="number"
                     step="0.01"
                     placeholder="0.00"
@@ -146,38 +213,24 @@
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-2">
-                  <Label for="wholesalePrice">Wholesale Price</Label>
+                  <Label for="lastCost">Last Cost</Label>
                   <Input
-                    id="wholesalePrice"
-                    v-model="formData.wholesalePrice"
+                    id="lastCost"
+                    v-model="formData.lastCost"
                     type="number"
                     step="0.01"
                     placeholder="0.00"
                   />
                 </div>
                 <div class="space-y-2">
-                  <Label for="retailPrice">Retail Price</Label>
+                  <Label for="sellingPrice">Selling Price</Label>
                   <Input
-                    id="retailPrice"
-                    v-model="formData.retailPrice"
+                    id="sellingPrice"
+                    v-model="formData.sellingPrice"
                     type="number"
                     step="0.01"
                     placeholder="0.00"
                   />
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <Label>Pricing Configuration</Label>
-                <div class="space-y-2">
-                  <div class="flex items-center space-x-2">
-                    <Checkbox id="taxable" v-model:checked="formData.isTaxable" />
-                    <Label for="taxable">Taxable item</Label>
-                  </div>
-                  <div class="flex items-center space-x-2">
-                    <Checkbox id="priceIncludesTax" v-model:checked="formData.priceIncludesTax" />
-                    <Label for="priceIncludesTax">Price includes tax</Label>
-                  </div>
                 </div>
               </div>
             </div>
@@ -186,40 +239,80 @@
             <div v-else-if="currentStep === 2" class="space-y-4">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-2">
-                  <Label for="initialStock">Initial Stock Quantity</Label>
+                  <Label for="initialStockQuantity">Initial Stock Quantity</Label>
                   <Input
-                    id="initialStock"
-                    v-model="formData.initialStock"
+                    id="initialStockQuantity"
+                    v-model="formData.initialStockQuantity"
                     type="number"
-                    placeholder="0"
+                    step="0.1"
+                    placeholder="0.0"
                   />
                 </div>
+                <div class="space-y-2">
+                  <Label for="initialLocationId">Initial Location *</Label>
+                  <Select v-model="formData.initialLocationId">
+                    <SelectTrigger :class="{ 'border-red-500': errors.initialLocationId }">
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem v-for="location in props.locations" :key="location.id" :value="location.id.toString()">
+                        {{ location.name }} ({{ location.code }})
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p v-if="errors.initialLocationId" class="text-sm text-red-500">{{ errors.initialLocationId }}</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <Label for="minStockLevel">Minimum Stock Level</Label>
+                  <Input
+                    id="minStockLevel"
+                    v-model="formData.minStockLevel"
+                    type="number"
+                    step="0.1"
+                    placeholder="0.0"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <Label for="maxStockLevel">Maximum Stock Level</Label>
+                  <Input
+                    id="maxStockLevel"
+                    v-model="formData.maxStockLevel"
+                    type="number"
+                    step="0.1"
+                    placeholder="0.0"
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="space-y-2">
                   <Label for="reorderPoint">Reorder Point</Label>
                   <Input
                     id="reorderPoint"
                     v-model="formData.reorderPoint"
                     type="number"
-                    placeholder="0"
+                    step="0.1"
+                    placeholder="0.0"
                   />
                 </div>
-              </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-2">
                   <Label for="reorderQuantity">Reorder Quantity</Label>
                   <Input
                     id="reorderQuantity"
                     v-model="formData.reorderQuantity"
                     type="number"
-                    placeholder="0"
+                    step="0.1"
+                    placeholder="0.0"
                   />
                 </div>
                 <div class="space-y-2">
-                  <Label for="maxStock">Maximum Stock</Label>
+                  <Label for="leadTimeDays">Lead Time (Days)</Label>
                   <Input
-                    id="maxStock"
-                    v-model="formData.maxStock"
+                    id="leadTimeDays"
+                    v-model="formData.leadTimeDays"
                     type="number"
                     placeholder="0"
                   />
@@ -227,23 +320,35 @@
               </div>
 
               <div class="space-y-2">
-                <Label>Stock Management</Label>
-                <div class="space-y-2">
-                  <div class="flex items-center space-x-2">
-                    <Checkbox id="trackStock" v-model:checked="formData.trackStock" />
-                    <Label for="trackStock">Track stock levels</Label>
+                <Label>Tracking Options</Label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="space-y-2">
+                    <div class="flex items-center space-x-2">
+                      <Checkbox id="trackLotNumber" v-model:checked="formData.trackLotNumber" />
+                      <Label for="trackLotNumber">Track lot/batch numbers</Label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <Checkbox id="trackSerialNumber" v-model:checked="formData.trackSerialNumber" />
+                      <Label for="trackSerialNumber">Track serial numbers</Label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <Checkbox id="trackExpirationDate" v-model:checked="formData.trackExpirationDate" />
+                      <Label for="trackExpirationDate">Track expiration dates</Label>
+                    </div>
                   </div>
-                  <div class="flex items-center space-x-2">
-                    <Checkbox id="allowNegativeStock" v-model:checked="formData.allowNegativeStock" />
-                    <Label for="allowNegativeStock">Allow negative stock</Label>
-                  </div>
-                  <div class="flex items-center space-x-2">
-                    <Checkbox id="serialTracked" v-model:checked="formData.isSerialTracked" />
-                    <Label for="serialTracked">Serial number tracking</Label>
-                  </div>
-                  <div class="flex items-center space-x-2">
-                    <Checkbox id="lotTracked" v-model:checked="formData.isLotTracked" />
-                    <Label for="lotTracked">Lot/Batch tracking</Label>
+                  <div class="space-y-2">
+                    <div class="flex items-center space-x-2">
+                      <Checkbox id="perishable" v-model:checked="formData.perishable" />
+                      <Label for="perishable">Perishable item</Label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <Checkbox id="hazardous" v-model:checked="formData.hazardous" />
+                      <Label for="hazardous">Hazardous material</Label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <Checkbox id="controlledSubstance" v-model:checked="formData.controlledSubstance" />
+                      <Label for="controlledSubstance">Controlled substance</Label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -269,10 +374,10 @@
                       <SelectValue placeholder="Select unit" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="kg">Kilograms (kg)</SelectItem>
-                      <SelectItem value="lb">Pounds (lb)</SelectItem>
-                      <SelectItem value="g">Grams (g)</SelectItem>
-                      <SelectItem value="oz">Ounces (oz)</SelectItem>
+                      <SelectItem value="KILOGRAMS">Kilograms (kg)</SelectItem>
+                      <SelectItem value="POUNDS">Pounds (lb)</SelectItem>
+                      <SelectItem value="GRAMS">Grams (g)</SelectItem>
+                      <SelectItem value="OUNCES">Ounces (oz)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -308,6 +413,35 @@
                     step="0.01"
                     placeholder="0.00"
                   />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <Label for="volume">Volume</Label>
+                  <Input
+                    id="volume"
+                    v-model="formData.volume"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <Label for="volumeUnit">Volume Unit</Label>
+                  <Select v-model="formData.volumeUnit">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LITERS">Liters (L)</SelectItem>
+                      <SelectItem value="MILLILITERS">Milliliters (mL)</SelectItem>
+                      <SelectItem value="GALLONS">Gallons (gal)</SelectItem>
+                      <SelectItem value="FLUID_OUNCES">Fluid Ounces (fl oz)</SelectItem>
+                      <SelectItem value="CUBIC_METERS">Cubic Meters (m³)</SelectItem>
+                      <SelectItem value="CUBIC_FEET">Cubic Feet (ft³)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -471,6 +605,18 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  categoryHierarchy: {
+    type: Array,
+    default: () => []
+  },
+  unitHierarchy: {
+    type: Array,
+    default: () => []
+  },
+  locations: {
+    type: Array,
+    default: () => []
+  },
   isUploading: {
     type: Boolean,
     default: false
@@ -511,31 +657,40 @@ const steps = [
 ]
 
 const formData = reactive({
-  itemCode: '',
-  name: '',
+  itemName: '',
   description: '',
-  barcode: '',
   categoryId: '',
-  unitOfMeasureId: '',
+  baseUnitOfMeasureId: '',
+  barcode: '',
+  sku: '',
+  brand: '',
+  manufacturer: '',
   standardCost: null,
-  listPrice: null,
-  wholesalePrice: null,
-  retailPrice: null,
-  isTaxable: true,
-  priceIncludesTax: false,
-  initialStock: 0,
-  reorderPoint: 0,
-  reorderQuantity: 0,
-  maxStock: null,
-  trackStock: true,
-  allowNegativeStock: false,
-  isSerialTracked: false,
-  isLotTracked: false,
+  averageCost: null,
+  lastCost: null,
+  sellingPrice: null,
+  valuationMethod: 'FIFO',
+  itemType: 'INVENTORY',
+  initialStockQuantity: null,
+  initialLocationId: '',
+  minStockLevel: null,
+  maxStockLevel: null,
+  reorderPoint: null,
+  reorderQuantity: null,
+  leadTimeDays: null,
+  trackLotNumber: false,
+  trackSerialNumber: false,
+  trackExpirationDate: false,
+  perishable: false,
+  hazardous: false,
+  controlledSubstance: false,
   weight: null,
   weightUnit: '',
   length: null,
   width: null,
   height: null,
+  volume: null,
+  volumeUnit: '',
   notes: '',
   isActive: true
 })
@@ -543,7 +698,7 @@ const formData = reactive({
 // Mock data - should come from stores  
 // Computed
 const isFormValid = computed(() => {
-  return formData.itemCode && formData.name && formData.categoryId && formData.unitOfMeasureId
+  return formData.itemName && formData.categoryId && formData.baseUnitOfMeasureId
 })
 
 const getStepClass = (index) => {
@@ -555,6 +710,65 @@ const getStepClass = (index) => {
     return 'bg-muted text-muted-foreground'
   }
 }
+
+// Helper functions for hierarchical data
+const renderCategoryOptions = (categories, level = 0) => {
+  const options = []
+  if (!categories || !Array.isArray(categories)) return options
+  
+  for (const category of categories) {
+    if (!category || !category.id) continue
+    
+    const prefix = level === 0 ? '' : '  '.repeat(level)
+    options.push({
+      id: category.id,
+      name: `${prefix}${category.name || 'Unnamed Category'}`,
+      level,
+      isParent: level === 0
+    })
+    
+    // Check for both children and subCategories properties
+    const childCategories = category.children || category.subCategories || []
+    if (childCategories && childCategories.length > 0) {
+      options.push(...renderCategoryOptions(childCategories, level + 1))
+    }
+  }
+  return options
+}
+
+const renderUOMOptions = (units, level = 0) => {
+  const options = []
+  if (!units || !Array.isArray(units)) return options
+  
+  for (const unit of units) {
+    if (!unit || !unit.id) continue
+    
+    const prefix = level === 0 ? '' : '  '.repeat(level)
+    const displayName = unit.name || 'Unnamed Unit'
+    const codeDisplay = unit.code ? ` (${unit.code})` : ''
+    
+    options.push({
+      id: unit.id,
+      name: `${prefix}${displayName}${codeDisplay}`,
+      code: unit.code,
+      level,
+      isParent: level === 0
+    })
+    
+    if (unit.children && unit.children.length > 0) {
+      options.push(...renderUOMOptions(unit.children, level + 1))
+    }
+  }
+  return options
+}
+
+const categoryOptions = computed(() => {
+  return renderCategoryOptions(props.categoryHierarchy || [])
+})
+
+const uomOptions = computed(() => {
+  return renderUOMOptions(props.unitHierarchy || [])
+})
 
 // Image upload methods
 const handleImageSelect = (event) => {
@@ -585,17 +799,20 @@ const validateCurrentStep = () => {
   Object.keys(errors).forEach(key => delete errors[key])
 
   if (currentStep.value === 0) {
-    if (!formData.itemCode) {
-      errors.itemCode = 'Item code is required'
-    }
-    if (!formData.name) {
-      errors.name = 'Item name is required'
+    if (!formData.itemName) {
+      errors.itemName = 'Item name is required'
     }
     if (!formData.categoryId) {
       errors.categoryId = 'Category is required'
     }
-    if (!formData.unitOfMeasureId) {
-      errors.unitOfMeasureId = 'Unit of measure is required'
+    if (!formData.baseUnitOfMeasureId) {
+      errors.baseUnitOfMeasureId = 'Unit of measure is required'
+    }
+  }
+
+  if (currentStep.value === 2) {
+    if (formData.initialStockQuantity && !formData.initialLocationId) {
+      errors.initialLocationId = 'Initial location is required when setting initial stock'
     }
   }
 
@@ -608,34 +825,104 @@ const createItem = async () => {
   creating.value = true
   try {
     const itemData = {
-      itemCode: formData.itemCode,
-      itemName: formData.name, // Map name to itemName
+      itemName: formData.itemName,
       description: formData.description || undefined,
       categoryId: parseInt(formData.categoryId),
-      baseUnitOfMeasureId: parseInt(formData.unitOfMeasureId), // Map unitOfMeasureId to baseUnitOfMeasureId
+      baseUnitOfMeasureId: parseInt(formData.baseUnitOfMeasureId),
       barcode: formData.barcode || undefined,
+      sku: formData.sku || undefined,
+      brand: formData.brand || undefined,
+      manufacturer: formData.manufacturer || undefined,
       standardCost: parseFloat(formData.standardCost) || undefined,
-      sellingPrice: parseFloat(formData.listPrice) || undefined, // Map listPrice to sellingPrice
-      minStockLevel: parseInt(formData.minStock) || undefined, // Map minStock to minStockLevel
-      maxStockLevel: parseInt(formData.maxStock) || undefined, // Map maxStock to maxStockLevel
-      reorderPoint: parseInt(formData.reorderPoint) || undefined,
-      reorderQuantity: parseInt(formData.reorderQuantity) || undefined,
-      trackSerialNumber: formData.isSerialTracked, // Map isSerialTracked to trackSerialNumber
-      trackLotNumber: formData.isLotTracked, // Map isLotTracked to trackLotNumber
+      averageCost: parseFloat(formData.averageCost) || undefined,
+      lastCost: parseFloat(formData.lastCost) || undefined,
+      sellingPrice: parseFloat(formData.sellingPrice) || undefined,
+      valuationMethod: formData.valuationMethod || 'FIFO',
+      itemType: formData.itemType || 'INVENTORY',
+      imageUrl: props.imageUrl || undefined,
+      initialStockQuantity: parseFloat(formData.initialStockQuantity) || undefined,
+      initialLocationId: parseInt(formData.initialLocationId) || undefined,
+      minStockLevel: parseFloat(formData.minStockLevel) || undefined,
+      maxStockLevel: parseFloat(formData.maxStockLevel) || undefined,
+      reorderPoint: parseFloat(formData.reorderPoint) || undefined,
+      reorderQuantity: parseFloat(formData.reorderQuantity) || undefined,
+      leadTimeDays: parseInt(formData.leadTimeDays) || undefined,
+      trackLotNumber: formData.trackLotNumber,
+      trackSerialNumber: formData.trackSerialNumber,
+      trackExpirationDate: formData.trackExpirationDate,
+      perishable: formData.perishable,
+      hazardous: formData.hazardous,
+      controlledSubstance: formData.controlledSubstance,
       weight: parseFloat(formData.weight) || undefined,
+      weightUnit: formData.weightUnit || undefined,
       length: parseFloat(formData.length) || undefined,
       width: parseFloat(formData.width) || undefined,
       height: parseFloat(formData.height) || undefined,
+      volume: parseFloat(formData.volume) || undefined,
+      volumeUnit: formData.volumeUnit || undefined,
       notes: formData.notes || undefined,
-      isActive: formData.isActive,
-      imageUrl: props.imageUrl || undefined
+      isActive: formData.isActive
     }
 
     emit('item-created', itemData)
+    
+    // Reset form after successful emission
+    resetForm()
+    
+    // Also emit close to ensure the wizard closes
+    emit('close')
   } catch (error) {
     console.error('Error creating item:', error)
   } finally {
     creating.value = false
   }
+}
+
+const resetForm = () => {
+  // Reset form data to initial state
+  Object.assign(formData, {
+    itemName: '',
+    description: '',
+    categoryId: '',
+    baseUnitOfMeasureId: '',
+    barcode: '',
+    sku: '',
+    brand: '',
+    manufacturer: '',
+    standardCost: null,
+    averageCost: null,
+    lastCost: null,
+    sellingPrice: null,
+    valuationMethod: 'FIFO',
+    itemType: 'INVENTORY',
+    initialStockQuantity: null,
+    initialLocationId: '',
+    minStockLevel: null,
+    maxStockLevel: null,
+    reorderPoint: null,
+    reorderQuantity: null,
+    leadTimeDays: null,
+    trackLotNumber: false,
+    trackSerialNumber: false,
+    trackExpirationDate: false,
+    perishable: false,
+    hazardous: false,
+    controlledSubstance: false,
+    weight: null,
+    weightUnit: '',
+    length: null,
+    width: null,
+    height: null,
+    volume: null,
+    volumeUnit: '',
+    notes: '',
+    isActive: true
+  })
+  
+  // Reset current step
+  currentStep.value = 0
+  
+  // Clear errors
+  Object.keys(errors).forEach(key => delete errors[key])
 }
 </script>

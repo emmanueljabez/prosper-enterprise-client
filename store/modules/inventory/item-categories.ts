@@ -45,6 +45,7 @@ export const useItemCategoriesStore = defineStore('itemCategories', {
         getPaginatedCategories: (state) => state.paginatedCategories,
         getSelectedCategory: (state) => state.selectedCategory,
         getHierarchy: (state) => state.hierarchy,
+        getCategoryHierarchy: (state) => state.hierarchy,
         getSearchResults: (state) => state.searchResults,
         getStatistics: (state) => state.statistics,
         getIsLoading: (state) => state.loading,
@@ -267,20 +268,49 @@ export const useItemCategoriesStore = defineStore('itemCategories', {
             this.loading = true;
             return new Promise((resolve, reject) => {
                 itemCategoriesApi.getCategoryHierarchy(request)
-                    .then((response: ApiResponse<ItemCategoryWithHierarchy[]>) => {
-                        const flatItems = response.data!.map(item => this.normalizeCategory(item));
+                    .then((response: any) => {
+                        // Handle the new hierarchy format
+                        let hierarchyData;
+                        if (response?.data?.data) {
+                            hierarchyData = response.data.data;
+                        } else if (response?.data) {
+                            hierarchyData = response.data;
+                        } else {
+                            hierarchyData = response;
+                        }
 
-                        const nestedHierarchy = this.buildHierarchyFromFlat(flatItems);
-                        this.hierarchy = nestedHierarchy;
+                        // Transform the new format to the expected structure
+                        const transformedHierarchy = hierarchyData.map((item: any) => {
+                            const rootCategory = this.normalizeCategory(item.rootCategory);
+                            const children = item.children?.map((child: any) => {
+                                const childCategory = this.normalizeCategory(child.category);
+                                // Set the children as subCategories to match the expected structure
+                                return {
+                                    ...childCategory,
+                                    subCategories: [], // Initialize empty subCategories for children
+                                    hasChildren: false
+                                };
+                            }) || [];
+                            
+                            return {
+                                ...rootCategory,
+                                subCategories: children,
+                                hasChildren: children.length > 0
+                            };
+                        });
 
+                        console.log('Transformed hierarchy:', transformedHierarchy);
+                        this.hierarchy = transformedHierarchy;
+
+                        // Extract flat categories for easier searching
                         const flatCategories: ItemCategory[] = [];
-                        this.extractFlatCategories(nestedHierarchy, flatCategories);
+                        this.extractFlatCategories(transformedHierarchy, flatCategories);
                         if (flatCategories.length > 0) {
                             this.categories = flatCategories;
                         }
                         
                         this.loading = false;
-                        resolve(nestedHierarchy);
+                        resolve(transformedHierarchy);
                     })
                     .catch((error) => {
                         this.loading = false;
@@ -613,7 +643,7 @@ export const useItemCategoriesStore = defineStore('itemCategories', {
             return new Promise((resolve, reject) => {
                 // Use the hierarchy endpoint with the specific category
                 itemCategoriesApi.getCategoryHierarchy({ rootId: categoryId })
-                    .then((response: ApiResponse<ItemCategoryWithHierarchy[]>) => {
+                    .then((response: any) => {
                         this.loading = false;
                         resolve(response.data);
                     })

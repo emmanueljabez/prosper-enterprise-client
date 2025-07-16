@@ -41,6 +41,11 @@
               :purchase-orders-loading="purchaseOrdersLoading"
               :purchase-orders-pagination-meta="purchaseOrdersPaginationMeta"
               :scanned-item="scannedItem"
+              :delivery-note-file-url="deliveryNoteFileUrl"
+              :delivery-note-uploading="deliveryNoteUploading"
+              :delivery-note-upload-error="deliveryNoteUploadError"
+              @upload-delivery-note="handleDeliveryNoteUpload"
+              @remove-delivery-note="handleRemoveDeliveryNote"
               @transaction-created="handleTransactionCreated"
               @multi-receive-from-po="handleMultiReceiveFromPO"
               @load-purchase-orders="handleLoadPurchaseOrders"
@@ -54,12 +59,14 @@
               :warehouses="warehouses"
               :items="items"
               :customers="customers"
+              :users="users"
+              :sales-orders="salesOrders"
+              :work-orders="workOrders"
               :purchase-orders="purchaseOrders"
               :purchase-orders-loading="purchaseOrdersLoading"
               :purchase-orders-pagination-meta="purchaseOrdersPaginationMeta"
               :scanned-item="scannedItem"
               @transaction-created="handleTransactionCreated"
-              @multi-issue-from-po="handleMultiIssueFromPO"
               @load-purchase-orders="handleLoadPurchaseOrders"
               @close="closeDialog"
             />
@@ -148,6 +155,18 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  users: {
+    type: Array,
+    default: () => []
+  },
+  salesOrders: {
+    type: Array,
+    default: () => []
+  },
+  workOrders: {
+    type: Array,
+    default: () => []
+  },
   purchaseOrders: {
     type: Array,
     default: () => []
@@ -163,6 +182,19 @@ const props = defineProps({
   scannedItem: {
     type: Object,
     default: null
+  },
+  // Delivery note file upload props
+  deliveryNoteFileUrl: {
+    type: String,
+    default: null
+  },
+  deliveryNoteUploading: {
+    type: Boolean,
+    default: false
+  },
+  deliveryNoteUploadError: {
+    type: String,
+    default: null
   }
 })
 
@@ -171,7 +203,9 @@ const emit = defineEmits([
   'transaction-created', 
   'multi-receive-from-po',
   'multi-issue-from-po',
-  'load-purchase-orders'
+  'load-purchase-orders',
+  'upload-delivery-note',
+  'remove-delivery-note'
 ])
 
 // Transaction types
@@ -208,13 +242,21 @@ function handleMultiReceiveFromPO(transactionData) {
   closeDialog()
 }
 
-function handleMultiIssueFromPO(transactionData) {
-  emit('multi-issue-from-po', transactionData)
-  closeDialog()
-}
+// function handleMultiIssueFromPO(transactionData) {
+//   emit('multi-issue-from-po', transactionData)
+//   closeDialog()
+// }
 
 function handleLoadPurchaseOrders(params) {
   emit('load-purchase-orders', params)
+}
+
+function handleDeliveryNoteUpload(file) {
+  emit('upload-delivery-note', file)
+}
+
+function handleRemoveDeliveryNote() {
+  emit('remove-delivery-note', null)
 }
 </script>
 

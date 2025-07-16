@@ -73,7 +73,12 @@ export const itemCategoriesApi = {
   /**
    * Get complete category hierarchy
    */
-  getCategoryHierarchy(request?: GetHierarchyRequest): Promise<ApiResponse<ItemCategoryWithHierarchy[]>> {
+  getCategoryHierarchy(request?: GetHierarchyRequest): Promise<ApiResponse<Array<{
+    rootCategory: ItemCategory;
+    children: Array<{
+      category: ItemCategory;
+    }>;
+  }>>> {
     return axiosInstance.get(`${BASE_URL}/hierarchy`, { params: request });
   },
 

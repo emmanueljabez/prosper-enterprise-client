@@ -25,6 +25,13 @@ interface UomStoreState {
     baseUnits: UnitOfMeasure[];
     categories: string[];
     unitFamily: UnitFamily | null;
+    unitHierarchy: Array<{
+        baseUnit: UnitOfMeasure;
+        children: Array<{
+            unit: UnitOfMeasure;
+            cumulativeConversionFactor: number;
+        }>;
+    }> | null;
     statistics: UnitStatistics | null;
     conversionHistory: ConversionResult[];
     loading: boolean;
@@ -53,6 +60,7 @@ export const useUomStore = defineStore('uom', {
         baseUnits: [],
         categories: Object.values(UnitCategory),
         unitFamily: null,
+        unitHierarchy: null,
         statistics: null,
         conversionHistory: [],
         loading: false,
@@ -81,6 +89,7 @@ export const useUomStore = defineStore('uom', {
         getBaseUnits: (state) => state.baseUnits,
         getCategories: (state) => state.categories,
         getUnitFamily: (state) => state.unitFamily,
+        getUnitHierarchy: (state) => state.unitHierarchy,
         getStatistics: (state) => state.statistics,
         getConversionHistory: (state) => state.conversionHistory,
         getIsLoading: (state) => state.loading,
@@ -241,6 +250,50 @@ export const useUomStore = defineStore('uom', {
                     .catch((error) => {
                         this.loading = false;
                         this.error = error.response?.data?.message || 'An error occurred while fetching unit family.';
+                        reject(error);
+                    });
+            });
+        },
+
+        fetchUOMHierarchy() {
+            this.loading = true;
+            return new Promise((resolve, reject) => {
+                uomApi.getUOMHierarchy()
+                    .then((response: any) => {
+                        // Handle the response structure
+                        let hierarchyData;
+                        if (response?.data?.data) {
+                            hierarchyData = response.data.data;
+                        } else if (response?.data) {
+                            hierarchyData = response.data;
+                        } else {
+                            hierarchyData = response;
+                        }
+
+                        console.log('UOM hierarchy raw response:', hierarchyData);
+
+                        // Transform the UOM hierarchy to match expected structure
+                        const transformedHierarchy = hierarchyData.map((item: any) => {
+                            const baseUnit = this.normalizeUnit(item.baseUnit);
+                            const children = item.children?.map((child: any) => 
+                                this.normalizeUnit(child.unit)
+                            ) || [];
+                            
+                            return {
+                                ...baseUnit,
+                                children: children,
+                                hasChildren: children.length > 0
+                            };
+                        });
+
+                        console.log('UOM hierarchy transformed:', transformedHierarchy);
+                        this.unitHierarchy = transformedHierarchy;
+                        this.loading = false;
+                        resolve(transformedHierarchy);
+                    })
+                    .catch((error) => {
+                        this.loading = false;
+                        this.error = error.response?.data?.message || 'An error occurred while fetching UOM hierarchy.';
                         reject(error);
                     });
             });
@@ -745,6 +798,7 @@ export const useUomStore = defineStore('uom', {
             this.currentUnit = null;
             this.baseUnits = [];
             this.unitFamily = null;
+            this.unitHierarchy = null;
             this.statistics = null;
             this.conversionHistory = [];
             this.error = null;
@@ -778,9 +832,29 @@ export const useUomStore = defineStore('uom', {
             return Promise.all([
                 this.fetchUnits(),
                 this.fetchBaseUnits(),
+                this.fetchUOMHierarchy(),
                 this.fetchStatistics(),
                 this.fetchMostUsedUnits()
             ]);
+        },
+
+        // Helper methods
+        normalizeUnit(item: any): UnitOfMeasure {
+            return {
+                id: item.id,
+                code: item.code || '',
+                name: item.name || item.unitName || '',
+                description: item.description || null,
+                category: item.category || 'OTHER',
+                baseUnit: item.baseUnit !== undefined ? item.baseUnit : item.isBaseUnit !== undefined ? item.isBaseUnit : item.is_base_unit !== undefined ? item.is_base_unit : false,
+                baseUnitOfMeasure: item.baseUnitOfMeasure || item.baseUnit || null,
+                conversionFactor: item.conversionFactor || item.conversion_factor || 1,
+                isActive: item.isActive !== undefined ? item.isActive : item.is_active !== undefined ? item.is_active : true,
+                created: item.created || item.createdAt || new Date().toISOString(),
+                updated: item.updated || item.updatedAt || new Date().toISOString(),
+                createdBy: item.createdBy || null,
+                updatedBy: item.updatedBy || null
+            };
         },
 
         // Initialize store

@@ -27,7 +27,7 @@
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="SINGLE_ITEM">Single Item Receive</SelectItem>
-                  <SelectItem value="MULTI_ITEM">Multi-Item Receive</SelectItem>
+                  <!-- <SelectItem value="MULTI_ITEM">Multi-Item Receive</SelectItem> -->
                   <SelectItem value="MULTI_ITEM_FROM_PO">Multi-Item from Purchase Order</SelectItem>
                 </SelectContent>
               </Select>
@@ -134,7 +134,7 @@
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label for="transaction-date">Date & Time *</Label>
+              <Label for="transaction-date">Received Date & Time *</Label>
               <DatePicker
                 v-model="form.transactionDate"
                 placeholder="Select transaction date and time"
@@ -151,11 +151,6 @@
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PURCHASE_ORDER">Purchase Order</SelectItem>
-                  <SelectItem value="SALES_ORDER">Sales Order</SelectItem>
-                  <SelectItem value="WORK_ORDER">Work Order</SelectItem>
-                  <SelectItem value="TRANSFER_ORDER">Transfer Order</SelectItem>
-                  <SelectItem value="ADJUSTMENT_ORDER">Adjustment Order</SelectItem>
-                  <SelectItem value="QUALITY_CONTROL">Quality Control</SelectItem>
                   <SelectItem value="MANUAL">Manual Reference</SelectItem>
                   <SelectItem value="INTERNAL">Internal</SelectItem>
                 </SelectContent>
@@ -206,7 +201,7 @@
                 <strong>{{ getSelectedOrderInfo().invoiceNumber || getSelectedOrderInfo().orderNumber || `PO-${getSelectedOrderInfo().id}` }}</strong> - {{ getSelectedOrderInfo().supplier?.name || getSelectedOrderInfo().supplierName }}
               </div>
               <div class="text-xs text-muted-foreground mt-1">
-                Total: {{ formatCurrency(getSelectedOrderInfo().amount) }} | 
+                Total: {{ formatCurrency(getSelectedOrderInfo().totalAmount) }} | 
                 Status: {{ getSelectedOrderInfo().status }}
               </div>
             </div>
@@ -498,7 +493,7 @@
                 placeholder="Delivery note number"
               />
             </div>
-            
+
             <div class="space-y-2">
               <Label for="po-carrier">Carrier Name</Label>
               <Input 
@@ -506,6 +501,62 @@
                 v-model="form.carrierName" 
                 placeholder="Shipping carrier name"
               />
+            </div>
+          </div>
+
+          <!-- Delivery Note Attachment (not yet supported in backend) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="po-delivery-note-attachment">Delivery Note Attachment</Label>
+              <div class="space-y-3">
+                <!-- Preview/Link if uploaded -->
+                <div v-if="deliveryNoteFileUrl" class="flex items-center space-x-2">
+                  <a :href="deliveryNoteFileUrl" target="_blank" class="inline-flex items-center px-3 py-1.5 rounded border border-green-500 bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100 transition">
+                    <Upload class="h-4 w-4 mr-1" />
+                    {{ deliveryNoteFile?.name || 'View file' }}
+                  </a>
+                  <Button size="icon" variant="ghost" @click="onRemoveDeliveryNote" :disabled="deliveryNoteUploading">
+                    <X class="h-4 w-4" />
+                  </Button>
+                </div>
+                <!-- File input and upload button if not uploaded -->
+                <div v-else class="flex items-center space-x-2">
+                  <input
+                    id="po-delivery-note-attachment"
+                    ref="deliveryNoteInput"
+                    type="file"
+                    class="hidden"
+                    @change="onDeliveryNoteFileChange"
+                    :disabled="submitting || deliveryNoteUploading"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    @click="deliveryNoteInput && deliveryNoteInput.click()"
+                    :disabled="submitting || deliveryNoteUploading"
+                  >
+                    <Upload class="h-4 w-4 mr-1" />
+                    <span v-if="!deliveryNoteFile">Upload Delivery Note</span>
+                    <span v-else>{{ deliveryNoteFile.name }}</span>
+                  </Button>
+                  <Button v-if="deliveryNoteFile" size="icon" variant="ghost" @click="onRemoveDeliveryNote" :disabled="deliveryNoteUploading">
+                    <X class="h-4 w-4" />
+                  </Button>
+                </div>
+                <!-- Upload progress -->
+                <div v-if="deliveryNoteUploading" class="flex items-center text-xs text-muted-foreground mt-1">
+                  <Loader2Icon class="h-4 w-4 mr-1 animate-spin" /> Uploading...
+                </div>
+                <!-- Upload error -->
+                <p v-if="deliveryNoteUploadError" class="text-sm text-red-500">
+                  {{ deliveryNoteUploadError }}
+                </p>
+                <!-- Help text -->
+                <p class="text-xs text-muted-foreground">
+                  Attach a scanned copy or photo of the delivery note (PDF, JPG, PNG, max 10MB).
+                </p>
+              </div>
             </div>
           </div>
           
@@ -933,6 +984,8 @@ import {
   SelectValue
 } from '@/components/ui/select'
 
+import { Upload, X } from 'lucide-vue-next'
+
 const props = defineProps({
   warehouses: {
     type: Array,
@@ -966,6 +1019,22 @@ const props = defineProps({
   scannedItem: {
     type: Object,
     default: null
+  },
+  deliveryNoteFileUrl: {
+    type: String,
+    default: null
+  },
+  deliveryNoteFile: {
+    type: [File, Object, null],
+    default: null
+  },
+  deliveryNoteUploading: {
+    type: Boolean,
+    default: false
+  },
+  deliveryNoteUploadError: {
+    type: String,
+    default: null
   }
 })
 
@@ -973,8 +1042,12 @@ const emit = defineEmits([
   'close', 
   'transaction-created', 
   'multi-receive-from-po',
-  'load-purchase-orders'
+  'load-purchase-orders',
+  'upload-delivery-note',
+  'remove-delivery-note'
 ])
+
+const deliveryNoteInput = ref(null)
 
 // Form state
 const form = reactive({
@@ -993,7 +1066,7 @@ const form = reactive({
   priority: 'NORMAL',
   overallQualityStatus: 'PENDING_INSPECTION',
   requiresInspection: true,
-  receivedBy: 1, // TODO: Get from auth context
+  receivedBy: 1,
   externalReference: '',
   supplierReference: '',
   packingSlipNumber: '',
@@ -1007,6 +1080,7 @@ const form = reactive({
   notes: '',
   items: []
 })
+
 
 const serialNumberInputs = ref({})
 const submitting = ref(false)
@@ -1035,6 +1109,16 @@ const onReceiveTypeChange = (newType) => {
   }
 }
 
+const onDeliveryNoteFileChange = (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+  emit('upload-delivery-note', file)
+}
+
+const onRemoveDeliveryNote = () => {
+  emit('remove-delivery-note', null)
+} 
+
 const onReferenceTypeChange = (newReferenceType) => {
   form.genericReferenceId = null
   form.genericReferenceNumber = ''
@@ -1057,27 +1141,36 @@ const onPurchaseOrderSelected = (selectedId) => {
     form.genericReferenceId = null
     return
   }
-  
+
   if (selectedId === 'loading') {
     return
   }
-  
+
   // Get the selected purchase order and populate form fields
   const selectedPO = props.purchaseOrders.find(po => po.id?.toString() === selectedId?.toString())
   if (selectedPO) {
     form.genericReferenceId = selectedPO.id
-    form.supplierId = selectedPO.supplierId
-    // Use invoiceNumber, orderNumber, or purchaseOrder - whichever is available
+    // Prefer supplier.id, fallback to supplierId
+    if (selectedPO.supplier && selectedPO.supplier.id) {
+      form.supplierId = selectedPO.supplier.id
+      form.supplierReference = selectedPO.supplier.name || selectedPO.supplier.companyName || `Supplier-${selectedPO.supplier.id}`
+    } else if (selectedPO.supplierId) {
+      form.supplierId = selectedPO.supplierId
+      // Try to find supplier in props.suppliers
+      const foundSupplier = props.suppliers.find(s => s.id?.toString() === selectedPO.supplierId?.toString())
+      form.supplierReference = (foundSupplier && (foundSupplier.name || foundSupplier.companyName)) || `Supplier-${selectedPO.supplierId}`
+    } else {
+      form.supplierId = null
+      form.supplierReference = ''
+    }
+    // Use poNumber, orderNumber, or purchaseOrder - whichever is available
     const poNumber = selectedPO.poNumber || selectedPO.orderNumber || selectedPO.purchaseOrder || `PO-${selectedPO.id}`
     form.genericReferenceNumber = poNumber
     form.externalReference = poNumber
-    
-    // Autofill supplier reference if supplier is selected from PO
-    if (selectedPO.supplierId) {
-      onSupplierChange(selectedPO.supplierId)
+    // Set expectedDeliveryDate from deliveryDate if available
+    if (selectedPO.deliveryDate) {
+      form.expectedDeliveryDate = selectedPO.deliveryDate
     }
-    
-    // Could also pre-populate items from PO if available
   }
 }
 
@@ -1262,7 +1355,10 @@ async function handleSubmit() {
   try {
     // Set locationId to warehouseId for API compatibility
     form.locationId = form.warehouseId
-    
+
+    // Note: Delivery note file is not sent to backend yet
+    // const deliveryNoteFile = form.deliveryNoteFile
+
     if (form.receiveType === 'SINGLE_ITEM') {
       // Single Item Receive Transaction
       const singleItem = form.items[0]
@@ -1283,8 +1379,8 @@ async function handleSubmit() {
         supplierReference: form.supplierReference,
         trackingNumber: form.trackingNumber,
         notes: form.notes
+        // deliveryNoteFile: deliveryNoteFileUrl // Not sent to backend yet
       }
-      
       emit('transaction-created', { type: 'SINGLE_ITEM_RECEIVE', payload: transaction })
     } else if (form.receiveType === 'MULTI_ITEM_FROM_PO' && form.referenceType === 'PURCHASE_ORDER') {
       // Multi-Item Receive from Purchase Order
@@ -1320,57 +1416,50 @@ async function handleSubmit() {
           unitCost: item.unitCost,
           qualityStatus: item.qualityStatus,
           itemNotes: item.itemNotes,
-          // lotNumber: item.lotNumber,
-          // batchNumber: item.batchNumber,
-          // expirationDate: item.expirationDate,
-          // serialNumbers: item.serialNumbers
         }))
+        // deliveryNoteFile: deliveryNoteFileUrl // Not sent to backend yet
       }
-      
-      emit('multi-receive-from-po', transaction)
-    } else {
-      // Multi-Item Receive Transaction (standard)
-      const transaction = {
-        referenceType: form.referenceType,
-        genericReferenceId: form.genericReferenceId,
-        genericReferenceNumber: form.genericReferenceNumber,
-        locationId: form.locationId,
-        warehouseId: form.warehouseId,
-        supplierId: form.supplierId,
-        transactionDate: ensureDateTimeFormat(form.transactionDate),
-        externalReference: form.externalReference,
-        supplierReference: form.supplierReference,
-        packingSlipNumber: form.packingSlipNumber,
-        deliveryNoteNumber: form.deliveryNoteNumber,
-        carrierName: form.carrierName,
-        trackingNumber: form.trackingNumber,
-        expectedDeliveryDate: ensureDateTimeFormat(form.expectedDeliveryDate),
-        actualDeliveryDate: ensureDateTimeFormat(form.actualDeliveryDate || form.transactionDate),
-        receivedDate: ensureDateTimeFormat(form.receivedDate),
-        freightCost: form.freightCost || 0,
-        insuranceCost: form.insuranceCost || 0,
-        customsDuty: form.customsCost || 0,
-        otherCharges: form.otherCharges || 0,
-        notes: form.notes,
-        priority: form.priority,
-        overallQualityStatus: form.overallQualityStatus,
-        requiresInspection: form.requiresInspection,
-        receivedBy: form.receivedBy,
-        items: form.items.map(item => ({
-          itemId: item.itemId,
-          quantity: item.quantity,
-          unitCost: item.unitCost,
-          qualityStatus: item.qualityStatus,
-          itemNotes: item.itemNotes,
-          // lotNumber: item.lotNumber,
-          // batchNumber: item.batchNumber,
-          // expirationDate: item.expirationDate,
-          // serialNumbers: item.serialNumbers
-        }))
-      }
-      
       emit('transaction-created', { type: 'MULTI_ITEM_RECEIVE', payload: transaction })
-    }
+    } 
+    // else if (form.receiveType === 'MULTI_ITEM') {
+    //   // Multi-Item Receive Transaction (standard)
+    //   const transaction = {
+    //     referenceType: form.referenceType,
+    //     genericReferenceId: form.genericReferenceId,
+    //     genericReferenceNumber: form.genericReferenceNumber,
+    //     locationId: form.locationId,
+    //     warehouseId: form.warehouseId,
+    //     supplierId: form.supplierId,
+    //     transactionDate: ensureDateTimeFormat(form.transactionDate),
+    //     externalReference: form.externalReference,
+    //     supplierReference: form.supplierReference,
+    //     packingSlipNumber: form.packingSlipNumber,
+    //     deliveryNoteNumber: form.deliveryNoteNumber,
+    //     carrierName: form.carrierName,
+    //     trackingNumber: form.trackingNumber,
+    //     expectedDeliveryDate: ensureDateTimeFormat(form.expectedDeliveryDate),
+    //     actualDeliveryDate: ensureDateTimeFormat(form.actualDeliveryDate || form.transactionDate),
+    //     receivedDate: ensureDateTimeFormat(form.receivedDate),
+    //     freightCost: form.freightCost || 0,
+    //     insuranceCost: form.insuranceCost || 0,
+    //     customsDuty: form.customsCost || 0,
+    //     otherCharges: form.otherCharges || 0,
+    //     notes: form.notes,
+    //     priority: form.priority,
+    //     overallQualityStatus: form.overallQualityStatus,
+    //     requiresInspection: form.requiresInspection,
+    //     receivedBy: form.receivedBy,
+    //     items: form.items.map(item => ({
+    //       itemId: item.itemId,
+    //       quantity: item.quantity,
+    //       unitCost: item.unitCost,
+    //       qualityStatus: item.qualityStatus,
+    //       itemNotes: item.itemNotes,
+    //     }))
+    //     // deliveryNoteFile: deliveryNoteFile // Not sent to backend yet
+    //   }
+    //   emit('transaction-created', { type: 'MULTI_ITEM_RECEIVE', payload: transaction })
+    // }
   } catch (error) {
     console.error('Error creating transaction:', error)
   } finally {

@@ -187,6 +187,7 @@ export const useAuthStore = defineStore('auth', {
 
               if (responseData.jwtToken&& typeof window !== 'undefined') {
                 localStorage.setItem('token', responseData.jwtToken)
+                localStorage.setItem('name', responseData.name || '')
                 // localStorage.setItem('tenantId', responseData.tenantId)
               }
 
