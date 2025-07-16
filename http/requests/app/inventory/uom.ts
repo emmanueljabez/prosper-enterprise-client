@@ -120,6 +120,19 @@ export const uomApi = {
   },
 
   /**
+   * Get UOM hierarchy with base units and their children
+   */
+  getUOMHierarchy(): Promise<Array<{
+    baseUnit: UnitOfMeasure;
+    children: Array<{
+      unit: UnitOfMeasure;
+      cumulativeConversionFactor: number;
+    }>;
+  }>> {
+    return axiosInstance.get(`${BASE_URL}/hierarchy`);
+  },
+
+  /**
    * Get units by category
    */
   getUnitsByCategory(category: string): Promise<GetUnitsResponse> {

@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between p-2">
       <div>
         <h3 class="text-lg font-medium">Issue Inventory</h3>
-        <p class="text-sm text-muted-foreground">Record inventory issued to customers or other locations</p>
+        <p class="text-sm text-muted-foreground">Record multi-item inventory issues to customers or other locations</p>
       </div>
       <Button variant="ghost" size="icon" @click="$emit('close')">
         <XIcon class="h-4 w-4" />
@@ -13,54 +13,23 @@
     <Separator />
     
     <div class="flex-1 overflow-y-auto pr-1">
-      <form @submit.prevent="handleSubmit" class="space-y-8 p-2">
-        <!-- Transaction Type Selection -->
-        <div class="space-y-4">
-          <h4 class="text-sm font-medium">Issue Type</h4>
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-2">
-              <Label for="issue-type">Transaction Type *</Label>
-              <Select v-model="form.issueType" @update:model-value="onIssueTypeChange">
-                <SelectTrigger id="issue-type">
-                  <SelectValue placeholder="Select issue type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SINGLE_ITEM">Single Item Issue</SelectItem>
-                  <SelectItem value="MULTI_ITEM">Multi-Item Issue</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div class="space-y-2">
-              <Label for="purpose">Purpose *</Label>
-              <Select v-model="form.purpose" required>
-                <SelectTrigger id="purpose">
-                  <SelectValue placeholder="Select purpose" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SALE">Sale</SelectItem>
-                  <SelectItem value="PRODUCTION">Production</SelectItem>
-                  <SelectItem value="TRANSFER">Transfer</SelectItem>
-                  <SelectItem value="SAMPLE">Sample</SelectItem>
-                  <SelectItem value="WASTE">Waste</SelectItem>
-                  <SelectItem value="QUALITY_CONTROL">Quality Control</SelectItem>
-                  <SelectItem value="REWORK">Rework</SelectItem>
-                  <SelectItem value="CUSTOMER_RETURN">Customer Return</SelectItem>
-                  <SelectItem value="INTERNAL_USE">Internal Use</SelectItem>
-                  <SelectItem value="CONSIGNMENT">Consignment</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-        
+      <form @submit.prevent="handleSubmit" class="space-y-6 p-2">
         <!-- Transaction Details -->
         <div class="space-y-4">
           <h4 class="text-sm font-medium">Transaction Details</h4>
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
+            <div class="space-y-2">
+              <Label for="purpose">Purpose *</Label>
+              <Input
+                id="purpose"
+                v-model="form.purpose"
+                placeholder="Enter purpose (e.g., Sale, Production, Transfer, etc.)"
+                required
+              />
+            </div>
+            
+            <div class="space-y-2">
               <Label for="transaction-date">Date & Time *</Label>
               <DatePicker
                 v-model="form.transactionDate"
@@ -69,7 +38,9 @@
                 :include-time="true"
               />
             </div>
-            
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
               <Label for="warehouse">Source Warehouse *</Label>
               <Select v-model="form.locationId" required @update:model-value="onWarehouseChange">
@@ -90,59 +61,7 @@
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-2">
-              <Label for="reference-type">Reference Type</Label>
-              <Select v-model="form.referenceType">
-                <SelectTrigger id="reference-type">
-                  <SelectValue placeholder="Select reference type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SALES_ORDER">Sales Order</SelectItem>
-                  <SelectItem value="WORK_ORDER">Work Order</SelectItem>
-                  <SelectItem value="TRANSFER_ORDER">Transfer Order</SelectItem>
-                  <SelectItem value="MANUAL">Manual</SelectItem>
-                  <SelectItem value="INTERNAL">Internal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             
-            <div class="space-y-2">
-              <Label for="reference-number">Reference Number</Label>
-              <Input 
-                id="reference-number" 
-                v-model="form.referenceNumber" 
-                placeholder="Order number, request number, etc."
-              />
-            </div>
-          </div>
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'MULTI_ITEM'">
-            <div class="space-y-2">
-              <Label for="reference-id">Reference ID</Label>
-              <Input 
-                id="reference-id" 
-                v-model="form.referenceId" 
-                placeholder="Unique reference identifier"
-              />
-            </div>
-            
-            <div class="space-y-2">
-              <div class="flex items-center space-x-2">
-                <input 
-                  id="requires-quality-check" 
-                  v-model="form.requiresQualityCheck" 
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <Label for="requires-quality-check">Requires Quality Check</Label>
-              </div>
-            </div>
-          </div>
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'MULTI_ITEM'">
             <div class="space-y-2">
               <Label for="priority">Priority</Label>
               <Select v-model="form.priority">
@@ -160,9 +79,81 @@
             </div>
           </div>
           
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'SINGLE_ITEM'">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label for="customer">Customer</Label>
+              <Label for="reference-type">Reference Type</Label>
+              <Select v-model="form.referenceType" @update:model-value="onReferenceTypeChange">
+                <SelectTrigger id="reference-type">
+                  <SelectValue placeholder="Select reference type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SALES_ORDER">Sales Order</SelectItem>
+                  <SelectItem value="WORK_ORDER">Work Order</SelectItem>
+                  <SelectItem value="TRANSFER_ORDER">Transfer Order</SelectItem>
+                  <SelectItem value="MANUAL">Manual</SelectItem>
+                  <SelectItem value="INTERNAL">Internal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <!-- Sales Order Dropdown -->
+            <div class="space-y-2" v-if="form.referenceType === 'SALES_ORDER'">
+              <Label for="sales-order">Sales Order *</Label>
+              <Select v-model="selectedSalesOrderId" @update:model-value="onSalesOrderChange">
+                <SelectTrigger id="sales-order">
+                  <SelectValue placeholder="Select sales order" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="order in salesOrders" :key="order.id" :value="order.id">
+                    {{ order.orderNumber || order.code }} - {{ order.customerName }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <!-- Work Order Dropdown -->
+            <div class="space-y-2" v-if="form.referenceType === 'WORK_ORDER'">
+              <Label for="work-order">Work Order *</Label>
+              <Select v-model="selectedWorkOrderId" @update:model-value="onWorkOrderChange">
+                <SelectTrigger id="work-order">
+                  <SelectValue placeholder="Select work order" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="order in workOrders" :key="order.id" :value="order.id">
+                    {{ order.orderNumber || order.workOrderNumber || order.code }} - {{ order.bomName || order.title || order.description || order.productName }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <!-- Reference Number for other types -->
+            <div class="space-y-2" v-if="!['SALES_ORDER', 'WORK_ORDER'].includes(form.referenceType)">
+              <Label for="reference-number">Reference Number</Label>
+              <Input 
+                id="reference-number" 
+                v-model="form.referenceNumber" 
+                placeholder="Order number, request number, etc."
+              />
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <Label for="authorized-by">Authorized By</Label>
+              <Input 
+                id="authorized-by" 
+                v-model="form.authorizedBy" 
+                placeholder="Name of authorizing person"
+              />
+            </div>
+          </div>
+          
+          <!-- Customer/User Selection Based on Reference Type -->
+          <!-- These dropdowns are for UI display and validation only, not sent to API -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Customer dropdown for Sales Order -->
+            <div class="space-y-2" v-if="form.referenceType === 'SALES_ORDER'">
+              <Label for="customer">Customer *</Label>
               <Select v-model="form.customerId">
                 <SelectTrigger id="customer">
                   <SelectValue placeholder="Select customer" />
@@ -174,47 +165,63 @@
                 </SelectContent>
               </Select>
             </div>
+            
+            <!-- Users dropdown for Work Order -->
+            <div class="space-y-2" v-if="form.referenceType === 'WORK_ORDER'">
+              <Label for="assigned-user">Assigned User *</Label>
+              <Select v-model="form.customerId">
+                <SelectTrigger id="assigned-user">
+                  <SelectValue placeholder="Select user" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="user in users" :key="user.id" :value="user.id">
+                    {{ user.fullName }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <!-- Quality Check - show for all reference types -->
+            <div class="space-y-2" :class="{ 'sm:col-start-2': !['SALES_ORDER', 'WORK_ORDER'].includes(form.referenceType) }">
+              <div class="flex items-center space-x-2">
+                <input 
+                  id="requires-quality-check" 
+                  v-model="form.requiresQualityCheck" 
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label for="requires-quality-check">Requires Quality Check</Label>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Display selected entity -->
+          <div v-if="selectedEntityLabel" class="flex items-center">
+            <Badge variant="secondary" class="text-sm">
+              {{ selectedEntityLabel }}
+            </Badge>
           </div>
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label for="issued-by">Issued By *</Label>
-              <Input 
-                id="issued-by" 
-                v-model="form.issuedBy" 
-                placeholder="Name of person issuing items"
-                required
+              <Label for="notes">Notes</Label>
+              <Textarea 
+                id="notes" 
+                v-model="form.notes" 
+                placeholder="Enter any additional information about this issue" 
+                rows="3"
               />
             </div>
             
-            <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
-              <Label for="authorized-by">Authorized By</Label>
-              <Input 
-                id="authorized-by" 
-                v-model="form.authorizedBy" 
-                placeholder="Name of authorizing person"
+            <div class="space-y-2">
+              <Label for="quality-notes">Quality Notes</Label>
+              <Textarea 
+                id="quality-notes" 
+                v-model="form.qualityNotes" 
+                placeholder="Enter quality control notes for this transaction" 
+                rows="3"
               />
             </div>
-          </div>
-          
-          <div class="space-y-2">
-            <Label for="notes">Notes</Label>
-            <Textarea 
-              id="notes" 
-              v-model="form.notes" 
-              placeholder="Enter any additional information about this issue" 
-              rows="3"
-            />
-          </div>
-          
-          <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
-            <Label for="quality-notes">Quality Notes</Label>
-            <Textarea 
-              id="quality-notes" 
-              v-model="form.qualityNotes" 
-              placeholder="Enter quality control notes for this transaction" 
-              rows="3"
-            />
           </div>
         </div>
         
@@ -225,7 +232,6 @@
           <div class="flex items-center justify-between">
             <h4 class="text-sm font-medium">Items</h4>
             <Button 
-              v-if="form.issueType !== 'SINGLE_ITEM'"
               type="button" 
               variant="outline" 
               size="sm" 
@@ -256,7 +262,6 @@
               <CardHeader class="bg-muted/60 p-3 flex flex-row items-center justify-between">
                 <CardTitle class="text-sm font-medium">Item {{ index + 1 }}</CardTitle>
                 <Button 
-                  v-if="form.issueType !== 'SINGLE_ITEM'"
                   type="button"
                   variant="ghost" 
                   size="icon" 
@@ -275,8 +280,8 @@
                         <SelectValue placeholder="Select item" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem v-for="inventoryItem in items" :key="inventoryItem.id" :value="inventoryItem.id">
-                          {{ inventoryItem.name }}
+                        <SelectItem v-for="inventoryItem in filteredItems" :key="inventoryItem.id" :value="inventoryItem.id">
+                          {{ inventoryItem.name || inventoryItem.itemName }} ({{ inventoryItem.itemCode }})
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -289,24 +294,83 @@
                         :id="`quantity-${index}`" 
                         v-model.number="item.quantity" 
                         type="number" 
-                        min="1" 
-                        step="1" 
+                        step="0.01" 
+                        min="0"
+                        placeholder="0"
                         required
+                        :class="{ 'border-red-500': isQuantityExceedsAvailable(item) }"
                       />
                       <div v-if="item.itemId && getItemAvailability(item.itemId) > 0" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                        Available: {{ getItemAvailability(item.itemId) }}
+                        Available: {{ formatNumber(getItemAvailability(item.itemId)) }}
                       </div>
                     </div>
                     <div v-if="item.itemId" class="flex items-center justify-between text-xs">
-                      <span class="text-muted-foreground">
-                        Available Stock: 
-                        <span class="font-medium" :class="getItemAvailability(item.itemId) > 0 ? 'text-green-600' : 'text-red-600'">
-                          {{ getItemAvailability(item.itemId) }}
+                      <div class="flex items-center space-x-2">
+                        <span class="text-muted-foreground">
+                          Available Stock: 
+                          <span class="font-medium" :class="{
+                            'text-green-600': getItemAvailability(item.itemId) > 0 && !isLowStock(item),
+                            'text-orange-600': isLowStock(item),
+                            'text-red-600': isOutOfStock(item)
+                          }">
+                            {{ formatNumber(getItemAvailability(item.itemId)) }}
+                          </span>
                         </span>
+                        <Badge 
+                          v-if="isLowStock(item)" 
+                          variant="outline" 
+                          class="text-xs text-orange-600 border-orange-200"
+                        >
+                          Low Stock
+                        </Badge>
+                        <Badge 
+                          v-else-if="isOutOfStock(item)" 
+                          variant="outline" 
+                          class="text-xs text-red-600 border-red-200"
+                        >
+                          Out of Stock
+                        </Badge>
+                      </div>
+                      <span v-if="isQuantityExceedsAvailable(item)" class="text-red-500 font-medium">
+                        ⚠️ Exceeds available stock
                       </span>
-                      <span v-if="isQuantityExceedsAvailable(item)" class="text-destructive font-medium">
-                        ⚠️ Exceeds stock
-                      </span>
+                    </div>
+                    
+                    <!-- Multi-location stock details -->
+                    <div v-if="getStockByLocation(item).length > 1" class="mt-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="sm" class="text-xs p-1 h-auto">
+                            View stock by location ({{ getStockByLocation(item).length }} locations)
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent class="w-80" align="start">
+                          <div class="space-y-3">
+                            <h4 class="font-medium text-sm">Stock by Location</h4>
+                            <div class="space-y-2 max-h-48 overflow-y-auto">
+                              <div 
+                                v-for="stock in getStockByLocation(item)" 
+                                :key="stock.locationCode"
+                                class="flex justify-between items-center text-sm p-2 bg-muted/30 rounded"
+                              >
+                                <div>
+                                  <div class="font-medium">{{ stock.locationName }}</div>
+                                  <div class="text-xs text-muted-foreground">{{ stock.locationCode }}</div>
+                                </div>
+                                <div class="text-right">
+                                  <div class="font-medium">{{ formatNumber(stock.quantity) }}</div>
+                                  <div v-if="stock.reserved > 0" class="text-xs text-orange-600">
+                                    Reserved: {{ formatNumber(stock.reserved) }}
+                                  </div>
+                                  <div v-if="stock.allocated > 0" class="text-xs text-blue-600">
+                                    Allocated: {{ formatNumber(stock.allocated) }}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
                 </div>
@@ -315,20 +379,19 @@
                   <div class="space-y-2">
                     <Label :for="`cost-${index}`">Unit Cost *</Label>
                     <div class="relative">
-                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2"></span>
                       <Input 
                         :id="`cost-${index}`" 
                         v-model.number="item.unitCost" 
                         type="number" 
                         min="0" 
                         step="0.01" 
-                        class="pl-6"
+                        placeholder="0.00"
                         required
                       />
                     </div>
                   </div>
                   
-                  <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
+                  <div class="space-y-2">
                     <Label :for="`quality-status-${index}`">Quality Status</Label>
                     <Select v-model="item.qualityStatus">
                       <SelectTrigger :id="`quality-status-${index}`">
@@ -346,7 +409,7 @@
                   </div>
                 </div>
                 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'MULTI_ITEM'">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-2">
                     <Label :for="`lot-${index}`">Lot Number</Label>
                     <Input 
@@ -366,7 +429,7 @@
                   </div>
                 </div>
                 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" v-if="form.issueType === 'MULTI_ITEM'">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-2">
                     <Label :for="`expiration-${index}`">Expiration Date</Label>
                     <DatePicker
@@ -376,7 +439,7 @@
                     />
                   </div>
                   
-                  <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
+                  <div class="space-y-2">
                     <Label :for="`serial-${index}`">Serial Numbers</Label>
                     <div class="flex space-x-2">
                       <Input 
@@ -415,24 +478,26 @@
                   </div>
                 </div>
                 
-                <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
-                  <Label :for="`item-notes-${index}`">Item Notes</Label>
-                  <Textarea 
-                    :id="`item-notes-${index}`" 
-                    v-model="item.itemNotes" 
-                    placeholder="Optional notes for this item"
-                    rows="2"
-                  />
-                </div>
-                
-                <div class="space-y-2" v-if="form.issueType === 'MULTI_ITEM'">
-                  <Label :for="`item-quality-notes-${index}`">Item Quality Notes</Label>
-                  <Textarea 
-                    :id="`item-quality-notes-${index}`" 
-                    v-model="item.qualityNotes" 
-                    placeholder="Quality control notes for this specific item"
-                    rows="2"
-                  />
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="space-y-2">
+                    <Label :for="`item-notes-${index}`">Item Notes</Label>
+                    <Textarea 
+                      :id="`item-notes-${index}`" 
+                      v-model="item.itemNotes" 
+                      placeholder="Optional notes for this item"
+                      rows="2"
+                    />
+                  </div>
+                  
+                  <div class="space-y-2">
+                    <Label :for="`item-quality-notes-${index}`">Item Quality Notes</Label>
+                    <Textarea 
+                      :id="`item-quality-notes-${index}`" 
+                      v-model="item.qualityNotes" 
+                      placeholder="Quality control notes for this specific item"
+                      rows="2"
+                    />
+                  </div>
                 </div>
                 
                 <div class="flex justify-between items-center mt-2 text-sm">
@@ -489,6 +554,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { DatePicker } from '@/components/ui/date-picker'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatCurrentDateTime, ensureDateTimeFormat } from '@/utils/dateUtils'
 import {
   Card,
@@ -516,6 +582,18 @@ const props = defineProps({
     default: () => []
   },
   customers: {
+    type: Array,
+    default: () => []
+  },
+  users: {
+    type: Array,
+    default: () => []
+  },
+  salesOrders: {
+    type: Array,
+    default: () => []
+  },
+  workOrders: {
     type: Array,
     default: () => []
   },
@@ -551,10 +629,9 @@ const emit = defineEmits([
 
 // Form state
 const form = reactive({
-  issueType: 'SINGLE_ITEM', // SINGLE_ITEM, MULTI_ITEM
   transactionDate: formatCurrentDateTime(),
   locationId: null,
-  purpose: 'SALE',
+  purpose: '',
   referenceType: 'MANUAL',
   referenceNumber: '',
   referenceId: '',
@@ -572,17 +649,11 @@ const serialNumberInputs = ref({})
 const submitting = ref(false)
 const itemAvailability = ref({})
 
-// Methods
-const onIssueTypeChange = (newType) => {
-  // Clear items and reset for single item issue
-  if (newType === 'SINGLE_ITEM') {
-    form.items = []
-    if (form.items.length === 0) {
-      addItemRow()
-    }
-  }
-}
+// Track selected orders for autofill
+const selectedSalesOrderId = ref(null)
+const selectedWorkOrderId = ref(null)
 
+// Methods
 const onWarehouseChange = (warehouseId) => {
   // Update item availability when warehouse changes, only for items that have been selected
   form.items.forEach((item, index) => {
@@ -590,6 +661,61 @@ const onWarehouseChange = (warehouseId) => {
       updateItemAvailability(index)
     }
   })
+  
+  // Clear any validation errors related to stock availability
+  form.items.forEach(item => {
+    if (item.itemId && item.quantity > getItemAvailability(item.itemId)) {
+      // Optionally adjust quantity to available stock or show warning
+      console.warn(`Item ${item.itemId} quantity ${item.quantity} exceeds available stock ${getItemAvailability(item.itemId)} in selected warehouse`)
+    }
+  })
+}
+
+const onReferenceTypeChange = (newType) => {
+  // Clear the selected customer/user when reference type changes
+  form.customerId = null
+  // Clear the order selections and reference fields
+  selectedSalesOrderId.value = null
+  selectedWorkOrderId.value = null
+  form.referenceNumber = ''
+  // For manual reference type, referenceId defaults to null, otherwise it will be set by order selection
+  if (newType === 'MANUAL') {
+    form.referenceId = null
+  } else {
+    form.referenceId = ''
+  }
+}
+
+// Sales Order selection handler
+const onSalesOrderChange = (orderId) => {
+  if (!orderId) return
+  
+  const selectedOrder = props.salesOrders.find(order => order.id === orderId)
+  if (selectedOrder) {
+    // Autofill reference fields - referenceId is the order ID, referenceNumber is the order number
+    form.referenceId = selectedOrder.id
+    form.referenceNumber = selectedOrder.orderNumber || selectedOrder.code || ''
+    // Set customer if available (for UI display only, not sent to API)
+    if (selectedOrder.customerId) {
+      form.customerId = selectedOrder.customerId
+    }
+  }
+}
+
+// Work Order selection handler
+const onWorkOrderChange = (orderId) => {
+  if (!orderId) return
+  
+  const selectedOrder = props.workOrders.find(order => order.id === orderId)
+  if (selectedOrder) {
+    // Autofill reference fields - referenceId is the order ID, referenceNumber is the order number
+    form.referenceId = selectedOrder.id
+    form.referenceNumber = selectedOrder.orderNumber || selectedOrder.workOrderNumber || selectedOrder.code || ''
+    // Set assigned user if available (for UI display only, not sent to API)
+    if (selectedOrder.assignedUserId) {
+      form.customerId = selectedOrder.assignedUserId
+    }
+  }
 }
 
 // Serial number methods
@@ -612,13 +738,13 @@ function removeSerialNumber(itemIndex, serialIndex) {
   form.items[itemIndex].serialNumbers.splice(serialIndex, 1)
 }
 
+
 // Computed properties
 const warehouseGroups = computed(() => {
   // Filter out customer warehouses since they're in a separate dropdown and group by type
   const filteredWarehouses = props.warehouses.filter(
     warehouse => warehouse.type !== 'customer' && warehouse.isActive
   )
-  
   // Group warehouses by type
   const groups = {}
   filteredWarehouses.forEach(warehouse => {
@@ -628,7 +754,6 @@ const warehouseGroups = computed(() => {
     }
     groups[type].push(warehouse)
   })
-
   // Convert to array format for SelectGroup
   return Object.entries(groups).map(([type, warehouses]) => ({
     type,
@@ -636,15 +761,40 @@ const warehouseGroups = computed(() => {
   }))
 })
 
+// Filter items by selected warehouse/location
+const filteredItems = computed(() => {
+  // If no warehouse selected, show all items
+  if (!form.locationId) return props.items
+  // Only show items that have inventoryStocks in the selected location with available quantity > 0
+  return props.items.filter(item => {
+    if (!item.inventoryStocks || !Array.isArray(item.inventoryStocks)) return false
+    return item.inventoryStocks.some(stock => {
+      // Match by location id (direct or parent)
+      let loc = stock.location
+      while (loc) {
+        if (loc.id === form.locationId) return (stock.quantityAvailable || 0) > 0
+        loc = loc.parentLocation || null
+      }
+      return false
+    })
+  })
+})
+
 const isFormValid = computed(() => {
   // Check basic transaction details
-  if (!form.locationId || !form.purpose || !form.issuedBy) {
+  if (!form.locationId || !form.purpose || !form.transactionDate) {
     return false
   }
   
-  // For multi-item transactions, transactionDate is required
-  if (form.issueType === 'MULTI_ITEM' && !form.transactionDate) {
-    return false
+  // Check reference type specific requirements
+  if (form.referenceType === 'SALES_ORDER') {
+    if (!selectedSalesOrderId.value || !form.customerId) {
+      return false
+    }
+  } else if (form.referenceType === 'WORK_ORDER') {
+    if (!selectedWorkOrderId.value || !form.customerId) {
+      return false
+    }
   }
   
   // Check if we have at least one item
@@ -652,14 +802,54 @@ const isFormValid = computed(() => {
     return false
   }
   
-  // Check that each item has required fields
+  // Check that each item has required fields and doesn't exceed available stock
   for (const item of form.items) {
     if (!item.itemId || !item.quantity || item.quantity <= 0 || !item.unitCost) {
+      return false
+    }
+    
+    // Check if quantity exceeds available stock
+    if (isQuantityExceedsAvailable(item)) {
+      return false
+    }
+    
+    // Check if item is out of stock
+    if (isOutOfStock(item)) {
       return false
     }
   }
   
   return true
+})
+
+// Computed property to determine the selected entity label
+const selectedEntityLabel = computed(() => {
+  if (form.referenceType === 'SALES_ORDER') {
+    if (selectedSalesOrderId.value) {
+      const selectedOrder = props.salesOrders.find(order => order.id === selectedSalesOrderId.value)
+      if (selectedOrder) {
+        return `Sales Order: ${selectedOrder.orderNumber || selectedOrder.code} - ${selectedOrder.customerName}`
+      }
+    }
+    if (form.customerId) {
+      const customer = props.customers.find(c => c.id === form.customerId)
+      return customer ? `Customer: ${customer.name}` : ''
+    }
+  } else if (form.referenceType === 'WORK_ORDER') {
+    if (selectedWorkOrderId.value) {
+      const selectedOrder = props.workOrders.find(order => order.id === selectedWorkOrderId.value)
+      if (selectedOrder) {
+        const orderNumber = selectedOrder.orderNumber || selectedOrder.workOrderNumber || selectedOrder.code
+        const orderName = selectedOrder.bomName || selectedOrder.title || selectedOrder.description || selectedOrder.productName || ''
+        return `Work Order: ${orderNumber} - ${orderName}`
+      }
+    }
+    if (form.customerId) {
+      const user = props.users.find(u => u.id === form.customerId)
+      return user ? `Assigned to: ${user.fullName}` : ''
+    }
+  }
+  return ''
 })
 
 // Methods
@@ -677,41 +867,23 @@ function calculateTotal() {
 
 function addItemRow() {
   const index = form.items.length
-  
-  // For single item issue, only allow one item
-  if (form.issueType === 'SINGLE_ITEM' && form.items.length >= 1) {
-    return
-  }
-  
-  const baseItem = {
+  const item = {
     itemId: null,
     quantity: 1,
-    unitCost: 0
+    unitCost: 0,
+    lotNumber: '',
+    batchNumber: '',
+    qualityStatus: 'PASSED',
+    itemNotes: '',
+    qualityNotes: '',
+    expirationDate: '',
+    serialNumbers: []
   }
-  
-  // Add additional fields for multi-item transactions
-  if (form.issueType === 'MULTI_ITEM') {
-    Object.assign(baseItem, {
-      lotNumber: '',
-      batchNumber: '',
-      qualityStatus: 'PASSED',
-      itemNotes: '',
-      qualityNotes: '',
-      expirationDate: '',
-      serialNumbers: []
-    })
-  }
-  
-  form.items.push(baseItem)
+  form.items.push(item)
   serialNumberInputs.value[index] = ''
 }
 
 function removeItemRow(index) {
-  // For single item issue, don't allow removing the only item
-  if (form.issueType === 'SINGLE_ITEM') {
-    return
-  }
-  
   form.items.splice(index, 1)
   
   // Update serial number inputs
@@ -744,6 +916,10 @@ function formatCurrency(value) {
   }).format(value || 0)
 }
 
+function formatNumber(value) {
+  return new Intl.NumberFormat().format(value || 0)
+}
+
 function updateItemAvailability(index) {
   const itemId = form.items[index].itemId
   if (!itemId) {
@@ -754,8 +930,9 @@ function updateItemAvailability(index) {
   // Find the selected item
   const item = props.items.find(i => i.id === itemId)
   if (item) {
-    // Use the item's volume as the available quantity
-    itemAvailability.value[itemId] = item.volume || 0
+    // Calculate total stock using the same logic as InventoryItemsTable
+    const totalStock = getTotalStock(item)
+    itemAvailability.value[itemId] = totalStock
     
     // Default cost to the item's standard cost, average cost, or last cost
     if (!form.items[index].unitCost) {
@@ -765,6 +942,15 @@ function updateItemAvailability(index) {
     // Clear availability if item not found
     itemAvailability.value[itemId] = 0
   }
+}
+
+function getTotalStock(item) {
+  if (item.inventoryStocks && Array.isArray(item.inventoryStocks)) {
+    return item.inventoryStocks.reduce((total, stock) => {
+      return total + (stock.quantityAvailable || stock.quantity || 0)
+    }, 0)
+  }
+  return item.stockOnHand || item.currentStock || item.volume || 0
 }
 
 function getItemAvailability(itemId) {
@@ -777,60 +963,89 @@ function isQuantityExceedsAvailable(item) {
   return item.quantity > available
 }
 
+function isLowStock(item) {
+  const itemData = props.items.find(i => i.id === item.itemId)
+  if (!itemData) return false
+  
+  const stock = getTotalStock(itemData)
+  const reorderPoint = itemData.reorderPoint || itemData.reorderLevel || 0
+  const minStock = itemData.minStockLevel || itemData.minimumStock || 0
+  return stock <= Math.max(reorderPoint, minStock) && stock > 0
+}
+
+function isOutOfStock(item) {
+  const itemData = props.items.find(i => i.id === item.itemId)
+  if (!itemData) return true
+  
+  return getTotalStock(itemData) === 0
+}
+
+function getStockByLocation(item) {
+  const itemData = props.items.find(i => i.id === item.itemId)
+  if (!itemData || !itemData.inventoryStocks || !Array.isArray(itemData.inventoryStocks)) {
+    return []
+  }
+  
+  return itemData.inventoryStocks.map(stock => ({
+    locationCode: stock.location?.code || 'Unknown',
+    locationName: stock.location?.name || 'Unknown Location',
+    quantity: Number(stock.quantity || stock.quantityAvailable) || 0,
+    reserved: Number(stock.reserved || stock.quantityReserved) || 0,
+    allocated: Number(stock.allocated || stock.quantityAllocated) || 0,
+  })).sort((a, b) => {
+    // Sort by quantity descending, then by location name
+    if (b.quantity !== a.quantity) {
+      return b.quantity - a.quantity
+    }
+    return a.locationName.localeCompare(b.locationName)
+  })
+}
+
 async function handleSubmit() {
   if (!isFormValid.value) return
   
   submitting.value = true
   
   try {
-    if (form.issueType === 'SINGLE_ITEM') {
-      // Single Item Issue Transaction - matches exact API contract
-      const singleItem = form.items[0]
-      const transaction = {
-        itemId: singleItem.itemId,
-        locationId: form.locationId,
-        quantity: singleItem.quantity,
-        unitCost: singleItem.unitCost,
-        issueType: form.purpose,
-        referenceNumber: form.referenceNumber || null,
-        referenceType: form.referenceType || null,
-        customerId: form.customerId || null,
-        notes: form.notes || null
-      }
-      
-      emit('transaction-created', { type: 'SINGLE_ITEM_ISSUE', payload: transaction })
-    } else {
-      // Multi-Item Issue Transaction - matches exact API contract
-      const transaction = {
-        locationId: form.locationId,
-        transactionDate: ensureDateTimeFormat(form.transactionDate),
-        issueType: form.purpose,
-        referenceType: form.referenceType || null,
-        referenceNumber: form.referenceNumber || null,
-        referenceId: form.referenceId || null,
-        requiresQualityCheck: form.requiresQualityCheck || false,
-        priority: form.priority || 'NORMAL',
-        issuedBy: form.issuedBy,
-        authorizedBy: form.authorizedBy || null,
-        notes: form.notes || null,
-        qualityNotes: form.qualityNotes || null,
-        purpose: form.purpose,
-        items: form.items.map(item => ({
-          itemId: item.itemId,
-          quantity: item.quantity,
-          unitCost: item.unitCost,
-          lotNumber: item.lotNumber || null,
-          batchNumber: item.batchNumber || null,
-          qualityStatus: item.qualityStatus || null,
-          expirationDate: ensureDateTimeFormat(item.expirationDate) || null,
-          serialNumbers: item.serialNumbers && item.serialNumbers.length > 0 ? item.serialNumbers : null,
-          itemNotes: item.itemNotes || null,
-          qualityNotes: item.qualityNotes || null
-        }))
-      }
-      
-      emit('transaction-created', { type: 'MULTI_ITEM_ISSUE', payload: transaction })
+    // Get the logged-in user name from localStorage
+    const loggedInUserName = localStorage.getItem('name') || 'Unknown User'
+    
+    // Multi-Item Issue Transaction - matches exact API contract
+    // referenceId is the order ID for Sales/Work Orders, null for manual
+    // referenceNumber is the order number
+    // Customer/User selection is for UI display only, not sent to API
+    const transaction = {
+      locationId: form.locationId,
+      transactionDate: ensureDateTimeFormat(form.transactionDate),
+      issueType: form.purpose.toUpperCase(),
+      referenceType: form.referenceType || null,
+      referenceNumber: form.referenceNumber || null,
+      referenceId: form.referenceId ? Number(form.referenceId) : null,
+      requiresQualityCheck: form.requiresQualityCheck || false,
+      priority: form.priority || 'NORMAL',
+      purpose: form.purpose,
+      issuedBy: loggedInUserName,
+      authorizedBy: form.authorizedBy || null,
+      notes: form.notes || null,
+      qualityNotes: form.qualityNotes || null,
+      ...(form.customerId ? { customerId: form.customerId } : {}),
+      ...(form.supplierId ? { supplierId: form.supplierId } : {}),
+      items: form.items.map(item => ({
+        itemId: item.itemId,
+        quantity: item.quantity,
+        unitCost: item.unitCost,
+        lotNumber: item.lotNumber || null,
+        batchNumber: item.batchNumber || null,
+        qualityStatus: item.qualityStatus || null,
+        itemNotes: item.itemNotes || null,
+        qualityNotes: item.qualityNotes || null
+      }))
     }
+    
+    // Note: customerId and assignedUserId are not included in the API payload
+    // These fields are kept in the form for UI display purposes only
+    
+    emit('transaction-created', { type: 'MULTI_ITEM_ISSUE', payload: transaction })
   } catch (error) {
     console.error('Error creating transaction:', error)
   } finally {
@@ -840,6 +1055,9 @@ async function handleSubmit() {
 
 // Initialize
 onMounted(() => {
+  // Set the issued by field from localStorage
+  form.issuedBy = localStorage.getItem('name') || 'Unknown User'
+  
   // Add first item row by default
   if (form.items.length === 0) {
     addItemRow()

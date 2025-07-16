@@ -147,11 +147,16 @@
             <!-- Category -->
             <div class="flex items-center gap-2">
               <Badge variant="outline" class="text-xs">
-                {{ getCategoryName(item.categoryId) }}
+                {{ getCategoryName(item.category.id) }}
               </Badge>
-              <Badge v-if="getUnitName(item.baseUnitOfMeasureId)" variant="secondary" class="text-xs">
-                {{ getUnitName(item.baseUnitOfMeasureId) }}
+              <Badge v-if="getUnitName(item.baseUnit.id)" variant="secondary" class="text-xs">
+                {{ getUnitName(item.baseUnit.id) }}
               </Badge>
+            </div>
+
+            <!-- Created Date -->
+            <div class="text-xs text-muted-foreground">
+              Created: {{ formatDate(item.created || item.createdDate) }}
             </div>
 
             <!-- Stock Info -->
@@ -435,7 +440,9 @@ const hoveredItemId = ref(null)
 // Computed
 const hasMoreItems = computed(() => {
   if (!props.pagination) return false
-  return props.pagination.page < props.pagination.totalPages - 1
+  const currentPage = props.pagination.page ?? props.pagination.number ?? 0
+  const totalPages = props.pagination.totalPages ?? Math.ceil(props.pagination.totalElements / props.pagination.size)
+  return currentPage < totalPages - 1
 })
 
 // Methods
@@ -507,6 +514,16 @@ const formatCurrency = (value) => {
     style: 'currency',
     currency: 'KES'
   }).format(value)
+}
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A'
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  }).format(date)
 }
 
 const getStockBadgeVariant = (item) => {

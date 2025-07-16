@@ -39,7 +39,7 @@
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline">
-              <FileUp class="mr-2 h-4 w-4" />
+              <Upload class="mr-2 h-4 w-4" />
               Import
               <ChevronDown class="ml-2 h-4 w-4" />
             </Button>
@@ -130,9 +130,9 @@
     <!-- Table View -->
     <InventoryItemsTable
       v-if="viewMode === 'table'"
-      :items="paginatedItems?.content || []"
-      :categories="categories"
-      :units="units"
+      :items="(paginatedItems?.content || []).filter(item => item && item.id)"
+      :categories="categories || []"
+      :units="units || []"
       :pagination="pagination"
       :loading="isLoading"
       @view-item="openItemDetails"
@@ -198,6 +198,9 @@
         <ItemCreationWizard
           :categories="categories"
           :units="units"
+          :category-hierarchy="categoryHierarchy"
+          :locations="warehouses"
+          :unit-hierarchy="unitHierarchy"
           :is-uploading="fileUploadStore.getIsUploading"
           :upload-error="fileUploadStore.getError"
           :image-url="fileUploadStore.getUploadedUrl"
@@ -238,6 +241,8 @@
           :item="selectedItem"
           :categories="categories"
           :units="units"
+          :category-hierarchy="categoryHierarchy"
+          :unit-hierarchy="unitHierarchy"
           :is-uploading="fileUploadStore.getIsUploading"
           :upload-error="fileUploadStore.getError"
           :image-url="editorImageUrl"
@@ -348,7 +353,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { navigateTo } from 'nuxt/app'
 import { 
-  PlusIcon, FileUp, ChevronDown, FileSpreadsheet, Table2, FileTextIcon,
+  PlusIcon, Upload, ChevronDown, FileSpreadsheet, Table2, FileTextIcon,
   DownloadIcon, RefreshCwIcon, HomeIcon, SettingsIcon, ChevronRightIcon,
   PackageIcon, TableIcon, BarChartIcon
 } from 'lucide-vue-next'
@@ -423,10 +428,12 @@ const pagination = computed(() => inventoryItemsStore.getPagination)
 // Categories store state
 const categories = computed(() => itemCategoriesStore.getActiveCategories)
 const categoriesLoading = computed(() => itemCategoriesStore.getIsLoading)
+const categoryHierarchy = computed(() => itemCategoriesStore.getCategoryHierarchy)
 
 // UOM store state
 const units = computed(() => uomStore.getActiveUnits)
 const unitsLoading = computed(() => uomStore.getIsLoading)
+const unitHierarchy = computed(() => uomStore.getUnitHierarchy)
 
 // Purchase orders store state
 const purchaseOrders = computed(() => purchaseOrdersStore.getOrders)
@@ -621,7 +628,8 @@ const handleImageUpload = async (data) => {
           ...selectedItem.value,
           imageUrl: result.data.url
         }
-        await inventoryItemsStore.updateItem(data.itemId, updatedItem)
+        // await inventoryItemsStore.updateItem(data.itemId, updatedItem)
+        fileUploadStore.setUploadedUrl(result.data.url)
         
         toast({
           title: 'Success',
@@ -741,7 +749,6 @@ const switchToReorderView = async () => {
 const handleItemCreated = async (newItem) => {
   try {
     await inventoryItemsStore.createItem(newItem)
-    showItemWizard.value = false
     
     // Clear uploaded URL from store
     fileUploadStore.clearUploadedUrl()
@@ -752,7 +759,12 @@ const handleItemCreated = async (newItem) => {
       variant: 'success'
     })
     
-    await refreshItems()
+    showItemWizard.value = false
+    
+    // Small delay to ensure backend consistency before refresh
+    setTimeout(async () => {
+      await refreshItems()
+    }, 100)
   } catch (error) {
     console.error('Error creating item:', error)
     toast({
@@ -769,7 +781,6 @@ const handleItemUpdated = async (updateData) => {
     if (!itemId) return
     
     await inventoryItemsStore.updateItem(itemId, updateData)
-    console.log('Item updated:', updateData)
     showItemEditorSheet.value = false
     
     // Clear uploaded URL from store
@@ -1036,10 +1047,12 @@ const handleImportComplete = async (result) => {
 
 const handlePageChange = async (newPage) => {
   try {
-    await inventoryItemsStore.fetchItems({ 
-      page: newPage, 
-      size: pagination.value.size 
-    })
+    const params = {
+      ...currentFilters.value,
+      page: newPage,
+      size: pagination.value.size || 10
+    }
+    await inventoryItemsStore.fetchItems(params)
   } catch (error) {
     console.error('Error changing page:', error)
     toast({
@@ -1052,10 +1065,12 @@ const handlePageChange = async (newPage) => {
 
 const handleSizeChange = async (newSize) => {
   try {
-    await inventoryItemsStore.fetchItems({ 
-      page: 0, 
-      size: newSize 
-    })
+    const params = {
+      ...currentFilters.value,
+      page: 0,
+      size: newSize
+    }
+    await inventoryItemsStore.fetchItems(params)
   } catch (error) {
     console.error('Error changing page size:', error)
     toast({
@@ -1075,7 +1090,7 @@ const handleSearch = async (searchTerm) => {
       ...currentFilters.value,
       searchTerm: searchTerm || undefined,
       page: 0, // Reset to first page when searching
-      size: pagination.value.size
+      size: pagination.value.size || 10
     }
     await inventoryItemsStore.fetchItems(params)
   } catch (error) {
@@ -1101,7 +1116,7 @@ const handleFilterChange = async (filters) => {
     const params = {
       ...cleanFilters,
       page: 0, // Reset to first page when filtering
-      size: pagination.value.size
+      size: pagination.value.size || 10
     }
     await inventoryItemsStore.fetchItems(params)
   } catch (error) {
@@ -1121,7 +1136,7 @@ const handleSortChange = async (sortOptions) => {
       sortBy: sortOptions.sortBy || undefined,
       sortDirection: sortOptions.sortDirection || 'ASC',
       page: 0, // Reset to first page when sorting
-      size: pagination.value.size
+      size: pagination.value.size || 10
     }
     await inventoryItemsStore.fetchItems(params)
   } catch (error) {
@@ -1205,13 +1220,17 @@ onMounted(async () => {
     // Fetch categories, units, warehouses, suppliers, and items in parallel
     await Promise.all([
       itemCategoriesStore.fetchAllCategories(),
+      itemCategoriesStore.fetchCategoryHierarchy(),
       uomStore.fetchUnits(),
+      uomStore.fetchUOMHierarchy(),
       locationsStore.fetchAllWarehouses(),
       suppliersStore.fetchAllSuppliers()
     ])
     
     console.log('Categories loaded:', categories.value)
+    console.log('Category hierarchy loaded:', categoryHierarchy.value)
     console.log('Units loaded:', units.value)
+    console.log('Unit hierarchy loaded:', unitHierarchy.value)
     console.log('Warehouses loaded:', warehouses.value)
     console.log('Suppliers loaded:', suppliers.value)
     

@@ -56,22 +56,15 @@
 
     <!-- Create Transaction Dialog -->
     <Dialog v-model:open="showCreateTransactionDialog">
-      <CreateTransactionDialog 
-        v-if="showCreateTransactionDialog"
-        :warehouses="warehouses"
-        :items="items"
-        :customers="customers"
-        :suppliers="suppliers"
-        :purchase-orders="purchaseOrders"
-        :purchase-orders-loading="purchaseOrdersLoading"
-        :purchase-orders-pagination-meta="purchaseOrdersPaginationMeta"
-        :scanned-item="null"
-        @transaction-created="handleTransactionCreated"
-        @multi-receive-from-po="handleMultiReceiveFromPO"
-        @multi-issue-from-po="handleMultiIssueFromPO"
-        @load-purchase-orders="handleLoadPurchaseOrders"
-        @close="showCreateTransactionDialog = false"
-      />
+      <CreateTransactionDialog v-if="showCreateTransactionDialog" :warehouses="warehouses" :items="items"
+        :customers="customers" :suppliers="suppliers" :users="users" :sales-orders="salesOrders"
+        :work-orders="workOrders" :purchase-orders="purchaseOrders" :purchase-orders-loading="purchaseOrdersLoading"
+        :purchase-orders-pagination-meta="purchaseOrdersPaginationMeta" :scanned-item="null"
+        :delivery-note-file-url="fileUploadStore.getUploadedUrl"
+        :delivery-note-uploading="fileUploadStore.getIsUploading" :delivery-note-upload-error="fileUploadStore.getError"
+        @upload-delivery-note="uploadDeliveryNote" @remove-delivery-note="removeDeliveryNote" @transaction-created="handleTransactionCreated"
+        @multi-receive-from-po="handleMultiReceiveFromPO" @multi-issue-from-po="handleMultiIssueFromPO"
+        @load-purchase-orders="handleLoadPurchaseOrders" @close="showCreateTransactionDialog = false" />
     </Dialog>
 
     <!-- Void Transaction Dialog -->
@@ -120,6 +113,8 @@ import { useInventoryTransactionsStore } from '@/store/modules/inventory/transac
 import { useCustomersStore } from '@/store/modules/price-mangement/customers'
 import { usePurchaseOrdersStore } from '@/store/modules/purchase-orders/purchase-orders'
 import { useSuppliersStore } from '@/store/modules/inventory/suppliers'
+import { useUsersStore } from '@/store/modules/users'
+import { useFileUploadStore } from '@/store/modules/utility/file-upload/upload'
 
 // Initialize stores
 const inventoryItemsStore = useInventoryItemsStore()
@@ -128,6 +123,8 @@ const transactionsStore = useInventoryTransactionsStore()
 const customersStore = useCustomersStore()
 const purchaseOrdersStore = usePurchaseOrdersStore()
 const suppliersStore = useSuppliersStore()
+const usersStore = useUsersStore()
+const fileUploadStore = useFileUploadStore()
 const { toast } = useToast()
 
 // Access store state through computed properties
@@ -137,6 +134,47 @@ const items = computed(() => inventoryItemsStore.getItems)
 const warehouses = computed(() => locationsStore.getWarehouses)
 const customers = computed(() => customersStore.getCustomers)
 const suppliers = computed(() => suppliersStore.getSuppliers)
+const users = computed(() => usersStore.getAllUsers)
+
+// Mock data for testing - TODO: Replace with actual stores when available
+const salesOrders = computed(() => [
+  {
+    id: 1,
+    orderNumber: 'SO-2025-0001',
+    code: 'SO-2025-0001',
+    customerId: 'cust-001',
+    customerName: 'Acme Corporation'
+  },
+  {
+    id: 2,
+    orderNumber: 'SO-2025-0002',
+    code: 'SO-2025-0002',
+    customerId: 'cust-002',
+    customerName: 'Beta Industries'
+  }
+])
+
+const workOrders = computed(() => [
+  {
+    id: 1,
+    orderNumber: 'WO-2025-0001',
+    code: 'WO-2025-0001',
+    assignedUserId: 'user-001',
+    bomName: 'Assembly G Manufacturing',
+    productName: 'Assembly G',
+    status: 'in_progress'
+  },
+  {
+    id: 2,
+    orderNumber: 'WO-2025-0002',
+    code: 'WO-2025-0002',
+    assignedUserId: 'user-002',
+    bomName: 'Component C Repair',
+    productName: 'Component C',
+    status: 'pending'
+  }
+])
+
 const multiItemReceives = computed(() => transactionsStore.getMultiItemReceives)
 const singleItemIssues = computed(() => transactionsStore.getSingleItemIssues)
 const multiItemIssues = computed(() => transactionsStore.getMultiItemIssues)
@@ -173,6 +211,15 @@ const showTransactionDetailsDialog = ref(false)
 const showCreateTransactionDialog = ref(false)
 const showVoidDialog = ref(false)
 const showBarcodeScannerDialog = ref(false)
+
+// Delivery note file upload state
+const deliveryNoteFile = ref(null)
+const deliveryNoteFileUrl = computed(() => {
+  const uploadedUrl = fileUploadStore.getUploadedUrl
+  return uploadedUrl
+})
+const deliveryNoteUploading = computed(() => fileUploadStore.getIsUploading)
+const deliveryNoteUploadError = computed(() => fileUploadStore.getError)
 
 // Fetch data from APIs
 const fetchTransactions = async (params = {
@@ -249,6 +296,19 @@ const fetchSuppliers = async () => {
   }
 }
 
+const fetchUsers = async () => {
+  try {
+    await usersStore.fetchTenantUsers()
+  } catch (error) {
+    console.error('Error fetching users:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to load users',
+      variant: 'destructive'
+    })
+  }
+}
+
 const fetchTransactionSummary = async () => {
   try {
     await transactionsStore.fetchTransactionSummary()
@@ -304,6 +364,7 @@ const openTransactionDetails = (transaction) => {
 }
 
 const openCreateTransactionDialog = () => {
+  fileUploadStore.setUploadedUrl(null)
   showCreateTransactionDialog.value = true
 }
 
@@ -344,11 +405,11 @@ const handleTransactionCreated = async (transactionData) => {
     }
 
     // Close all dialogs
-    showReceiveDialog.value = false
-    showIssueDialog.value = false
-    showAdjustmentDialog.value = false
-    showTransferDialog.value = false
-    showStockCountDialog.value = false
+    // showReceiveDialog.value = false
+    // showIssueDialog.value = false
+    // showAdjustmentDialog.value = false
+    // showTransferDialog.value = false
+    // showStockCountDialog.value = false
 
     toast({
       title: 'Transaction Created',
@@ -368,35 +429,35 @@ const handleTransactionCreated = async (transactionData) => {
   }
 }
 
-// Purchase Order specific transaction handlers
-const handleMultiReceiveFromPO = async (transactionData) => {
-  try {
-    const result = await transactionsStore.createMultiItemReceive(transactionData);
+// // Purchase Order specific transaction handlers
+// const handleMultiReceiveFromPO = async (transactionData) => {
+//   try {
+//     const result = await transactionsStore.createMultiItemReceive(transactionData);
 
-    showReceiveDialog.value = false
+//     // showReceiveDialog.value = false
 
-    toast({
-      title: 'Multi-Item Receive Created',
-      description: `Receive transaction ${result.referenceNumber || result.id} has been created successfully.`,
-      variant: 'success'
-    })
+//     toast({
+//       title: 'Multi-Item Receive Created',
+//       description: `Receive transaction ${result.referenceNumber || result.id} has been created successfully.`,
+//       variant: 'success'
+//     })
 
-    // Refresh data
-    await Promise.all([
-      fetchTransactions(),
-      fetchItems(),
-      transactionsStore.fetchMultiItemReceives(),
-      fetchTransactionSummary()
-    ])
-  } catch (error) {
-    console.error('Error creating multi-item receive from PO:', error)
-    toast({
-      title: 'Error',
-      description: 'Failed to create multi-item receive. Please try again.',
-      variant: 'destructive'
-    })
-  }
-}
+//     // Refresh data
+//     await Promise.all([
+//       fetchTransactions(),
+//       fetchItems(),
+//       transactionsStore.fetchMultiItemReceives(),
+//       fetchTransactionSummary()
+//     ])
+//   } catch (error) {
+//     console.error('Error creating multi-item receive from PO:', error)
+//     toast({
+//       title: 'Error',
+//       description: 'Failed to create multi-item receive. Please try again.',
+//       variant: 'destructive'
+//     })
+//   }
+// }
 
 const handleMultiIssueFromPO = async (transactionData) => {
   try {
@@ -480,6 +541,44 @@ const handleFilterChanged = (newFilters) => {
   fetchTransactions()
 }
 
+const uploadDeliveryNote= async (data) => {
+  console.log('Uploading delivery note:', data)
+  try {
+    if (data.error) {
+      fileUploadStore.error = data.error
+      return
+    }
+    if (!data) return
+    const result = await fileUploadStore.uploadFile(data)
+    if (result.success && result.data?.url) {
+      fileUploadStore.setUploadedUrl(result.data.url)
+
+      toast({
+        title: 'Success',
+        description: 'Delivery Note updated successfully'
+      })
+    } else {
+      fileUploadStore.setUploadedUrl(result.data.url)
+    }
+  } catch (error) {
+    console.error('Error uploading note:', error)
+    toast({
+      title: 'Error',
+      description: 'Failed to upload delivery note',
+      variant: 'destructive'
+    })
+  }
+}
+
+const removeDeliveryNote = () => {
+  fileUploadStore.setUploadedUrl(null)
+  toast({
+    title: 'Success',
+    description: 'Delivery Note removed successfully'
+  })
+}
+
+
 const handleItemScanned = async (result) => {
   try {
     // Process the scanned item based on the current mode
@@ -526,6 +625,7 @@ onMounted(async () => {
       fetchWarehouses(),
       fetchCustomers(),
       fetchSuppliers(),
+      fetchUsers(),
       fetchTransactionSummary()
     ])
   } catch (error) {

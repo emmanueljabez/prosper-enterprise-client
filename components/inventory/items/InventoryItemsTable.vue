@@ -32,6 +32,18 @@
             <SelectItem value="false">Inactive</SelectItem>
           </SelectContent>
         </Select>
+        <Select v-model="sortBy" @update:model-value="handleSortChange">
+          <SelectTrigger class="w-[140px]">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="itemName">Name</SelectItem>
+            <SelectItem value="itemCode">Code</SelectItem>
+            <SelectItem value="stockOnHand">Stock</SelectItem>
+            <SelectItem value="standardCost">Cost</SelectItem>
+            <SelectItem value="createdAt">Created</SelectItem>
+          </SelectContent>
+        </Select>
         <Button variant="outline" size="sm" @click="clearFilters">
           <X class="h-4 w-4 mr-2" />
           Clear
@@ -61,13 +73,14 @@
             <TableHead class="text-right">Unit Price</TableHead>
             <TableHead class="text-right">Value</TableHead>
             <TableHead>UOM</TableHead>
+            <TableHead>Created</TableHead>
             <TableHead class="text-center">Status</TableHead>
             <TableHead class="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           <TableRow v-if="loading">
-            <TableCell colspan="10" class="h-24">
+            <TableCell colspan="11" class="h-24">
               <div class="space-y-3">
                 <div class="flex items-center space-x-4">
                   <Skeleton class="h-4 w-4" />
@@ -78,6 +91,7 @@
                   <Skeleton class="h-4 w-[100px]" />
                   <Skeleton class="h-4 w-[100px]" />
                   <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[100px]" />
                   <Skeleton class="h-4 w-[80px]" />
                   <Skeleton class="h-4 w-[80px]" />
                 </div>
@@ -90,6 +104,7 @@
                   <Skeleton class="h-4 w-[100px]" />
                   <Skeleton class="h-4 w-[100px]" />
                   <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[100px]" />
                   <Skeleton class="h-4 w-[80px]" />
                   <Skeleton class="h-4 w-[80px]" />
                 </div>
@@ -102,6 +117,7 @@
                   <Skeleton class="h-4 w-[100px]" />
                   <Skeleton class="h-4 w-[100px]" />
                   <Skeleton class="h-4 w-[80px]" />
+                  <Skeleton class="h-4 w-[100px]" />
                   <Skeleton class="h-4 w-[80px]" />
                   <Skeleton class="h-4 w-[80px]" />
                 </div>
@@ -109,7 +125,7 @@
             </TableCell>
           </TableRow>
           <TableRow v-else-if="items.length === 0">
-            <TableCell colspan="10" class="h-24 text-center text-muted-foreground">
+            <TableCell colspan="11" class="h-24 text-center text-muted-foreground">
               No inventory items found.
             </TableCell>
           </TableRow>
@@ -135,12 +151,26 @@
             </TableCell>
             <TableCell>
               <div class="flex items-center space-x-3">
-                <Avatar class="h-8 w-8">
-                  <AvatarImage v-if="item.imageUrl" :src="item.imageUrl" :alt="item.name" />
-                  <AvatarFallback>
-                    <PackageIcon class="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
+                <div>
+                  <Popover v-if="item.imageUrl">
+                    <PopoverTrigger asChild>
+                      <Avatar class="h-8 w-8 cursor-pointer">
+                        <AvatarImage :src="item.imageUrl" :alt="item.name" />
+                        <AvatarFallback>
+                          <PackageIcon class="h-4 w-4" />
+                        </AvatarFallback>
+                      </Avatar>
+                    </PopoverTrigger>
+                    <PopoverContent class="p-2 w-auto max-w-xs max-h-96 flex items-center justify-center">
+                      <img :src="item.imageUrl" :alt="item.name" class="max-w-xs max-h-96 rounded shadow border" />
+                    </PopoverContent>
+                  </Popover>
+                  <Avatar v-else class="h-8 w-8">
+                    <AvatarFallback>
+                      <PackageIcon class="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
                 <div>
                   <div class="font-medium">{{ item.name }}</div>
                   <div v-if="item.description" class="text-sm text-muted-foreground truncate max-w-[200px]">
@@ -150,7 +180,7 @@
               </div>
             </TableCell>
             <TableCell>
-              <Badge variant="outline">{{ getCategoryName(item.categoryId) }}</Badge>
+              <Badge variant="outline">{{ getCategoryName(item.category.id) }}</Badge>
             </TableCell>
             <TableCell class="text-right">
               <Popover v-if="hasMultipleLocations(item)" :open="hoveredItemId === item.id">
@@ -182,7 +212,7 @@
                     <div class="flex items-center justify-between pb-2 border-b">
                       <h4 class="font-semibold text-sm">Stock by Location</h4>
                       <Badge variant="outline">
-                        Total: {{ formatNumber(getTotalStock(item)) }} {{ getUnitName(item.baseUnitOfMeasureId || item.unitOfMeasureId) }}
+                        Total: {{ formatNumber(getTotalStock(item)) }} {{ getUnitName(item.baseUnit.id) }}
                       </Badge>
                     </div>
                     
@@ -237,7 +267,12 @@
               <span class="font-medium">{{ formatCurrency(getItemValue(item)) }}</span>
             </TableCell>
             <TableCell>
-              <Badge variant="secondary">{{ getUnitName(item.baseUnitOfMeasureId || item.unitOfMeasureId) }}</Badge>
+              <Badge variant="secondary">{{ getUnitName(item.baseUnit.id) }}</Badge>
+            </TableCell>
+            <TableCell>
+              <div class="text-sm">
+                {{ formatDate(item.created || item.createdDate) }}
+              </div>
             </TableCell>
             <TableCell class="text-center">
               <Badge :variant="item.isActive ? 'default' : 'secondary'">
@@ -327,28 +362,28 @@
     <!-- Pagination -->
     <div class="flex items-center justify-between">
       <div class="text-sm text-muted-foreground">
-        {{ selectedItems.length }} of {{ props.pagination.totalElements }} selected
+        {{ selectedItems.length }} of {{ totalElements }} selected
       </div>
       
       <div class="flex items-center space-x-2">
         <span class="text-sm text-muted-foreground">
-          Showing {{ Math.min((props.pagination.page) * props.pagination.size + 1, props.pagination.totalElements) }} to 
-          {{ Math.min((props.pagination.page + 1) * props.pagination.size, props.pagination.totalElements) }} of 
-          {{ props.pagination.totalElements }} results
+          Showing {{ Math.min((currentPage * pageSize) + 1, totalElements) }} to 
+          {{ Math.min((currentPage + 1) * pageSize, totalElements) }} of 
+          {{ totalElements }} results
         </span>
         <Button
           variant="outline"
           size="sm"
-          :disabled="props.pagination.page <= 0"
-          @click="handlePageChange(props.pagination.page)"
+          :disabled="currentPage <= 0"
+          @click="handlePageChange(currentPage - 1)"
         >
           Previous
         </Button>
         <Button
           variant="outline"
           size="sm"
-          :disabled="props.pagination.page >= totalPages - 1"
-          @click="handlePageChange(props.pagination.page + 2)"
+          :disabled="currentPage >= totalPages - 1"
+          @click="handlePageChange(currentPage + 1)"
         >
           Next
         </Button>
@@ -445,12 +480,25 @@ const selectedItems = ref([])
 const searchTerm = ref('')
 const categoryFilter = ref('_all')
 const statusFilter = ref('_all')
+const sortBy = ref('')
 const searchTimeout = ref(null)
 const hoveredItemId = ref(null)
 
 // Computed
 const totalPages = computed(() => {
-  return Math.ceil(props.pagination.totalElements / props.pagination.size)
+  return props.pagination.totalPages || Math.ceil(props.pagination.totalElements / props.pagination.size)
+})
+
+const currentPage = computed(() => {
+  return props.pagination.page ?? props.pagination.number ?? 0
+})
+
+const pageSize = computed(() => {
+  return props.pagination.size ?? 10
+})
+
+const totalElements = computed(() => {
+  return props.pagination.totalElements ?? 0
 })
 
 const isAllSelected = computed(() => {
@@ -498,6 +546,11 @@ const handleStatusFilterChange = (value) => {
   emit('filter-change', { isActive })
 }
 
+const handleSortChange = (value) => {
+  const [sortBy, sortDirection] = value.includes(':') ? value.split(':') : [value, 'ASC']
+  emit('sort-change', { sortBy, sortDirection })
+}
+
 const handlePageSizeChange = (newSize) => {
   emit('size-change', parseInt(newSize))
 }
@@ -510,10 +563,12 @@ const clearFilters = () => {
   searchTerm.value = ''
   categoryFilter.value = '_all'
   statusFilter.value = '_all'
+  sortBy.value = ''
   
   // Emit clear filters
   emit('search', '')
   emit('filter-change', { categoryId: null, isActive: null })
+  emit('sort-change', { sortBy: null, sortDirection: 'ASC' })
 }
 
 const bulkDeactivate = () => {
@@ -585,6 +640,16 @@ const formatCurrency = (value) => {
     style: 'currency',
     currency: 'KES'
   }).format(value)
+}
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A'
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  }).format(date)
 }
 
 const getCategoryName = (categoryId) => {

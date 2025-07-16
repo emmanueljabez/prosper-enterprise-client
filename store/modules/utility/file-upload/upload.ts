@@ -27,6 +27,7 @@ export const useFileUploadStore = defineStore('fileUpload', {
       try {
         this.isUploading = true;
         this.error = null;
+        console.log('Uploading file:', file);
 
         const response = await uploadFileApi.uploadFile(file);
         const decryptedResponse = encryptionUtil.decrypt(response.data);
