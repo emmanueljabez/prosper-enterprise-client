@@ -12,8 +12,25 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     return
   }
 
+  const queryParams = to.query
+  const authParams = ['token', 'username', 'tenantId', 'userId']
+  let hasAuthParams = false
+
+  // Check if any auth parameters exist in the query
+  authParams.forEach(param => {
+    if (queryParams[param]) {
+      // Map 'token' to 'accessToken' for localStorage consistency
+      const storageKey = param === 'token' ? 'accessToken' : param
+      hasAuthParams = true
+
+      localStorage.setItem(param, queryParams[param])
+    }
+  })
+
+
+
   // For protected routes (/app/)
-  if (to.path.startsWith('/app/')) {
+  if (to.path.startsWith('/app/') || hasAuthParams) {
     const authStore = useAuthStore()
 
     // Initialize the store from localStorage
@@ -28,12 +45,22 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
     // We're authenticated - now update the store
     // This won't block access, just keeps store in sync
-    try {
-      if (user && !authStore.loggedInUser) {
-        authStore.loggedInUser = user
+   /* try {
+      if ( !authStore.loggedInUser) {
+        console.log("looking good ... ")
+        authStore.loggedInUser = {
+          emailAddress: authParams["username"],
+          password: null,
+          firstName: null,
+          lastName: null,
+          companyName: null,
+          phoneNumber: null,
+          noOfEmployees: null
+        }
       }
     } catch (error) {
+      console.log(error)
       // Don't redirect - we already confirmed authentication
-    }
+    }*/
   }
 })
