@@ -2,6 +2,8 @@
 import { ref, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSidebarStore } from '@/store/modules/sidebar';
+import { useAuthStore } from '@/store/modules/auth';
+import { RoleManager } from '@/utils/roleManager';
 import Navbar from '@/layouts/components/navbar.vue';
 
 import {
@@ -45,9 +47,31 @@ import { Separator } from '@/components/ui/separator';
 import { ChevronsUpDown, Plus } from 'lucide-vue-next';
 
 const sidebarStore = useSidebarStore();
+const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
 const isCollapsed = ref(false);
+
+// Get user's primary role for display
+const userRole = computed(() => {
+  const user = JSON.parse(localStorage.getItem("loggedInUser"));
+  if (!user) return 'Guest';
+
+  console.log("Check user role", user);
+  
+  if (RoleManager.isCorporateAdmin(user)) return 'Corporate Admin';
+  if (RoleManager.isMentor(user)) return 'External Mentor';
+  if (RoleManager.isEmployee(user)) return 'Employee';
+  return 'User';
+});
+
+// Get role-based navigation
+const navigation = computed(() => {
+  const navItems = sidebarStore.roleBasedNavigation;
+  console.log("Nav items ..... ")
+  console.log(navItems)
+  return navItems;
+});
 
 // Check if we're on the POS page to conditionally hide navbar
 const isPosPage = computed(() => {
@@ -109,19 +133,21 @@ function setActiveTeam(team: typeof data.teams[number]) {
         <SidebarHeader class="p-4 flex-shrink-0">
           <SidebarMenu>
             <SidebarMenuItem>
-              <div class="flex items-center justify-start group-data-[collapsible=expanded]:justify-start">
-                <!-- Full logo when expanded -->
-                <img 
-                  src="/images/pcash_logo.png" 
-                  alt="ISPBox Logo" 
-                  class="h-7 w-auto group-data-[collapsible=icon]:hidden transition-all duration-200" 
-                />
-                <!-- Favicon when collapsed -->
-                <img 
-                  src="/images/favicon-32x32.png" 
-                  alt="ISPBox" 
-                  class="hidden group-data-[collapsible=icon]:block h-6 w-6 transition-all duration-200" 
-                />
+              <div class="flex flex-col gap-2">
+                <div class="flex items-center justify-start group-data-[collapsible=expanded]:justify-start">
+                  <!-- Full logo when expanded -->
+                  <img 
+                    src="/images/prosper_mentor_logo.png"
+                    alt="Prosper Mentor Logo"
+                    class="h-16 w-auto group-data-[collapsible=icon]:hidden transition-all duration-200"
+                  />
+                  <!-- Favicon when collapsed -->
+                  <img 
+                    src="/images/favicon-32x32.png" 
+                    alt="Prosper Mentor" 
+                    class="hidden group-data-[collapsible=icon]:block h-6 w-6 transition-all duration-200" 
+                  />
+                </div>
               </div>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -130,7 +156,7 @@ function setActiveTeam(team: typeof data.teams[number]) {
           <SidebarGroup class="h-full">
             <!-- Expanded view: Show full hierarchy -->
             <SidebarMenu class="group-data-[collapsible=icon]:hidden">
-              <template v-for="(item, index) in sidebarStore.navigation" :key="item.title">
+              <template v-for="(item, index) in navigation" :key="item.title">
                 <SidebarMenuItem>
                   <SidebarMenuButton :tooltip="item.title" class="font-bold">
                     <!-- Never show parent icons -->
@@ -139,9 +165,9 @@ function setActiveTeam(team: typeof data.teams[number]) {
                   <SidebarMenuSub v-if="item.children">
                     <SidebarMenuSubItem v-for="subItem in item.children" :key="subItem.title">
                       <SidebarMenuSubButton as-child :class="{ 'text-white': subItem.isActive }"
-                        :style="{ background: subItem.isActive ? 'linear-gradient(90deg, #1b1b41, #1b1b41)' : '' }"
+                        :style="{ background: subItem.isActive ? '#a03b93' : '' }"
                         :tooltip="subItem.title">
-                        <NuxtLink :to="subItem.url" class="text-sm font-normal">
+                        <NuxtLink :to="subItem.url" class="text-sm font-normal" @click="() => sidebarStore.setActiveRoute(subItem.url)">
                           <component :is="subItem.icon" class="mr-2 size-4" />
                           <span class="text-[14px]">{{ subItem.title }}</span>
                         </NuxtLink>
@@ -149,19 +175,19 @@ function setActiveTeam(team: typeof data.teams[number]) {
                     </SidebarMenuSubItem>
                   </SidebarMenuSub>
                 </SidebarMenuItem>
-                <div v-if="index < sidebarStore.navigation.length - 1" class="my-2"></div>
+                <div v-if="index < navigation.length - 1" class="my-2"></div>
               </template>
             </SidebarMenu>
             
             <!-- Collapsed view: Show only child icons -->
             <div class="hidden group-data-[collapsible=icon]:block">
               <SidebarMenu class="space-y-1">
-                <template v-for="item in sidebarStore.navigation" :key="`collapsed-${item.title}`">
+                <template v-for="item in navigation" :key="`collapsed-${item.title}`">
                   <template v-for="subItem in item.children" :key="`collapsed-${subItem.title}`">
                     <SidebarMenuItem>
                       <SidebarMenuButton as-child :tooltip="subItem.title" :class="{ 'text-white': subItem.isActive }"
-                        :style="{ background: subItem.isActive ? 'linear-gradient(90deg, #1b1b41, #1b1b41)' : '' }">
-                        <NuxtLink :to="subItem.url" class="flex items-center justify-center p-2">
+                        :style="{ background: subItem.isActive ? '#a03b93' : '' }">
+                        <NuxtLink :to="subItem.url" class="flex items-center justify-center p-2" @click="() => sidebarStore.setActiveRoute(subItem.url)">
                           <component :is="subItem.icon" class="size-4" />
                         </NuxtLink>
                       </SidebarMenuButton>

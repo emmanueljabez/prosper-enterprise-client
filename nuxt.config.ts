@@ -2,7 +2,31 @@ import { defineNuxtConfig } from 'nuxt/config'
 
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
-  devtools: { enabled: true },  
+  devtools: { enabled: true },
+  
+  // Development server configuration for better hot reload
+  devServer: {
+    port: 3000,
+    host: 'localhost'
+  },
+  
+  // Vite configuration for hot module replacement
+  vite: {
+    server: {
+      hmr: {
+        port: 24678,
+        host: 'localhost'
+      },
+      watch: {
+        usePolling: false,
+        interval: 300
+      }
+    },
+    optimizeDeps: {
+      include: ['vue', 'vue-router']
+    }
+  },
+  
   runtimeConfig: {
     public: {
       // mapboxToken: process.env.NUXT_PUBLIC_MAPBOX_TOKEN

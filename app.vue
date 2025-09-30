@@ -5,6 +5,11 @@
       <NuxtPage />
     </NuxtLayout>
     <Toaster />
+    
+    <!-- Global Session Warning Modal -->
+    <ClientOnly>
+      <SessionWarning />
+    </ClientOnly>
   </div>
 </template>
 
@@ -12,10 +17,14 @@
 import { Toaster } from '@/components/ui/toast'
 import { useAuthStore } from '@/store/modules/auth';
 import { onMounted } from 'vue';
+import SessionWarning from '@/components/ui/session/SessionWarning.vue'
 
 onMounted(() => {
   const authStore = useAuthStore();
-  authStore.initializeFromStorage();
+  console.log('🔍 App.vue: Initializing auth store from storage...');
+  const result = authStore.initializeFromStorage();
+  console.log('🔍 App.vue: Auth initialization result:', result);
+  console.log('🔍 App.vue: LoggedInUser after init:', authStore.loggedInUser);
 });
 </script>
 

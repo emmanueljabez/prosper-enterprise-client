@@ -18,10 +18,10 @@ export default defineNuxtPlugin((nuxtApp) => {
   };
   
   const formatTitle = (title: string | undefined): string => {
-    if (!title || title === 'PCash') {
-      return 'PCash';
+    if (!title || title === 'Prosper Mentor') {
+      return 'Prosper Mentor';
     }
-    return `PCash - ${title}`;
+    return `Prosper Mentor - ${title}`;
   };
 
   nuxtApp.hook('app:mounted', () => {

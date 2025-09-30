@@ -30,42 +30,6 @@
     </div>
 
     <div class="navbar-items flex items-center justify-end gap-4">
-      
-
-      <!-- My Applications -->
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="secondary" size="icon" class="rounded-full">
-            <LayoutGrid class="h-5 w-5" />
-            <span class="sr-only">Applications</span>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent class="w-[300px] p-4">
-          <h4 class="mb-4 text-sm font-medium text-center">My Applications</h4>
-          <div class="grid grid-cols-2 gap-4">
-            <NuxtLink
-              class="flex flex-col items-center p-3 rounded-lg hover:bg-muted cursor-pointer border border-gray-200">
-              <MessageCircle class="h-8 w-8 mb-2" />
-              <span class="text-sm text-center">WhatsApp</span>
-            </NuxtLink>
-            <NuxtLink
-              class="flex flex-col items-center p-3 rounded-lg hover:bg-muted cursor-pointer border border-gray-200">
-              <Boxes class="h-8 w-8 mb-2" />
-              <span class="text-sm text-center">Assets & Inventory</span>
-            </NuxtLink>
-            <NuxtLink
-              class="flex flex-col items-center p-3 rounded-lg hover:bg-muted cursor-pointer border border-gray-200">
-              <Server class="h-8 w-8 mb-2" />
-              <span class="text-sm text-center">OLT</span>
-            </NuxtLink>
-            <NuxtLink
-                      class="flex flex-col items-center p-3 rounded-lg hover:bg-muted cursor-pointer border border-gray-200">
-              <BadgeDollarSign class="h-8 w-8 mb-2" />
-              <span class="text-sm text-center">Pcash</span>
-            </NuxtLink>
-          </div>
-        </PopoverContent>
-      </Popover>
 
       <!-- Notifications -->
       <Popover>
@@ -98,10 +62,15 @@
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuLabel>My Account</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>Settings</DropdownMenuItem>
-          <DropdownMenuItem>Support</DropdownMenuItem>
+          <DropdownMenuItem @click="handleCalendarIntegration" class="cursor-pointer">
+            <Calendar class="mr-2 h-4 w-4" />
+            <span v-if="calendarStore.hasGoogleCalendarIntegration">
+              Manage Calendar
+            </span>
+            <span v-else>
+              Connect Calendar
+            </span>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <NuxtLink  @click="logout">Logout</NuxtLink>
@@ -113,6 +82,7 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetTrigger } from '@/components/ui/sheet'
@@ -130,14 +100,22 @@ import {
   Boxes,
   Server,
   BarChart2,
-  BadgeDollarSign
+  BadgeDollarSign,
+  Calendar
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/store/modules/auth'
+import { useCalendarStore } from '@/store/modules/calendar'
 import { useToast } from '@/components/ui/toast'
 
 
 const authStore = useAuthStore()
-const { toast }= useToast()
+const calendarStore = useCalendarStore()
+const { toast } = useToast()
+
+// Initialize calendar store on mount
+onMounted(() => {
+  calendarStore.initialize()
+})
 
 const logout = async () => {
   try {
@@ -156,6 +134,41 @@ const logout = async () => {
     //   description: errorMessage,
     //   variant: 'destructive',
     // })
+  }
+}
+
+const handleCalendarIntegration = async () => {
+  try {
+    if (calendarStore.hasGoogleCalendarIntegration) {
+      // If already connected, show management options or disconnect
+      const integration = calendarStore.googleCalendarIntegration
+      if (integration) {
+        const confirmed = confirm('Do you want to disconnect your Google Calendar?')
+        if (confirmed) {
+          await calendarStore.disconnectCalendar(integration.id)
+          toast({
+            title: 'Calendar Disconnected',
+            description: 'Google Calendar has been disconnected successfully.',
+            variant: 'success',
+          })
+        }
+      }
+    } else {
+      // Store current page to return to after OAuth
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('calendar_return_url', window.location.pathname)
+      }
+      
+      // Initiate Google Calendar OAuth
+      await calendarStore.initiateGoogleCalendarAuth()
+    }
+  } catch (error: any) {
+    console.error('Calendar integration error:', error)
+    toast({
+      title: 'Calendar Error',
+      description: error.message || 'Failed to handle calendar integration',
+      variant: 'destructive',
+    })
   }
 }
 </script>

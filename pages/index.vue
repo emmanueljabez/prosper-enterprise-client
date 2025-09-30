@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100">
     <img
-      src="/images/pcash_logo.png"
+      src="/images/prosper_mentor_logo.png"
       alt="Logo"
       class="w-48 h-48 mb-8 animate-pulse object-contain"
     />

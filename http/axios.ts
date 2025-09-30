@@ -11,9 +11,9 @@ function getDomain() {
 
   let domain;
   if (isDev) {
-    domain = "https://apisandbox.pcash.africa/api/v1";
+    domain = "http://localhost:8080/api";
   } else {
-    domain = "https://api.pcash.africa/api/v1";
+    domain = "https://app.prospermentor.com/enterprise/api/v1";
   }
   // console.log("Using domain:", domain);
   return domain;
@@ -34,11 +34,9 @@ axiosInstance.interceptors.request.use(
 
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
-      const tenantId = localStorage.getItem('tenantId') || 'henexa';
       if (token) {
         config.headers = config.headers || {};
         config.headers.Authorization = `Bearer ${token}`;
-        config.headers['X-Tenant-ID'] = tenantId || '';
       }
     }
 

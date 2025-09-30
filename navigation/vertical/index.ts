@@ -9,17 +9,14 @@ import locations from './locations';
 import sync from './sync';
 import integration from './integration';
 import settings from './settings';
+import mentors from './mentors';
 import type { NavigationItem } from './navigation';
 
 export const navigation: NavigationItem[] = [
   ...dashboard,
+  ...mentors,
   ...catalog,
   ...pricing,
-  ...inventory,
-  // ...stock,
-  // ...rules,
-  ...warehouse,
-  // ...locations,
   ...sync,
   ...integration,
   ...settings,

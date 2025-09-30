@@ -4,6 +4,7 @@ import {
   ClipboardList,
   AlertTriangle,
   Wrench,
+  Home
 } from 'lucide-vue-next';
 
 const dashboard: NavigationItem[] = [
@@ -13,6 +14,11 @@ const dashboard: NavigationItem[] = [
     icon: LayoutDashboard,
     isActive: false,
     children: [
+      {
+        title: "Overview",
+        url: "/app/dashboard",
+        icon: Home,
+      },
       {
         title: "Inventory",
         url: "/app/dashboard/inventory",
