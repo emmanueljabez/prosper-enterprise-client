@@ -53,6 +53,35 @@ export const useMentorsStore = defineStore('mentors', () => {
   const featuredMentors = ref<MentorListingCard[]>([])
   const trendingMentors = ref<MentorListingCard[]>([])
 
+  // Programs state
+  const programs = ref<any[]>([])
+  const programsLoading = ref(false)
+  const programsError = ref<string | null>(null)
+  const programsSearchTerm = ref<string | undefined>(undefined)
+  const programsPagination = ref({
+    currentPage: 0,
+    totalPages: 0,
+    totalItems: 0,
+    hasNext: false,
+    hasPrevious: false,
+    pageSize: 20,
+    first: true,
+    last: true
+  })
+
+  // Mentor profiles state
+  const mentorProfiles = ref<any[]>([])
+  const mentorProfilesLoading = ref(false)
+  const mentorProfilesError = ref<string | null>(null)
+  const mentorProfilesPagination = ref({
+    currentPage: 0,
+    totalPages: 0,
+    totalItems: 0,
+    hasNext: false,
+    hasPrevious: false,
+    pageSize: 20
+  })
+
   // Computed properties
   const searchResults = computed(() => state.value.searchResults)
   const mentors = computed(() => searchResults.value?.mentors || [])
@@ -570,6 +599,337 @@ export const useMentorsStore = defineStore('mentors', () => {
     ])
   }
 
+  // Programs Actions
+  const loadPrograms = async (params?: {
+    page?: number
+    size?: number
+    searchTerm?: string
+  }) => {
+    programsLoading.value = true
+    programsError.value = null
+
+    try {
+      // Store search term for use in loadMorePrograms
+      programsSearchTerm.value = params?.searchTerm
+
+      const response = await mentorsApi.programs.getPrograms(params)
+
+      if (response.success) {
+        // Map API response to component format
+        programs.value = response.programs.map(program => ({
+          id: program.id,
+          legacyId: program.legacyId,
+          name: program.name,
+          imgUrl: program.imageUrl,
+          videoURL: program.videoUrl,
+          tagLine: program.description,
+          topicStatus: program.status,
+          mentorCount: 0, // API doesn't return mentor count yet
+          topicTips: program.tips,
+          focusAreas: program.focusAreas,
+          orderId: program.orderId
+        })).sort((a, b) => a.orderId - b.orderId)
+
+        // Update pagination state
+        if (response.pagination) {
+          programsPagination.value = {
+            currentPage: response.pagination.currentPage,
+            totalPages: response.pagination.totalPages,
+            totalItems: response.pagination.totalElements,
+            hasNext: response.pagination.hasNext,
+            hasPrevious: response.pagination.hasPrevious,
+            pageSize: response.pagination.pageSize,
+            first: response.pagination.first,
+            last: response.pagination.last
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Error loading programs:', error)
+      programsError.value = 'Failed to load programs. Please try again.'
+      showToast({
+        title: 'Load Failed',
+        description: 'Unable to load mentorship programs.',
+        variant: 'destructive'
+      })
+    } finally {
+      programsLoading.value = false
+    }
+  }
+
+  const loadMorePrograms = async () => {
+    if (!programsPagination.value.hasNext || programsLoading.value) {
+      return
+    }
+
+    programsLoading.value = true
+
+    try {
+      const nextPage = programsPagination.value.currentPage + 1
+      const response = await mentorsApi.programs.getPrograms({
+        page: nextPage,
+        size: programsPagination.value.pageSize,
+        searchTerm: programsSearchTerm.value
+      })
+
+      if (response.success) {
+        // Append new programs to existing ones
+        const newPrograms = response.programs.map(program => ({
+          id: program.id,
+          legacyId: program.legacyId,
+          name: program.name,
+          imgUrl: program.imageUrl,
+          videoURL: program.videoUrl,
+          tagLine: program.description,
+          topicStatus: program.status,
+          mentorCount: 0,
+          topicTips: program.tips,
+          focusAreas: program.focusAreas,
+          orderId: program.orderId
+        })).sort((a, b) => a.orderId - b.orderId)
+
+        programs.value.push(...newPrograms)
+
+        // Update pagination state
+        if (response.pagination) {
+          programsPagination.value = {
+            currentPage: response.pagination.currentPage,
+            totalPages: response.pagination.totalPages,
+            totalItems: response.pagination.totalElements,
+            hasNext: response.pagination.hasNext,
+            hasPrevious: response.pagination.hasPrevious,
+            pageSize: response.pagination.pageSize,
+            first: response.pagination.first,
+            last: response.pagination.last
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Error loading more programs:', error)
+      showToast({
+        title: 'Load Failed',
+        description: 'Unable to load more programs.',
+        variant: 'destructive'
+      })
+    } finally {
+      programsLoading.value = false
+    }
+  }
+
+  const getProgramById = async (programId: string) => {
+    try {
+      return await mentorsApi.programs.getProgramById(programId)
+    } catch (error: any) {
+      console.error('Error getting program:', error)
+      throw new Error('Failed to load program details')
+    }
+  }
+
+  const getProgramMentors = async (programId: string) => {
+    try {
+      return await mentorsApi.programs.getProgramMentors(programId)
+    } catch (error: any) {
+      console.error('Error getting program mentors:', error)
+      throw new Error('Failed to load program mentors')
+    }
+  }
+
+  // Mentor Profiles Actions
+  const loadMentorProfiles = async (params?: {
+    page?: number
+    size?: number
+    searchTerm?: string
+  }) => {
+    mentorProfilesLoading.value = true
+    mentorProfilesError.value = null
+
+    try {
+      const response = await mentorsApi.profiles.getMentorProfiles(params)
+
+      if (response.success) {
+        // Map API response to store format
+        mentorProfiles.value = response.mentors.map(profile => ({
+          id: profile.id,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          name: `${profile.firstName} ${profile.lastName}`,
+          email: profile.email,
+          profilePhoto: profile.avatarUrl,
+          profileSummary: profile.bio,
+          phoneNumber: profile.phone,
+          location: profile.location,
+          country: profile.country,
+          linkedInUrl: profile.linkedinUrl,
+          favouriteQuote: profile.favouriteQuote,
+          isVerified: profile.isVerified,
+          expertise: profile.expertise,
+          interests: profile.interests,
+          industry: profile.industry,
+          dob: profile.dob,
+          gender: profile.gender,
+          createdAt: profile.createdAt,
+          updatedAt: profile.updatedAt,
+          // Add default values for display
+          title: profile.industry || 'Professional Mentor',
+          company: profile.location || profile.country || '',
+          expertiseAreas: profile.expertise || [],
+          skills: profile.interests || [],
+          averageRating: 4.5,
+          totalReviews: 0,
+          totalSessions: 0,
+          hourlyRate: 50,
+          currency: 'USD',
+          responseTime: 24,
+          responseRate: 95,
+          verificationBadges: profile.isVerified ? ['verified'] : [],
+          isAvailable: true,
+          timezone: 'Africa/Nairobi',
+          preferredSessionTypes: ['video_call', 'phone_call'],
+          featured: false
+        }))
+
+        // Update pagination state
+        mentorProfilesPagination.value = {
+          currentPage: response.currentPage,
+          totalPages: response.totalPages,
+          totalItems: response.totalItems,
+          hasNext: response.hasNext,
+          hasPrevious: response.hasPrevious,
+          pageSize: params?.size ?? 20
+        }
+      }
+    } catch (error: any) {
+      console.error('Error loading mentor profiles:', error)
+      mentorProfilesError.value = 'Failed to load mentor profiles. Please try again.'
+      showToast({
+        title: 'Load Failed',
+        description: 'Unable to load mentor profiles.',
+        variant: 'destructive'
+      })
+    } finally {
+      mentorProfilesLoading.value = false
+    }
+  }
+
+  const loadMoreMentorProfiles = async (searchTerm?: string) => {
+    if (!mentorProfilesPagination.value.hasNext || mentorProfilesLoading.value) {
+      return
+    }
+
+    mentorProfilesLoading.value = true
+
+    try {
+      const nextPage = mentorProfilesPagination.value.currentPage + 1
+      const response = await mentorsApi.profiles.getMentorProfiles({
+        page: nextPage,
+        size: mentorProfilesPagination.value.pageSize,
+        searchTerm
+      })
+
+      if (response.success) {
+        // Append new profiles to existing ones
+        const newProfiles = response.mentors.map(profile => ({
+          id: profile.id,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          name: `${profile.firstName} ${profile.lastName}`,
+          email: profile.email,
+          profilePhoto: profile.avatarUrl,
+          profileSummary: profile.bio,
+          phoneNumber: profile.phone,
+          location: profile.location,
+          country: profile.country,
+          linkedInUrl: profile.linkedinUrl,
+          favouriteQuote: profile.favouriteQuote,
+          isVerified: profile.isVerified,
+          expertise: profile.expertise,
+          interests: profile.interests,
+          industry: profile.industry,
+          dob: profile.dob,
+          gender: profile.gender,
+          createdAt: profile.createdAt,
+          updatedAt: profile.updatedAt,
+          title: profile.industry || 'Professional Mentor',
+          company: profile.location || profile.country || '',
+          expertiseAreas: profile.expertise || [],
+          skills: profile.interests || [],
+          averageRating: 4.5,
+          totalReviews: 0,
+          totalSessions: 0,
+          hourlyRate: 50,
+          currency: 'USD',
+          responseTime: 24,
+          responseRate: 95,
+          verificationBadges: profile.isVerified ? ['verified'] : [],
+          isAvailable: true,
+          timezone: 'Africa/Nairobi',
+          preferredSessionTypes: ['video_call', 'phone_call'],
+          featured: false
+        }))
+
+        mentorProfiles.value.push(...newProfiles)
+
+        // Update pagination state
+        mentorProfilesPagination.value = {
+          currentPage: response.currentPage,
+          totalPages: response.totalPages,
+          totalItems: response.totalItems,
+          hasNext: response.hasNext,
+          hasPrevious: response.hasPrevious,
+          pageSize: mentorProfilesPagination.value.pageSize
+        }
+      }
+    } catch (error: any) {
+      console.error('Error loading more mentor profiles:', error)
+      showToast({
+        title: 'Load Failed',
+        description: 'Unable to load more mentor profiles.',
+        variant: 'destructive'
+      })
+    } finally {
+      mentorProfilesLoading.value = false
+    }
+  }
+
+  const searchMentorProfiles = async (searchTerm: string) => {
+    // Reset to first page when searching
+    await loadMentorProfiles({
+      page: 0,
+      size: mentorProfilesPagination.value.pageSize,
+      searchTerm
+    })
+  }
+
+  const getMentorProfileById = async (mentorId: string) => {
+    try {
+      return await mentorsApi.profiles.getMentorProfileById(mentorId)
+    } catch (error: any) {
+      console.error('Error getting mentor profile:', error)
+      throw new Error('Failed to load mentor profile')
+    }
+  }
+
+  // Mentor Availability Actions
+  const getMentorAvailability = async (mentorId: string, activeOnly: boolean = true) => {
+    try {
+      const response = await mentorsApi.availability.getMentorWeeklyAvailability(mentorId, activeOnly)
+
+      if (response.status === 'success') {
+        return response.data
+      }
+
+      throw new Error(response.message || 'Failed to load mentor availability')
+    } catch (error: any) {
+      console.error('Error getting mentor availability:', error)
+      showToast({
+        title: 'Load Failed',
+        description: 'Unable to load mentor availability.',
+        variant: 'destructive'
+      })
+      throw new Error('Failed to load mentor availability')
+    }
+  }
+
   return {
     // State
     state: readonly(state),
@@ -595,6 +955,18 @@ export const useMentorsStore = defineStore('mentors', () => {
     marketplaceStats: readonly(marketplaceStats),
     favorites: readonly(state.value.favorites),
     recentlyViewed: readonly(state.value.recentlyViewed),
+
+    // Programs
+    programs: readonly(programs),
+    programsLoading: readonly(programsLoading),
+    programsError: readonly(programsError),
+    programsPagination: readonly(programsPagination),
+
+    // Mentor Profiles
+    mentorProfiles: readonly(mentorProfiles),
+    mentorProfilesLoading: readonly(mentorProfilesLoading),
+    mentorProfilesError: readonly(mentorProfilesError),
+    mentorProfilesPagination: readonly(mentorProfilesPagination),
 
     // Actions
     searchMentors,
@@ -622,6 +994,21 @@ export const useMentorsStore = defineStore('mentors', () => {
     resetStore,
     initializeStore,
     setSearchResults,
-    searchMentorsByProgram
+    searchMentorsByProgram,
+
+    // Programs actions
+    loadPrograms,
+    loadMorePrograms,
+    getProgramById,
+    getProgramMentors,
+
+    // Mentor Profiles actions
+    loadMentorProfiles,
+    loadMoreMentorProfiles,
+    searchMentorProfiles,
+    getMentorProfileById,
+
+    // Mentor Availability actions
+    getMentorAvailability
   }
 }) 

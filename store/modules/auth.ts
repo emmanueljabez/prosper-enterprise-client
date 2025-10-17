@@ -515,50 +515,6 @@ export const useAuthStore = defineStore('auth', {
         this.error = error.message || 'Failed to get MFA status'
         throw error
       }
-    }, 
-    
-    async loginTest(loginData: LoginData) {
-      this.loading = true
-      try {
-
-        if(loginData.username === "mentee@prospermentor.com") {
-          this.loggedInUser = DUMMY_USER_DATA.employee
-
-          localStorage.setItem('token', DUMMY_TOKENS.employee)
-
-        } else if(loginData.username === "corporate@prospermentor.com") {
-          this.loggedInUser = DUMMY_USER_DATA.corporate_admin
-
-          localStorage.setItem('token', DUMMY_TOKENS.corporate_admin)
-        }
-
-        localStorage.setItem('provider', 'local')
-        localStorage.setItem('loggedInUser', JSON.stringify(this.loggedInUser))
-
-        return this.loggedInUser
-
-      } catch (error: any) {
-        if (error.response) {
-          const statusCode = error.response.status
-          const errorData = error.response.data || {}
-
-          this.error = errorData.message || "An error occurred"
-
-          throw {
-            message: this.error,
-            success: false,
-            statusCode
-          }
-        } else {
-          this.error = error.message || "Network error. Please try again"
-          throw {
-            message: this.error,
-            success: false
-          }
-        }
-            } finally {
-        this.loading = false
-      }
     },
 
     login(loginData: LoginData) {
@@ -566,14 +522,9 @@ export const useAuthStore = defineStore('auth', {
       return new Promise((resolve, reject) => {
         jwt.login(loginData)
             .then((response) => {
-              console.log('Login response:', response)
               if (response && response.data) {
-                console.log('Response data:', response.data)
                 if (response.data) {
-                  console.log('Response data:', response.data)
                   this.loggedInUser = response.data.user.email
-                  console.log('Logged in user:', this.loggedInUser)
-
                   localStorage.setItem('token', response.data.access_token)
                   localStorage.setItem('provider', 'local')
                   localStorage.setItem('loggedInUser', JSON.stringify(response.data.user))

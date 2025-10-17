@@ -106,23 +106,27 @@ const highlightMatch = (text: string, query: string): string => {
 const handleInput = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const value = target.value
-  
+
   localValue.value = value
-  
+
   // Clear previous timeout
   if (searchTimeout.value) {
     clearTimeout(searchTimeout.value)
   }
-  
-  // Show dropdown when typing
+
+  // Don't show dropdown
+  showDropdown.value = false
+
+  // Debounce the actual search API call
   if (value.length > 0) {
-    showDropdown.value = true
-    await loadSuggestions(value)
+    searchTimeout.value = setTimeout(() => {
+      emit('search', value)
+    }, 500) // Wait 500ms after user stops typing
   } else {
-    showDropdown.value = true // Show history and popular searches
-    suggestions.value = []
+    // Clear search when input is empty
+    emit('search', '')
   }
-  
+
   // Reset selection
   selectedSuggestionIndex.value = -1
 }
@@ -174,10 +178,8 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 const handleFocus = () => {
-  showDropdown.value = true
-  if (localValue.value.length > 0) {
-    loadSuggestions(localValue.value)
-  }
+  // Don't show dropdown on focus
+  showDropdown.value = false
 }
 
 const handleBlur = () => {

@@ -8,6 +8,9 @@
         </h2>
         <p class="text-gray-600 mt-1">
           {{ timezoneLabel }} • Next available: {{ nextAvailableSlot }}
+          <span v-if="!isLoadingAvailability" class="ml-2 text-sm text-gray-500">
+            ({{ availableSlots.length }} slots available)
+          </span>
         </p>
       </div>
       
@@ -84,8 +87,21 @@
 
     <!-- Calendar Grid -->
     <div class="bg-white rounded-lg border overflow-hidden">
+      <!-- Loading State -->
+      <div v-if="isLoadingAvailability" class="p-12 text-center">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <p class="mt-4 text-gray-600">Loading availability...</p>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else-if="!isLoadingAvailability && availableSlots.length === 0" class="p-12 text-center">
+        <Calendar class="w-12 h-12 mx-auto text-gray-400 mb-4" />
+        <h3 class="text-lg font-medium text-gray-900 mb-2">No Availability</h3>
+        <p class="text-gray-600">This mentor has no available time slots for the selected period.</p>
+      </div>
+
       <!-- Week View -->
-      <div v-if="viewMode === 'week'" class="divide-y">
+      <div v-else-if="viewMode === 'week'" class="divide-y">
         <!-- Time Header -->
         <div class="grid grid-cols-8 divide-x bg-gray-50">
           <div class="p-3 text-sm font-medium text-gray-600">Time</div>
@@ -126,11 +142,12 @@
                 v-for="slot in getHourSlots(day.date, hour)"
                 :key="slot.id"
                 :class="getSlotClasses(slot)"
-                class="absolute inset-1 rounded cursor-pointer transition-all hover:opacity-80"
+                :style="getSlotStyle(slot, hour)"
+                class="rounded cursor-pointer transition-all hover:opacity-80"
                 @click="handleSlotClick(slot)"
               >
-                <div class="p-2 text-xs">
-                  <div class="font-medium">{{ getSlotLabel(slot) }}</div>
+                <div class="p-2 text-xs whitespace-pre-line">
+                  <div class="font-medium">{{ getSlotLabel(slot, hour) }}</div>
                 </div>
               </div>
               
@@ -241,9 +258,7 @@
                 <SelectValue placeholder="Select platform..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="zoom">Zoom</SelectItem>
                 <SelectItem value="google-meet">Google Meet</SelectItem>
-                <SelectItem value="teams">Microsoft Teams</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -260,11 +275,12 @@
         </div>
 
         <DialogFooter>
-          <Button variant="outline" @click="showBookingForm = false">
+          <Button variant="outline" @click="showBookingForm = false" :disabled="props.isLoading || isSubmittingBooking">
             Cancel
           </Button>
-          <Button @click="submitBooking" :loading="isSubmittingBooking">
-            Request Session
+          <Button @click="submitBooking" :disabled="props.isLoading || isSubmittingBooking">
+            <span v-if="props.isLoading || isSubmittingBooking" class="inline-block animate-spin mr-2">⏳</span>
+            {{ props.isLoading || isSubmittingBooking ? 'Processing...' : 'Request Session' }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -328,7 +344,7 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive, watch, onMounted } from 'vue'
-import { 
+import {
   ChevronLeft, ChevronRight, Video,
   Calendar, Clock, Users
 } from 'lucide-vue-next'
@@ -339,6 +355,7 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
+import { useMentorsStore } from '@/store/modules/mentors'
 
 interface Props {
   mentorId: string
@@ -346,6 +363,7 @@ interface Props {
   defaultTimezone?: string
   allowBooking?: boolean
   topics?: string[]
+  isLoading?: boolean
 }
 
 interface Emits {
@@ -358,10 +376,14 @@ const props = withDefaults(defineProps<Props>(), {
   mentorName: 'Mentor',
   defaultTimezone: 'Africa/Nairobi',
   allowBooking: true,
-  topics: () => []
+  topics: () => [],
+  isLoading: false
 })
 
 const emit = defineEmits<Emits>()
+
+// Store
+const mentorsStore = useMentorsStore()
 
 // State
 const viewMode = ref<'week' | 'month'>('week')
@@ -372,71 +394,11 @@ const showSessionDetails = ref(false)
 const selectedSlot = ref<any>(null)
 const selectedSession = ref<any>(null)
 const isSubmittingBooking = ref(false)
+const isLoadingAvailability = ref(false)
 
-// Mock data - in real app, this would come from props or API
-const schedule = ref({
-  timezone: 'Africa/Nairobi',
-  weeklySchedule: {
-    monday: { isAvailable: true, slots: [{ start: '18:00', end: '21:00' }] },
-    tuesday: { isAvailable: true, slots: [{ start: '18:00', end: '21:00' }] },
-    wednesday: { isAvailable: false, slots: [] },
-    thursday: { isAvailable: true, slots: [{ start: '18:00', end: '21:00' }] },
-    friday: { isAvailable: false, slots: [] },
-    saturday: { isAvailable: true, slots: [{ start: '10:00', end: '16:00' }] },
-    sunday: { isAvailable: true, slots: [{ start: '10:00', end: '14:00' }] }
-  }
-})
-
-const availableSlots = ref([
-  // Today's slots
-  {
-    id: 'slot-today-1',
-    startTime: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours from now
-    endTime: new Date(Date.now() + 3 * 60 * 60 * 1000), // 3 hours from now
-    duration: 60,
-    isAvailable: true,
-    maxBookings: 1,
-    currentBookings: 0
-  },
-  {
-    id: 'slot-today-2',
-    startTime: new Date(Date.now() + 4 * 60 * 60 * 1000), // 4 hours from now
-    endTime: new Date(Date.now() + 5 * 60 * 60 * 1000), // 5 hours from now
-    duration: 60,
-    isAvailable: true,
-    maxBookings: 1,
-    currentBookings: 0
-  },
-  // Tomorrow's slots
-  {
-    id: 'slot-tomorrow-1',
-    startTime: new Date(Date.now() + 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000), // Tomorrow 10 AM
-    endTime: new Date(Date.now() + 24 * 60 * 60 * 1000 + 11 * 60 * 60 * 1000), // Tomorrow 11 AM
-    duration: 60,
-    isAvailable: true,
-    maxBookings: 1,
-    currentBookings: 0
-  },
-  {
-    id: 'slot-tomorrow-2',
-    startTime: new Date(Date.now() + 24 * 60 * 60 * 1000 + 14 * 60 * 60 * 1000), // Tomorrow 2 PM
-    endTime: new Date(Date.now() + 24 * 60 * 60 * 1000 + 15 * 60 * 60 * 1000), // Tomorrow 3 PM
-    duration: 60,
-    isAvailable: true,
-    maxBookings: 1,
-    currentBookings: 0
-  },
-  // This week's slots
-  {
-    id: 'slot-week-1',
-    startTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 9 * 60 * 60 * 1000), // Day after tomorrow 9 AM
-    endTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000), // Day after tomorrow 10 AM
-    duration: 60,
-    isAvailable: true,
-    maxBookings: 3,
-    currentBookings: 1
-  }
-])
+// Availability data from API
+const weeklyAvailabilityData = ref<any>(null)
+const availableSlots = ref<any[]>([])
 
 const sessions = ref([
   {
@@ -504,6 +466,150 @@ const monthDates = computed(() => {
 const displayHours = computed(() => {
   // Show hours from 8 AM to 10 PM
   return Array.from({ length: 14 }, (_, i) => 8 + i)
+})
+
+// Helper Functions
+/**
+ * Convert API weekly schedule to calendar slots for the current and upcoming weeks
+ * Generates slots for 8 weeks ahead to ensure there's always availability to show
+ */
+const convertWeeklyScheduleToSlots = (weeklyData: any) => {
+  if (!weeklyData || !weeklyData.schedule) {
+    console.log('⚠️ No weekly data or schedule:', weeklyData)
+    return []
+  }
+
+  const slots: any[] = []
+  const now = new Date()
+  const currentWeekStart = getWeekStart(selectedDate.value)
+
+  console.log('🔍 Converting schedule to slots')
+  console.log('Current week start:', currentWeekStart)
+  console.log('Now:', now)
+
+  // Day of week mapping (API returns uppercase day names)
+  const dayMapping: Record<string, number> = {
+    'SUNDAY': 0,
+    'MONDAY': 1,
+    'TUESDAY': 2,
+    'WEDNESDAY': 3,
+    'THURSDAY': 4,
+    'FRIDAY': 5,
+    'SATURDAY': 6
+  }
+
+  // Generate slots for multiple weeks (8 weeks ahead to ensure availability)
+  const weeksAhead = 8
+  for (let weekOffset = 0; weekOffset < weeksAhead; weekOffset++) {
+    // Process each day in the schedule
+    weeklyData.schedule.forEach((daySchedule: any) => {
+      if (weekOffset === 0) {
+        console.log('📅 Processing day:', daySchedule.dayOfWeek, 'with', daySchedule.timeSlots?.length, 'slots')
+      }
+
+      const dayOfWeek = dayMapping[daySchedule.dayOfWeek]
+      if (dayOfWeek === undefined) {
+        console.log('⚠️ Unknown day of week:', daySchedule.dayOfWeek)
+        return
+      }
+
+      // Calculate the date for this day in the target week
+      const date = new Date(currentWeekStart)
+      date.setDate(currentWeekStart.getDate() + (weekOffset * 7) + dayOfWeek)
+
+      if (weekOffset === 0) {
+        console.log('Date for', daySchedule.dayOfWeek, ':', date)
+      }
+
+      // Process each time slot for this day
+      daySchedule.timeSlots.forEach((timeSlot: any) => {
+        if (weekOffset === 0) {
+          console.log('⏰ Processing time slot:', timeSlot)
+        }
+
+        if (!timeSlot.isActive) {
+          if (weekOffset === 0) {
+            console.log('⚠️ Slot is not active, skipping')
+          }
+          return
+        }
+
+        // Parse start and end times (format: "HH:mm:ss")
+        const [startHour, startMin] = timeSlot.startTime.split(':').map(Number)
+        const [endHour, endMin] = timeSlot.endTime.split(':').map(Number)
+
+        // Create start and end Date objects
+        const startTime = new Date(date)
+        startTime.setHours(startHour, startMin, 0, 0)
+
+        const endTime = new Date(date)
+        endTime.setHours(endHour, endMin, 0, 0)
+
+        if (weekOffset === 0) {
+          console.log('Slot time range:', startTime, 'to', endTime)
+          console.log('Is in future?', startTime > now)
+        }
+
+        // Include all slots, but mark past slots as unavailable
+        const isPast = startTime <= now
+        const newSlot = {
+          id: `slot-${timeSlot.id}-${date.toISOString()}`,
+          apiId: timeSlot.id,
+          startTime: startTime,
+          endTime: endTime,
+          duration: timeSlot.durationInMinutes,
+          isAvailable: !isPast, // Past slots are not available
+          isPast: isPast,
+          maxBookings: 1,
+          currentBookings: 0,
+          dayOfWeek: daySchedule.dayOfWeek
+        }
+
+        if (weekOffset === 0) {
+          console.log(isPast ? '⏮️ Adding past slot (grayed):' : '✅ Adding future slot:', newSlot)
+        }
+        slots.push(newSlot)
+      })
+    })
+  }
+
+  return slots
+}
+
+/**
+ * Load mentor availability from API
+ */
+const loadMentorAvailability = async () => {
+  isLoadingAvailability.value = true
+
+  try {
+    const data = await mentorsStore.getMentorAvailability(props.mentorId, true)
+    weeklyAvailabilityData.value = data
+
+    // Convert weekly schedule to calendar slots
+    availableSlots.value = convertWeeklyScheduleToSlots(data)
+
+  } catch (error) {
+    console.error('Failed to load mentor availability:', error)
+    // Keep empty array on error
+    availableSlots.value = []
+  } finally {
+    isLoadingAvailability.value = false
+  }
+}
+
+/**
+ * Refresh slots when the selected date/week changes
+ */
+const refreshSlotsForSelectedWeek = () => {
+  if (weeklyAvailabilityData.value) {
+    availableSlots.value = convertWeeklyScheduleToSlots(weeklyAvailabilityData.value)
+  }
+}
+
+// Watch for date changes to refresh slots
+watch(selectedDate, () => {
+  refreshSlotsForSelectedWeek()
 })
 
 // Methods
@@ -596,16 +702,25 @@ const goToToday = () => {
 }
 
 const getDateSlots = (date: Date) => {
-  return availableSlots.value.filter(slot => {
+  const filtered = availableSlots.value.filter(slot => {
     const slotDate = new Date(slot.startTime)
-    return slotDate.toDateString() === date.toDateString()
+    const matches = slotDate.toDateString() === date.toDateString()
+    if (matches) {
+    }
+    return matches
   })
+  return filtered
 }
 
 const getHourSlots = (date: Date, hour: number) => {
+  // Only show slots that START in this hour to avoid duplication
+  // The slot will visually span multiple hours via CSS
   return getDateSlots(date).filter(slot => {
-    const slotHour = new Date(slot.startTime).getHours()
-    return slotHour === hour
+    const startTime = new Date(slot.startTime)
+    const slotStartHour = startTime.getHours()
+
+    // Only include if it starts in this hour
+    return slotStartHour === hour
   })
 }
 
@@ -617,15 +732,84 @@ const getHourSessions = (date: Date, hour: number) => {
   })
 }
 
+/**
+ * Calculate slot styling based on its duration and position within the hour
+ * The slot will span multiple hour cells visually
+ */
+const getSlotStyle = (slot: any, currentHour: number) => {
+  const startTime = new Date(slot.startTime)
+  const endTime = new Date(slot.endTime)
+  const slotStartHour = startTime.getHours()
+  const slotStartMinute = startTime.getMinutes()
+  const slotEndHour = endTime.getHours()
+  const slotEndMinute = endTime.getMinutes()
+
+  // Calculate the total duration in minutes
+  const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60)
+
+  // Calculate top offset as percentage of the hour cell (60px typically)
+  const topOffset = (slotStartMinute / 60) * 100
+
+  // Calculate total height needed (in pixels, assuming 60px per hour)
+  // We need to span multiple hour rows if duration > 60 minutes
+  const hourCellHeight = 60 // This should match min-h-[60px] in the template
+  const totalHeightInPixels = (durationMinutes / 60) * hourCellHeight
+
+  // Calculate how much of the first hour cell we use
+  const firstHourPercentage = ((60 - slotStartMinute) / 60) * 100
+
+  return {
+    top: `${topOffset}%`,
+    height: `${totalHeightInPixels}px`,
+    position: 'absolute',
+    left: '4px',
+    right: '4px',
+    zIndex: 10
+  }
+}
+
 const getSlotClasses = (slot: any) => {
+  // Past slots - grayed out and not clickable
+  if (slot.isPast) {
+    return 'bg-gray-100 text-gray-500 border border-gray-200 cursor-not-allowed opacity-60'
+  }
+
+  // Unavailable/booked slots
   if (!slot.isAvailable) {
     return 'bg-red-100 text-red-800 border border-red-200'
   }
+
+  // Available future slots
   return 'bg-green-100 text-green-800 border border-green-200'
 }
 
-const getSlotLabel = (slot: any) => {
-  return slot.isAvailable ? 'Available' : 'Booked'
+const getSlotLabel = (slot: any, currentHour: number) => {
+  const startTime = new Date(slot.startTime)
+  const endTime = new Date(slot.endTime)
+  const slotStartHour = startTime.getHours()
+
+  // Only show the label on the starting hour to avoid duplicates
+  if (slotStartHour !== currentHour) {
+    return ''
+  }
+
+  const start = startTime.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  })
+  const end = endTime.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  })
+
+  const durationMinutes = slot.duration || Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60))
+
+  // Add "Past" indicator for past slots
+  const pastLabel = slot.isPast ? 'Past\n' : ''
+
+  return `${pastLabel}${start} - ${end}\n(${durationMinutes} min)`
 }
 
 const getSlotTimeLabel = (slot: any) => {
@@ -663,10 +847,22 @@ const formatSessionStatus = (status: string) => {
 }
 
 const handleSlotClick = (slot: any) => {
+  // Don't allow booking past slots
+  if (slot.isPast) {
+    return
+  }
+
   if (slot.isAvailable && props.allowBooking) {
-    selectedSlot.value = slot
+    // Format the slot data with ISO 8601 timestamps
+    const formattedSlot = {
+      ...slot,
+      startTime: new Date(slot.startTime).toISOString(), // Format: 2025-09-16T10:10:00Z
+      endTime: new Date(slot.endTime).toISOString()
+    }
+
+    selectedSlot.value = formattedSlot
     showBookingForm.value = true
-    emit('slot-select', slot)
+    emit('slot-select', formattedSlot)
   }
 }
 
@@ -695,28 +891,29 @@ const joinSession = (session: any) => {
 
 const submitBooking = async () => {
   if (!selectedSlot.value) return
-  
+
   isSubmittingBooking.value = true
-  
+
   try {
     const booking = {
       mentorId: props.mentorId,
       slotId: selectedSlot.value.id,
-      requestedStart: selectedSlot.value.startTime,
-      requestedEnd: selectedSlot.value.endTime,
+      requestedStart: selectedSlot.value.startTime, // Already in ISO 8601 format
+      requestedEnd: selectedSlot.value.endTime, // Already in ISO 8601 format
       topic: bookingForm.topic || undefined,
       platform: bookingForm.platform,
       message: bookingForm.message
     }
-    
-    emit('booking-submit', booking)
-    showBookingForm.value = false
-    
-    // Reset form
-    Object.assign(bookingForm, {
-      platform: '',
-      message: ''
+
+    console.log('📅 Submitting booking with ISO 8601 timestamps:', {
+      requestedStart: booking.requestedStart,
+      requestedEnd: booking.requestedEnd
     })
+
+    emit('booking-submit', booking)
+
+    // Note: Parent will handle the booking submission and show appropriate messages
+    // We'll keep the dialog open during processing via the isLoading prop
   } catch (error) {
     console.error('Booking error:', error)
   } finally {
@@ -724,9 +921,24 @@ const submitBooking = async () => {
   }
 }
 
+// Watch for when parent stops loading to close dialog on success
+watch(() => props.isLoading, (newLoading, oldLoading) => {
+  // If loading changed from true to false and dialog is still open
+  if (oldLoading && !newLoading && showBookingForm.value) {
+    // Close the booking form dialog - parent has finished processing
+    showBookingForm.value = false
+
+    // Reset form
+    Object.assign(bookingForm, {
+      topic: '',
+      platform: '',
+      message: ''
+    })
+  }
+})
+
 // Load data on mount
-onMounted(() => {
-  // In real app, load mentor schedule and availability
-  console.log('Loading calendar for mentor:', props.mentorId)
+onMounted(async () => {
+  await loadMentorAvailability()
 })
 </script> 

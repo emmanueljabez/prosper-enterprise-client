@@ -2,6 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMentorsStore } from '@/store/modules/mentors'
+import { useSubscriptionsStore } from '@/store/modules/subscriptions'
 import { storeToRefs } from 'pinia'
 
 // UI
@@ -10,12 +11,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import { ExternalLink, ArrowLeft, Users } from 'lucide-vue-next'
+import { ExternalLink, ArrowLeft, Users, AlertCircle, CreditCard, Loader2, CheckCircle2, XCircle } from 'lucide-vue-next'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import MentorAvailabilityCalendar from '@/components/ui/mentors/MentorAvailabilityCalendar.vue'
 import MentorReviews from '@/components/ui/mentors/MentorReviews.vue'
+import PaymentDialog from '@/components/ui/subscriptions/PaymentDialog.vue'
 import { useAppToast } from '@/composables/services/toastService'
 import {useSessionsStore} from "~/store/modules/sessions/sessions";
+import type { SubscriptionPlan } from '@/http/requests/app/subscriptions'
 
 definePageMeta({
   title: 'Mentor Profile',
@@ -26,12 +31,36 @@ const route = useRoute()
 const router = useRouter()
 const mentorsStore = useMentorsStore()
 const sessionStore = useSessionsStore()
+const subscriptionsStore = useSubscriptionsStore()
 const { mentors } = storeToRefs(mentorsStore)
 
 const mentor = ref<any | null>(null)
 const isLoading = ref(true)
+const isBookingSession = ref(false)
 const activeTab = ref('availability')
 const toast = useAppToast()
+
+// Payment dialog state
+const showPaymentDialog = ref(false)
+const selectedPlanForPayment = ref<SubscriptionPlan | null>(null)
+const pendingBooking = ref<any | null>(null)
+
+// Error dialog state
+const showErrorDialog = ref(false)
+const errorDialogMessage = ref('')
+const errorDialogTitle = ref('Subscription Limit Reached')
+const recommendedPlans = ref<SubscriptionPlan[]>([])
+const selectedRecommendedPlan = ref<string | null>(null)
+
+// Addon options state
+const addOnOption = ref<any | null>(null)
+const selectedAddonQuantity = ref(1)
+
+// Retry dialog state
+const showRetryDialog = ref(false)
+const isRetrying = ref(false)
+const retryStatus = ref<'processing' | 'success' | 'error'>('processing')
+const retryMessage = ref('')
 
 // Minimal fallback dataset (topics trimmed to names only)
 const fallbackData = () => {
@@ -63,7 +92,36 @@ const loadMentor = async () => {
   isLoading.value = true
   const id = route.params.id as string
   try {
-    // Try find in current store list first
+    // First, try to fetch from API
+    try {
+      const mentorProfile = await mentorsStore.getMentorProfileById(id)
+      if (mentorProfile) {
+        // Map API response to component format
+        mentor.value = {
+          id: mentorProfile.id,
+          firstName: mentorProfile.firstName,
+          lastName: mentorProfile.lastName,
+          title: mentorProfile.industry || 'Professional Mentor',
+          company: mentorProfile.location || mentorProfile.country || '',
+          profilePhoto: mentorProfile.avatarUrl,
+          profileSummary: mentorProfile.bio,
+          expertiseAreas: mentorProfile.expertise || [],
+          averageRating: 4.5,
+          totalReviews: 0,
+          totalSessions: 0,
+          email: mentorProfile.email,
+          phone: mentorProfile.phone,
+          linkedInUrl: mentorProfile.linkedinUrl,
+          favouriteQuote: mentorProfile.favouriteQuote,
+          isVerified: mentorProfile.isVerified
+        }
+        return
+      }
+    } catch (apiError) {
+      console.warn('Failed to fetch mentor from API, falling back to store/fallback data:', apiError)
+    }
+
+    // Try find in current store list
     const fromStore = mentors.value?.find((m: any) => m.id === id)
     if (fromStore) {
       mentor.value = fromStore
@@ -90,6 +148,7 @@ const loadMentor = async () => {
     }
 
     // If still not found, go back
+    console.error(`Mentor with ID ${id} not found`)
     router.push('/app/mentors')
   } finally {
     isLoading.value = false
@@ -100,25 +159,174 @@ onMounted(loadMentor)
 
 const fullName = computed(() => `${mentor.value?.firstName || ''} ${mentor.value?.lastName || ''}`.trim())
 
-const handleBookingSubmit = (booking: any) => {
+const handleBookingSubmit = async (booking: any) => {
+  const userData = JSON.parse(localStorage.getItem('loggedInUser'))
+
+  console.log(booking)
+  console.log(userData)
+
   let sessionData = {
-    "mentorId": "0c1022c3-a876-4b51-baaf-2c9fb9879183",
-    "menteeId": "00386b78-4609-4859-a0d4-16425a4c216c",
+    "mentorId": mentor.value?.id,
+    "menteeId": userData.id,
     "skillId": "01491e2c-849e-4420-8ab8-06271aeea5c7",
-    "scheduledStart": "2025-09-16T10:10:00Z",
+    "scheduledStart": booking.requestedStart,
     "meetingPlatform": "GOOGLE_MEET",
     "menteeMessage": booking.message
   }
 
   console.log(sessionData)
 
-  sessionStore.createSession(sessionData)
-      .then(response => {
-        console.log(response)
-        toast.success('Session request submitted successfully!')
-      })
-      .catch(console.error)
+  isBookingSession.value = true
 
+  try {
+    const response = await sessionStore.createSession(sessionData)
+    console.log(response)
+    toast.success('Session request submitted successfully!')
+  } catch (error: any) {
+    console.error('Booking error:', error)
+
+    // Check if error response indicates payment is required
+    const errorResponse = error.response?.data
+
+    if (errorResponse?.status === 'error' && errorResponse?.data?.paymentRequired) {
+      // Store the pending booking to retry after payment
+      pendingBooking.value = booking
+
+      // Extract recommended plans from API response
+      const apiRecommendedPlans = errorResponse?.data?.recommendedPlans || []
+
+      if (apiRecommendedPlans.length > 0) {
+        // Store recommended plans
+        recommendedPlans.value = apiRecommendedPlans
+
+        // If only one plan is recommended, auto-select it and proceed directly to payment
+        if (apiRecommendedPlans.length === 1) {
+          selectedPlanForPayment.value = apiRecommendedPlans[0]
+          selectedRecommendedPlan.value = apiRecommendedPlans[0].id
+
+          // Show payment dialog directly
+          showPaymentDialog.value = true
+
+          // Show a brief toast about why payment is needed
+          toast.info(errorResponse.message || 'Please complete payment to continue booking.')
+        } else {
+          // Multiple plans available - show error dialog with plan selection
+          selectedRecommendedPlan.value = apiRecommendedPlans[0].id // Pre-select first plan
+          selectedPlanForPayment.value = apiRecommendedPlans[0]
+
+          errorDialogTitle.value = 'Subscription Required'
+          errorDialogMessage.value = errorResponse.message || 'Please select a subscription plan to continue.'
+          showErrorDialog.value = true
+        }
+      } else {
+        // Check if addon option is available
+        const apiAddOnOption = errorResponse?.data?.addOnOption
+
+        if (apiAddOnOption && apiAddOnOption.available) {
+          // Store addon option
+          addOnOption.value = apiAddOnOption
+          selectedAddonQuantity.value = apiAddOnOption.recommendedQuantity || 1
+
+          // Show error dialog with addon purchase option
+          errorDialogTitle.value = 'Sessions Exhausted'
+          errorDialogMessage.value = errorResponse.message || 'You have used all your sessions. Purchase additional sessions to continue.'
+          showErrorDialog.value = true
+        } else {
+          // Fallback: No recommended plans or addons, fetch all available plans
+          try {
+            await subscriptionsStore.fetchPlans()
+
+            const fallbackPlan = subscriptionsStore.activePlans[0]
+            if (fallbackPlan) {
+              selectedPlanForPayment.value = fallbackPlan
+              errorDialogTitle.value = 'Subscription Limit Reached'
+              errorDialogMessage.value = errorResponse.message || 'Subscription limit reached. Please upgrade your plan or make a payment.'
+              showErrorDialog.value = true
+            } else {
+              toast.error('No subscription plans available. Please contact support.')
+            }
+          } catch (planError) {
+            console.error('Error fetching plans:', planError)
+            toast.error('Failed to load subscription plans. Please try again.')
+          }
+        }
+      }
+    } else {
+      // Generic error handling
+      toast.error(errorResponse?.message || 'Failed to submit session request. Please try again.')
+    }
+  } finally {
+    isBookingSession.value = false
+  }
+}
+
+const handleUpgradeClick = () => {
+  // Close error dialog and open payment dialog
+  showErrorDialog.value = false
+  showPaymentDialog.value = true
+}
+
+const handleAddonPurchase = () => {
+  // For addon purchases, we'll show the payment dialog
+  // The payment will be handled through a custom addon purchase flow
+  showErrorDialog.value = false
+  showPaymentDialog.value = true
+}
+
+const handlePaymentSuccess = async () => {
+  showPaymentDialog.value = false
+  selectedPlanForPayment.value = null
+
+  // Show success message
+  toast.success('Payment completed successfully!')
+
+  // Retry the booking if we have a pending one
+  if (pendingBooking.value) {
+    // Show retry dialog
+    showRetryDialog.value = true
+    isRetrying.value = true
+    retryStatus.value = 'processing'
+    retryMessage.value = 'Processing your session booking...'
+
+    try {
+      const userData = JSON.parse(localStorage.getItem('loggedInUser'))
+
+      const sessionData = {
+        "mentorId": mentor.value?.id,
+        "menteeId": userData.id,
+        "skillId": "01491e2c-849e-4420-8ab8-06271aeea5c7",
+        "scheduledStart": pendingBooking.value.requestedStart,
+        "meetingPlatform": "GOOGLE_MEET",
+        "menteeMessage": pendingBooking.value.message
+      }
+
+      const response = await sessionStore.createSession(sessionData)
+
+      // Success
+      retryStatus.value = 'success'
+      retryMessage.value = 'Your session has been booked successfully! You will receive a confirmation email shortly.'
+
+      // Clear pending booking
+      pendingBooking.value = null
+
+    } catch (error: any) {
+      console.error('Retry booking error:', error)
+      retryStatus.value = 'error'
+      retryMessage.value = error.response?.data?.message || 'Failed to book the session. Please try again or contact support.'
+    } finally {
+      isRetrying.value = false
+    }
+  }
+}
+
+const closeRetryDialog = () => {
+  showRetryDialog.value = false
+
+  // Reset retry state after a delay
+  setTimeout(() => {
+    retryStatus.value = 'processing'
+    retryMessage.value = ''
+  }, 300)
 }
 </script>
 
@@ -162,10 +370,11 @@ const handleBookingSubmit = (booking: any) => {
           </TabsList>
 
           <TabsContent value="availability" class="pt-4">
-            <MentorAvailabilityCalendar 
-              :mentor-id="mentor.id" 
+            <MentorAvailabilityCalendar
+              :mentor-id="mentor.id"
               :mentor-name="fullName"
               :topics="(mentor.expertiseAreas || [])"
+              :is-loading="isBookingSession"
               @booking-submit="handleBookingSubmit"
             />
           </TabsContent>
@@ -178,6 +387,234 @@ const handleBookingSubmit = (booking: any) => {
     </Card>
 
     <div v-else class="text-center text-muted-foreground py-20">Loading...</div>
+
+    <!-- Error Dialog -->
+    <Dialog v-model:open="showErrorDialog">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <div class="flex items-center gap-3 mb-2">
+            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-amber-100">
+              <AlertCircle class="w-6 h-6 text-amber-600" />
+            </div>
+            <DialogTitle class="text-xl">{{ errorDialogTitle }}</DialogTitle>
+          </div>
+          <DialogDescription class="text-base pt-2">
+            {{ errorDialogMessage }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <!-- Plan Selection (when multiple plans available) -->
+        <div v-if="recommendedPlans.length > 1" class="space-y-3">
+          <div class="space-y-2">
+            <p class="text-sm font-medium">Choose a subscription plan:</p>
+            <div class="space-y-2">
+              <div
+                v-for="plan in recommendedPlans"
+                :key="plan.id"
+                @click="selectedRecommendedPlan = plan.id; selectedPlanForPayment = plan"
+                :class="{
+                  'border-primary bg-primary/5': selectedRecommendedPlan === plan.id,
+                  'border-border hover:border-primary/50': selectedRecommendedPlan !== plan.id
+                }"
+                class="border rounded-lg p-4 cursor-pointer transition-all"
+              >
+                <div class="flex items-start justify-between">
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <h4 class="font-semibold">{{ plan.name }}</h4>
+                      <Badge variant="secondary" class="text-xs">{{ plan.code }}</Badge>
+                    </div>
+                    <p class="text-sm text-muted-foreground mt-1">{{ plan.description }}</p>
+                    <div class="flex items-center gap-4 mt-2">
+                      <span class="text-lg font-bold text-primary">{{ plan.formattedPrice }}</span>
+                      <span class="text-sm text-muted-foreground">{{ plan.sessionsDescription }}</span>
+                    </div>
+                  </div>
+                  <div
+                    :class="selectedRecommendedPlan === plan.id ? 'bg-primary border-primary' : 'border-2'"
+                    class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                  >
+                    <div v-if="selectedRecommendedPlan === plan.id" class="w-2.5 h-2.5 bg-white rounded-full"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Addon Purchase Option (when addon available) -->
+        <div v-else-if="addOnOption && addOnOption.available" class="space-y-4">
+          <div class="bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg p-4 border border-primary/20">
+            <div class="flex items-start gap-3">
+              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+                <CreditCard class="w-5 h-5 text-primary" />
+              </div>
+              <div class="flex-1">
+                <h4 class="font-semibold text-base mb-1">Purchase Additional Sessions</h4>
+                <p class="text-sm text-muted-foreground">{{ addOnOption.message }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quantity Selector -->
+          <div class="space-y-2">
+            <Label class="text-sm font-medium">Number of sessions</Label>
+            <div class="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                @click="selectedAddonQuantity = Math.max(1, selectedAddonQuantity - 1)"
+                :disabled="selectedAddonQuantity <= 1"
+              >
+                -
+              </Button>
+              <div class="flex-1 text-center">
+                <div class="text-2xl font-bold">{{ selectedAddonQuantity }}</div>
+                <div class="text-xs text-muted-foreground">sessions</div>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                @click="selectedAddonQuantity = Math.min(20, selectedAddonQuantity + 1)"
+                :disabled="selectedAddonQuantity >= 20"
+              >
+                +
+              </Button>
+            </div>
+          </div>
+
+          <!-- Price Summary -->
+          <div class="bg-muted/50 rounded-lg p-4 space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="text-muted-foreground">Price per session:</span>
+              <span class="font-medium">{{ addOnOption.formattedPrice }}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-muted-foreground">Quantity:</span>
+              <span class="font-medium">{{ selectedAddonQuantity }} session{{ selectedAddonQuantity > 1 ? 's' : '' }}</span>
+            </div>
+            <Separator class="my-2" />
+            <div class="flex justify-between">
+              <span class="font-semibold">Total:</span>
+              <span class="text-xl font-bold text-primary">
+                {{ addOnOption.currency }} {{ (addOnOption.costPerSession * selectedAddonQuantity).toFixed(2) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Info box (when no plan selection, no addon) -->
+        <div v-else class="bg-muted/50 rounded-lg p-4 space-y-2">
+          <p class="text-sm font-medium">What you can do:</p>
+          <ul class="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+            <li>Upgrade your subscription plan</li>
+            <li>Make a payment to continue</li>
+            <li>Contact support for assistance</li>
+          </ul>
+        </div>
+
+        <DialogFooter class="flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            @click="showErrorDialog = false"
+            class="w-full sm:w-auto"
+          >
+            Cancel
+          </Button>
+          <Button
+            v-if="addOnOption && addOnOption.available"
+            @click="handleAddonPurchase"
+            class="w-full sm:w-auto"
+          >
+            Purchase {{ selectedAddonQuantity }} Session{{ selectedAddonQuantity > 1 ? 's' : '' }}
+          </Button>
+          <Button
+            v-else
+            @click="handleUpgradeClick"
+            class="w-full sm:w-auto"
+          >
+            {{ recommendedPlans.length > 1 ? 'Continue with Selected Plan' : 'Upgrade Plan' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Payment Dialog -->
+    <PaymentDialog
+      v-model:open="showPaymentDialog"
+      :plan="selectedPlanForPayment"
+      :addon-option="addOnOption"
+      :addon-quantity="selectedAddonQuantity"
+      @success="handlePaymentSuccess"
+    />
+
+    <!-- Retry Booking Dialog -->
+    <Dialog v-model:open="showRetryDialog" :close-disabled="isRetrying">
+      <DialogContent class="sm:max-w-md" :close-disabled="isRetrying">
+        <DialogHeader>
+          <div class="flex items-center gap-3 mb-2">
+            <!-- Processing State -->
+            <div v-if="retryStatus === 'processing'" class="flex items-center justify-center w-12 h-12 rounded-full bg-blue-100">
+              <Loader2 class="w-6 h-6 text-blue-600 animate-spin" />
+            </div>
+            <!-- Success State -->
+            <div v-else-if="retryStatus === 'success'" class="flex items-center justify-center w-12 h-12 rounded-full bg-green-100">
+              <CheckCircle2 class="w-6 h-6 text-green-600" />
+            </div>
+            <!-- Error State -->
+            <div v-else-if="retryStatus === 'error'" class="flex items-center justify-center w-12 h-12 rounded-full bg-red-100">
+              <XCircle class="w-6 h-6 text-red-600" />
+            </div>
+
+            <DialogTitle class="text-xl">
+              {{ retryStatus === 'processing' ? 'Booking Session' : retryStatus === 'success' ? 'Booking Confirmed' : 'Booking Failed' }}
+            </DialogTitle>
+          </div>
+        </DialogHeader>
+
+        <div class="py-4">
+          <p class="text-base text-muted-foreground">
+            {{ retryMessage }}
+          </p>
+
+          <!-- Processing indicator -->
+          <div v-if="isRetrying" class="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 class="w-4 h-4 animate-spin" />
+            <span>Please wait...</span>
+          </div>
+
+          <!-- Success details -->
+          <div v-if="retryStatus === 'success'" class="mt-4 bg-green-50 rounded-lg p-4 space-y-2">
+            <p class="text-sm font-medium text-green-900">Next Steps:</p>
+            <ul class="text-sm text-green-800 space-y-1 list-disc list-inside">
+              <li>Check your email for session details</li>
+              <li>Add the session to your calendar</li>
+              <li>Prepare any questions for your mentor</li>
+            </ul>
+          </div>
+
+          <!-- Error details -->
+          <div v-if="retryStatus === 'error'" class="mt-4 bg-red-50 rounded-lg p-4 space-y-2">
+            <p class="text-sm font-medium text-red-900">What you can do:</p>
+            <ul class="text-sm text-red-800 space-y-1 list-disc list-inside">
+              <li>Try booking again in a few moments</li>
+              <li>Contact support if the problem persists</li>
+              <li>Check your subscription status</li>
+            </ul>
+          </div>
+        </div>
+
+        <DialogFooter v-if="!isRetrying">
+          <Button
+            @click="closeRetryDialog"
+            class="w-full"
+            :variant="retryStatus === 'error' ? 'outline' : 'default'"
+          >
+            {{ retryStatus === 'success' ? 'Done' : 'Close' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 

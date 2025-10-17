@@ -576,7 +576,7 @@ onMounted(async () => {
                   <div class="flex items-center justify-between mb-2">
                     <span class="text-sm font-medium">Sessions Usage</span>
                     <span class="text-sm text-muted-foreground">
-                      {{ activeSubscription.sessionsUsed }} / {{ activeSubscription.sessionsPerMonth }}
+                      {{ activeSubscription.sessionsUsed }} / {{ activeSubscription.totalSessions }}
                       {{ activeSubscription.plan.unlimited ? '(Unlimited)' : '' }}
                     </span>
                   </div>
@@ -586,14 +586,12 @@ onMounted(async () => {
                       :style="{
                         width: activeSubscription.plan.unlimited
                           ? '100%'
-                          : activeSubscription.sessionsPerMonth > 0
-                          ? `${(activeSubscription.sessionsUsed / activeSubscription.sessionsPerMonth) * 100}%`
-                          : '0%'
+                          : `${(activeSubscription.sessionsUsed / activeSubscription.totalSessions) * 100}%`
                       }"
                     ></div>
                   </div>
                   <p class="text-sm text-muted-foreground mt-2">
-                    {{ activeSubscription.remainingSessionsCount }} session{{ activeSubscription.remainingSessionsCount !== 1 ? 's' : '' }} remaining
+                    {{ activeSubscription.sessionsRemaining }} session{{ activeSubscription.sessionsRemaining !== 1 ? 's' : '' }} remaining
                   </p>
                 </div>
 
@@ -620,6 +618,15 @@ onMounted(async () => {
                 </div>
               </div>
 
+              <!-- Action Buttons -->
+              <div class="flex flex-col sm:flex-row gap-3">
+                <Button variant="outline" class="flex-1" @click="() => navigateTo('/app/plans')">
+                  Upgrade Plan
+                </Button>
+                <Button variant="outline" class="flex-1" @click="() => navigateTo('/app/sessions')">
+                  Book Session
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -686,3 +693,337 @@ onMounted(async () => {
     </Dialog>
   </div>
 </template>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div 
+                    v-for="achievement in earnedAchievements.slice(-4)" 
+                    :key="achievement.id"
+                    :class="[
+                      'p-4 rounded-lg border-2 transition-colors',
+                      getRarityColor(achievement.rarity)
+                    ]"
+                  >
+                    <div class="flex items-start space-x-3">
+                      <component :is="achievement.icon" class="h-6 w-6 mt-1" />
+                      <div class="flex-1">
+                        <h4 class="font-semibold">{{ achievement.title }}</h4>
+                        <p class="text-sm opacity-80">{{ achievement.description }}</p>
+                        <p class="text-xs mt-1">{{ formatTimeAgo(achievement.earnedDate) }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <!-- Progress Overview -->
+            <Card>
+              <CardHeader>
+                <CardTitle class="flex items-center space-x-2">
+                  <BarChart3 class="h-5 w-5 text-blue-600" />
+                  <span>Learning Progress</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div class="text-center">
+                    <div class="relative w-20 h-20 mx-auto mb-3">
+                      <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-dasharray="85, 100"
+                          class="text-blue-600"
+                        />
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-dasharray="0, 100"
+                          class="text-gray-200"
+                        />
+                      </svg>
+                      <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-lg font-bold">85%</span>
+                      </div>
+                    </div>
+                    <p class="font-medium">Profile Completion</p>
+                  </div>
+                  
+                  <div class="text-center">
+                    <div class="relative w-20 h-20 mx-auto mb-3">
+                      <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-dasharray="72, 100"
+                          class="text-green-600"
+                        />
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-dasharray="0, 100"
+                          class="text-gray-200"
+                        />
+                      </svg>
+                      <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-lg font-bold">72%</span>
+                      </div>
+                    </div>
+                    <p class="font-medium">Monthly Goal</p>
+                  </div>
+                  
+                  <div class="text-center">
+                    <div class="relative w-20 h-20 mx-auto mb-3">
+                      <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-dasharray="89, 100"
+                          class="text-orange-600"
+                        />
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-dasharray="0, 100"
+                          class="text-gray-200"
+                        />
+                      </svg>
+                      <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-lg font-bold">89%</span>
+                      </div>
+                    </div>
+                    <p class="font-medium">Next Level</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <!-- Achievements Tab -->
+          <TabsContent value="achievements" class="space-y-6">
+            <!-- Earned Achievements -->
+            <Card>
+              <CardHeader>
+                <CardTitle class="flex items-center justify-between">
+                  <div class="flex items-center space-x-2">
+                    <Trophy class="h-5 w-5 text-yellow-600" />
+                    <span>Earned Achievements</span>
+                  </div>
+                  <Badge variant="secondary">{{ earnedAchievements.length }}/{{ userProfile.achievements.length }}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div 
+                    v-for="achievement in earnedAchievements" 
+                    :key="achievement.id"
+                    :class="[
+                      'p-4 rounded-lg border-2 transition-colors',
+                      getRarityColor(achievement.rarity)
+                    ]"
+                  >
+                    <div class="flex items-start space-x-3">
+                      <component :is="achievement.icon" class="h-8 w-8 mt-1" />
+                      <div class="flex-1">
+                        <div class="flex items-center justify-between mb-1">
+                          <h4 class="font-semibold">{{ achievement.title }}</h4>
+                          <Badge :class="getRarityColor(achievement.rarity)" variant="outline" class="text-xs capitalize">
+                            {{ achievement.rarity }}
+                          </Badge>
+                        </div>
+                        <p class="text-sm opacity-80 mb-2">{{ achievement.description }}</p>
+                        <div class="flex items-center space-x-2 text-xs">
+                          <CheckCircle class="h-3 w-3" />
+                          <span>Earned {{ formatTimeAgo(achievement.earnedDate) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <!-- Upcoming Achievements -->
+            <Card>
+              <CardHeader>
+                <CardTitle class="flex items-center space-x-2">
+                  <Target class="h-5 w-5 text-blue-600" />
+                  <span>Upcoming Achievements</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div 
+                    v-for="achievement in upcomingAchievements" 
+                    :key="achievement.id"
+                    class="p-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 opacity-75"
+                  >
+                    <div class="flex items-start space-x-3">
+                      <component :is="achievement.icon" class="h-8 w-8 mt-1 text-gray-400" />
+                      <div class="flex-1">
+                        <div class="flex items-center justify-between mb-1">
+                          <h4 class="font-semibold text-gray-700">{{ achievement.title }}</h4>
+                          <Badge variant="outline" class="text-xs capitalize">
+                            {{ achievement.rarity }}
+                          </Badge>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">{{ achievement.description }}</p>
+                        <div class="flex items-center space-x-2 text-xs text-gray-500">
+                          <Clock class="h-3 w-3" />
+                          <span>Not yet earned</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <!-- Skills Tab -->
+          <TabsContent value="skills" class="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle class="flex items-center space-x-2">
+                  <GraduationCap class="h-5 w-5 text-purple-600" />
+                  <span>Skill Progression</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="space-y-4">
+                  <div v-for="skill in userProfile.skills" :key="skill.name" class="space-y-2">
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <span class="font-medium">{{ skill.name }}</span>
+                        <Badge variant="outline" class="ml-2 text-xs">{{ skill.category }}</Badge>
+                      </div>
+                      <span class="text-sm font-semibold">{{ skill.level }}%</span>
+                    </div>
+                    <Progress :value="skill.level" class="h-2" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <!-- Activity Tab -->
+          <TabsContent value="activity" class="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle class="flex items-center space-x-2">
+                  <BarChart3 class="h-5 w-5 text-green-600" />
+                  <span>Recent Activity</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="space-y-4">
+                  <div 
+                    v-for="activity in userProfile.recentActivity" 
+                    :key="activity.timestamp"
+                    class="flex items-start space-x-4 p-3 bg-gray-50 rounded-lg"
+                  >
+                    <div class="p-2 bg-white rounded-full">
+                      <component :is="getActivityIcon(activity.type)" class="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div class="flex-1">
+                      <p class="font-medium">{{ activity.description }}</p>
+                      <p class="text-sm text-muted-foreground">{{ formatTimeAgo(activity.timestamp) }}</p>
+                    </div>
+                    <div class="text-right">
+                      <div class="flex items-center space-x-1 text-green-600">
+                        <ArrowUp class="h-4 w-4" />
+                        <span class="font-semibold">+{{ activity.xpGained }} XP</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <Dialog v-model:open="isEditingProfile">
+      <DialogContent class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit Profile</DialogTitle>
+          <DialogDescription>
+            Update your profile information and preferences
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-4">
+            <div>
+              <Label for="name">Full Name</Label>
+              <Input id="name" v-model="profileForm.name" />
+            </div>
+            <div>
+              <Label for="title">Job Title</Label>
+              <Input id="title" v-model="profileForm.title" />
+            </div>
+            <div>
+              <Label for="company">Company</Label>
+              <Input id="company" v-model="profileForm.company" />
+            </div>
+            <div>
+              <Label for="location">Location</Label>
+              <Input id="location" v-model="profileForm.location" />
+            </div>
+          </div>
+          
+          <div class="space-y-4">
+            <div>
+              <Label for="email">Email</Label>
+              <Input id="email" v-model="profileForm.email" type="email" />
+            </div>
+            <div>
+              <Label for="phone">Phone</Label>
+              <Input id="phone" v-model="profileForm.phone" />
+            </div>
+            <div>
+              <Label for="linkedin">LinkedIn URL</Label>
+              <Input id="linkedin" v-model="profileForm.linkedin" />
+            </div>
+            <div>
+              <Label for="website">Website</Label>
+              <Input id="website" v-model="profileForm.website" />
+            </div>
+          </div>
+        </div>
+        
+        <div class="mt-4">
+          <Label for="bio">Bio</Label>
+          <Textarea 
+            id="bio" 
+            v-model="profileForm.bio" 
+            rows="3"
+            placeholder="Tell us about yourself..."
+          />
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" @click="isEditingProfile = false">
+            Cancel
+          </Button>
+          <Button @click="saveProfile">
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
+</template> 

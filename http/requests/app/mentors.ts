@@ -666,14 +666,134 @@ export const mentorVerificationApi = {
   // Implementation would go here for production
 }
 
-// Mentor Analytics and Performance  
+// Mentor Analytics and Performance
 export const mentorAnalyticsApi = {
   // Implementation would go here for production
+}
+
+// Mentor Availability API
+export const mentorAvailabilityApi = {
+  /**
+   * Get mentor's weekly availability schedule
+   */
+  async getMentorWeeklyAvailability(mentorId: string, activeOnly: boolean = true): Promise<{
+    status: string
+    message: string
+    data: {
+      mentorId: string
+      totalSlots: number
+      activeSlots: number
+      schedule: Array<{
+        dayOfWeek: string
+        timeSlots: Array<{
+          id: number
+          startTime: string
+          endTime: string
+          isActive: boolean
+          durationInMinutes: number
+        }>
+      }>
+    }
+    timestamp: string
+  }> {
+    const { data } = await api.get(`/v1/mentors/mentor-availability/mentor/${mentorId}/weekly`, {
+      params: { activeOnly }
+    })
+    return data
+  }
 }
 
 // Admin APIs for Corporate Admins
 export const mentorAdminApi = {
   // Implementation would go here for production
+}
+
+// Mentor Programs API
+export const mentorProgramsApi = {
+  /**
+   * Get all mentorship programs with pagination and search
+   */
+  async getPrograms(params?: {
+    page?: number
+    size?: number
+    searchTerm?: string
+  }): Promise<{
+    success: boolean
+    count: number
+    programs: any[]
+    pagination?: {
+      last: boolean
+      totalPages: number
+      pageSize: number
+      hasPrevious: boolean
+      hasNext: boolean
+      currentPage: number
+      first: boolean
+      totalElements: number
+    }
+  }> {
+    const { data } = await api.get('/v1/programs', {
+      params: {
+        page: params?.page ?? 0,
+        size: params?.size ?? 20,
+        ...(params?.searchTerm && { searchTerm: params.searchTerm })
+      }
+    })
+    return data
+  },
+
+  /**
+   * Get a single program by ID
+   */
+  async getProgramById(programId: string): Promise<any> {
+    const { data } = await api.get(`/v1/programs/${programId}`)
+    return data
+  },
+
+  /**
+   * Get mentors for a specific program
+   */
+  async getProgramMentors(programId: string): Promise<any[]> {
+    const { data } = await api.get(`/v1/programs/${programId}/mentors`)
+    return data
+  }
+}
+
+// Mentor Profiles List API
+export const mentorProfilesApi = {
+  /**
+   * Get all mentor profiles with pagination and search
+   */
+  async getMentorProfiles(params?: {
+    page?: number
+    size?: number
+    searchTerm?: string
+  }): Promise<{
+    totalItems: number
+    success: boolean
+    mentors: any[]
+    totalPages: number
+    hasPrevious: boolean
+    hasNext: boolean
+    currentPage: number
+  }> {
+    const { data } = await api.get('/v1/profiles/mentors', {
+      params: {
+        page: params?.page ?? 0,
+        size: params?.size ?? 20,
+        ...(params?.searchTerm && { searchTerm: params.searchTerm })
+      }
+    })
+    return data
+  },
+
+  /**
+   * Get a mentor profile by ID
+   */
+  async getMentorProfileById(mentorId: string): Promise<any> {
+    const { data } = await api.get(`/v1/profiles/mentors/${mentorId}`)
+    return data
+  }
 }
 
 // Export all API functions
@@ -684,5 +804,8 @@ export default {
   favorites: mentorFavoritesApi,
   verification: mentorVerificationApi,
   analytics: mentorAnalyticsApi,
-  admin: mentorAdminApi
+  admin: mentorAdminApi,
+  programs: mentorProgramsApi,
+  profiles: mentorProfilesApi,
+  availability: mentorAvailabilityApi
 }

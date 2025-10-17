@@ -172,117 +172,50 @@ const handleContact = () => {
   >
     <!-- Grid View -->
     <template v-if="viewMode === 'grid'">
-      <CardHeader class="pb-4">
-        <div class="flex items-start justify-between">
-          <div class="flex items-center space-x-3">
-            <div class="relative">
-              <Avatar class="h-12 w-12">
-                <AvatarImage :src="mentor.profilePhoto" :alt="fullName" />
-                <AvatarFallback>{{ initials }}</AvatarFallback>
-              </Avatar>
-              <div 
-                :class="[
-                  'absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white',
-                  availabilityStatus.color
-                ]"
-                :title="availabilityStatus.label"
-              />
-            </div>
-            <div class="flex-1 min-w-0">
-              <h3 class="font-semibold text-lg truncate">{{ fullName }}</h3>
-              <p class="text-sm text-muted-foreground truncate">
-                {{ mentor.title }} at {{ mentor.company }}
-              </p>
-            </div>
-          </div>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            @click.stop="handleFavoriteToggle"
-            :class="{ 'text-red-500': isFavorite }"
-          >
-            <Heart 
-              :class="{ 'fill-current': isFavorite }" 
-              class="h-4 w-4" 
-            />
-          </Button>
-        </div>
-
-        <!-- Badges -->
-        <div v-if="badgeVariants.length > 0" class="flex flex-wrap gap-1 mt-2">
-          <Badge
-            v-for="badge in badgeVariants"
-            :key="badge.type"
-            :variant="badge.variant as any"
-            class="text-xs flex items-center gap-1"
-          >
-            <component :is="badge.icon" v-if="badge.icon" class="h-3 w-3" />
-            {{ badge.type }}
-          </Badge>
-        </div>
-      </CardHeader>
-
-      <CardContent class="pb-4">
-        <!-- Summary -->
-        <p class="text-sm text-muted-foreground mb-3 line-clamp-3">
-          {{ truncateText(mentor.profileSummary, 120) }}
-        </p>
-
-        <!-- Expertise Areas -->
-<!--
-        <div class="space-y-2 mb-3">
-          <div class="flex flex-wrap gap-1">
-            <Badge
-              v-for="area in (mentor.expertiseAreas || []).slice(0, 3)"
-              :key="area"
-              variant="secondary"
-              class="text-xs"
+      <CardContent class="pt-8 pb-6 px-6">
+        <!-- Centered Avatar -->
+        <div class="flex justify-center mb-4">
+          <div class="relative">
+            <Avatar class="h-24 w-24 ring-2 ring-gray-100">
+              <AvatarImage :src="mentor.profilePhoto" :alt="fullName" />
+              <AvatarFallback class="text-2xl">{{ initials }}</AvatarFallback>
+            </Avatar>
+            <div
+              v-if="mentor.isVerified"
+              :class="[
+                'absolute -bottom-1 -right-1 h-6 w-6 rounded-full border-2 border-white bg-green-500 flex items-center justify-center'
+              ]"
+              title="Verified"
             >
-              {{ area }}
-            </Badge>
-            <Badge
-              v-if="(mentor.expertiseAreas || []).length > 3"
-              variant="outline"
-              class="text-xs"
-            >
-              +{{ (mentor.expertiseAreas || []).length - 3 }} more
-            </Badge>
-          </div>
-        </div>
--->
-
-        <!-- Rating and Stats -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between text-sm">
-            <div class="flex items-center space-x-2">
-              <div class="flex items-center">
-                <Star class="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                <span class="text-sm font-medium">{{ displayRating }}</span>
-                <span class="text-sm text-muted-foreground">({{ mentor.reviewCount || mentor.totalReviews || 0 }})</span>
-              </div>
-              <Separator orientation="vertical" class="h-4" />
-              <div class="flex items-center text-sm text-muted-foreground">
-                <Clock class="h-4 w-4 mr-1" />
-                <span>{{ responseTimeText }}</span>
-              </div>
+              <Shield class="h-3 w-3 text-white" />
             </div>
           </div>
         </div>
+
+        <!-- Name -->
+        <h3 class="font-bold text-xl text-center mb-1 truncate">{{ fullName }}</h3>
+
+        <!-- Rating -->
+        <div class="flex items-center justify-center gap-2 mb-6">
+          <Star class="h-5 w-5 fill-yellow-400 text-yellow-400" />
+          <span v-if="displayRating > 0" class="text-sm text-gray-600">
+            {{ displayRating }} ({{ mentor.reviewCount || mentor.totalReviews || 0 }} reviews)
+          </span>
+          <span v-else class="text-sm text-gray-500">
+            No ratings yet
+          </span>
+        </div>
+
+        <!-- View Profile Button -->
+        <Button
+          class="w-full text-white"
+          style="background-color: rgb(160, 59, 147);"
+          size="lg"
+          @click.stop="handleViewProfile"
+        >
+          View Profile
+        </Button>
       </CardContent>
-
-      <CardFooter class="pt-0">
-        <div class="flex space-x-2 w-full">
-          <Button
-            variant="outline"
-            size="sm"
-            class="flex-1"
-            @click.stop="handleViewProfile"
-          >
-            View Profile
-          </Button>
-        </div>
-      </CardFooter>
     </template>
 
     <!-- List View -->

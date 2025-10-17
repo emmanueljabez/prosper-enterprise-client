@@ -52,8 +52,11 @@ const canViewPrograms = computed(() => {
   return RoleManager.hasPermission(authStore.loggedInUser, 'mentors:view') || true // Dev bypass
 })
 
-// Programs Data - same as in index.vue
-const programsData = [
+// Get programs from store instead of hardcoded data
+const programs = computed(() => mentorsStore.programs)
+
+// Fallback Programs Data - only used if API fails
+const fallbackProgramsData = [
     {
         "id": "60e26c2ba5a9f8402c1cf6bb",
         "name": "How to Negotiate the Best Deal",
@@ -278,22 +281,89 @@ const programsData = [
 const loadProgram = async () => {
   isLoading.value = true
   const programId = route.params.id as string
-  
+
   try {
-    // Find program by ID
-    program.value = programsData.find(p => p.id === programId)
-    
-    if (!program.value) {
-      throw new Error('Program not found')
+    // Load program details from API (includes mentors)
+    const programData = await mentorsStore.getProgramById(programId)
+
+    if (programData.success && programData.program) {
+      // Map API response to component format
+      program.value = {
+        id: programData.program.id,
+        legacyId: programData.program.legacyId,
+        name: programData.program.name,
+        imgUrl: programData.program.imageUrl,
+        videoUrl: programData.program.videoUrl,
+        tagLine: programData.program.description,
+        topicStatus: programData.program.status,
+        mentorCount: programData.program.mentors?.length || 0,
+        topicTips: programData.program.tips,
+        focusAreas: programData.program.focusAreas,
+        orderId: programData.program.orderId
+      }
+
+      // Extract and transform mentors from API response
+      if (programData.program.mentors && programData.program.mentors.length > 0) {
+        programMentors.value = programData.program.mentors.map(mentorData => ({
+          id: mentorData.mentor.id,
+          name: `${mentorData.mentor.firstName} ${mentorData.mentor.lastName}`,
+          title: mentorData.mentor.mentorProfile?.title || mentorData.mentor.industry || 'Professional Mentor',
+          company: mentorData.mentor.mentorProfile?.company || mentorData.mentor.country || mentorData.mentor.location || '',
+          avatar: mentorData.mentor.avatarUrl || '',
+          rating: mentorData.mentor.mentorProfile?.rating || 0,
+          totalSessions: mentorData.mentor.mentorProfile?.totalSessions || 0,
+          expertise: mentorData.mentor.expertise || [],
+          bio: mentorData.mentor.bio || '',
+          linkedIn: mentorData.mentor.linkedinUrl || '',
+          quote: mentorData.mentor.favouriteQuote || '',
+          isVerified: mentorData.mentor.isVerified,
+          isAvailable: mentorData.mentor.mentorProfile?.isAvailable || true
+        }))
+      }
+    } else {
+      // Fallback: try to find in store programs
+      if (!programs.value || programs.value.length === 0) {
+        await mentorsStore.loadPrograms()
+      }
+      program.value = programs.value.find(p => p.id === programId)
+
+      // If not found in store, try fallback data
+      if (!program.value) {
+        program.value = fallbackProgramsData.find(p => p.id === programId)
+      }
+
+      // Load mentors using old method as fallback
+      if (program.value) {
+        await loadProgramMentorsFallback()
+      }
     }
-    
-    // Load mentors for this program
-    await loadProgramMentors()
-    
+
+    // If still not found, redirect
+    if (!program.value) {
+      console.warn(`Program with ID ${programId} not found. Redirecting to programs list.`)
+      router.push('/app/mentors/programs')
+      return
+    }
+
   } catch (error) {
     console.error('Error loading program:', error)
-    // Redirect to programs list if program not found
-    router.push('/app/mentors/programs')
+    // Try fallback approach
+    try {
+      if (!programs.value || programs.value.length === 0) {
+        await mentorsStore.loadPrograms()
+      }
+      program.value = programs.value.find(p => p.id === programId) ||
+                      fallbackProgramsData.find(p => p.id === programId)
+
+      if (program.value) {
+        await loadProgramMentorsFallback()
+      } else {
+        router.push('/app/mentors/programs')
+      }
+    } catch (fallbackError) {
+      console.error('Fallback failed:', fallbackError)
+      router.push('/app/mentors/programs')
+    }
   } finally {
     isLoading.value = false
   }
@@ -579,18 +649,21 @@ const mentorsData = [
   }
 ]
 
-// Load mentors for this program
-const loadProgramMentors = async () => {
+// Load mentors for this program (fallback method using hardcoded data)
+const loadProgramMentorsFallback = async () => {
   if (!program.value) return
-  
+
   try {
     isLoadingMentors.value = true
-    
+
+    // Use legacyId for matching with old mentor data if available
+    const programIdToMatch = program.value.legacyId || program.value.id
+
     // Filter mentors who offer this specific program
     const filteredMentors = mentorsData.filter(mentor => {
-      return mentor.topics.some(topic => topic.id === program.value.id)
+      return mentor.topics.some(topic => topic.id === programIdToMatch)
     })
-    
+
     // Transform mentor data to match our UI needs
     programMentors.value = filteredMentors.map(mentor => ({
       id: mentor.id,
@@ -605,7 +678,9 @@ const loadProgramMentors = async () => {
       linkedIn: mentor.linkedInUrl,
       quote: mentor.favouriteQuote
     })).slice(0, 10) // Limit to 10 mentors for display
-    
+
+    console.log(`Found ${programMentors.value.length} mentors for program ${program.value.name}`)
+
   } catch (error) {
     console.error('Error loading program mentors:', error)
   } finally {
@@ -629,6 +704,7 @@ const viewAllMentors = () => {
 }
 
 const viewMentor = (mentorId: string) => {
+  console.log('🔵 viewMentor called:', mentorId)
   router.push(`/app/mentors/${mentorId}`)
 }
 
@@ -688,7 +764,7 @@ onMounted(async () => {
         <div class="flex items-center gap-6 text-sm text-muted-foreground">
           <div class="flex items-center gap-2">
             <Users class="h-4 w-4" />
-            <span>{{ program.mentorCount }} mentors available</span>
+            <span>{{ programMentors.length || program.mentorCount || 0 }} mentors available</span>
           </div>
         </div>
       </div>
@@ -698,11 +774,14 @@ onMounted(async () => {
         <!-- Video Section - Takes 2/3 width -->
         <div class="lg:col-span-2">
           <!-- Program Video (if available) -->
-          <div v-if="program.videoURL" class="mb-8">
+          <div v-if="program.videoUrl" class="mb-8">
             <div class="aspect-video rounded-lg overflow-hidden bg-muted">
-              <video 
-                :src="program.videoURL" 
-                controls 
+              <video
+                :src="program.videoUrl"
+                controls
+                autoplay
+                muted
+                playsinline
                 class="w-full h-full"
                 @error="$event.target.style.display = 'none'"
               >
@@ -710,12 +789,12 @@ onMounted(async () => {
               </video>
             </div>
           </div>
-          
+
           <!-- Program Image (if no video) -->
           <div v-else class="mb-8">
             <div class="aspect-video rounded-lg overflow-hidden">
-              <img 
-                :src="program.imgUrl" 
+              <img
+                :src="program.imgUrl"
                 :alt="program.name"
                 class="w-full h-full object-cover"
                 @error="$event.target.src = '/images/placeholder-program.jpg'"
@@ -796,9 +875,12 @@ onMounted(async () => {
                   <div class="flex-1 min-w-0">
                     <h4 class="font-medium truncate">{{ mentor.name }}</h4>
                     <p class="text-sm text-muted-foreground truncate">{{ mentor.title }}</p>
-                    <div class="flex items-center gap-1 mt-1">
+                    <div v-if="mentor.rating > 0" class="flex items-center gap-1 mt-1">
                       <Star class="h-3 w-3 fill-yellow-400 text-yellow-400" />
                       <span class="text-xs text-muted-foreground">{{ mentor.rating.toFixed(1) }}</span>
+                    </div>
+                    <div v-else class="mt-1">
+                      <Badge variant="secondary" class="text-xs">New Mentor</Badge>
                     </div>
                   </div>
                 </div>

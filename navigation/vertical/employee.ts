@@ -1,14 +1,15 @@
 import type { NavigationItem } from './navigation'
-import { 
-  LayoutDashboard, 
-  Users, 
+import {
+  LayoutDashboard,
+  Users,
   Calendar,
   TrendingUp,
   User,
   MessageSquare,
   Search,
   BookOpen,
-  Target
+  Target,
+  CreditCard
 } from 'lucide-vue-next'
 
 export const employeeNavigation: NavigationItem[] = [
@@ -47,13 +48,19 @@ export const employeeNavigation: NavigationItem[] = [
     ]
   },
   {
-    title: 'Personal',
+    title: 'Settings',
     children: [
       {
         title: 'My Profile',
         icon: User,
         url: '/app/profile',
         permission: 'profile:view'
+      },
+      {
+        title: 'Plans',
+        icon: CreditCard,
+        url: '/app/plans',
+        permission: 'plans:view'
       }
     ]
   }
