@@ -1,20 +1,21 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useSubscriptionsStore } from '@/store/modules/subscriptions'
 import { useAuthStore } from '@/store/modules/auth'
-import { RoleManager } from '@/utils/roleManager'
 import { storeToRefs } from 'pinia'
-import type { SubscriptionPlan } from '@/http/requests/app/subscriptions'
+import subscriptionsApi, { type BillingInterval, type SubscriptionPlan } from '@/http/requests/app/subscriptions'
+import invoicesApi from '@/http/requests/app/invoices'
+import { useAppToast } from '@/composables/services/toastService'
 
 // UI Components
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import PaymentDialog from '@/components/ui/subscriptions/PaymentDialog.vue'
 
 // Icons
-import { Check, X, AlertCircle } from 'lucide-vue-next'
+import { Check, AlertCircle } from 'lucide-vue-next'
 
 definePageMeta({
   title: 'Subscription Plans',
@@ -26,14 +27,16 @@ definePageMeta({
 // Store
 const subscriptionsStore = useSubscriptionsStore()
 const authStore = useAuthStore()
+const route = useRoute()
+const router = useRouter()
+const toast = useAppToast()
 
 // Store state
-const { activePlans, isLoading, error, activeSubscription, isLoadingActiveSubscription } = storeToRefs(subscriptionsStore)
+const { activePlans: storeActivePlans, isLoading, error, activeSubscription } = storeToRefs(subscriptionsStore)
 
 // Local state
-const showPaymentDialog = ref(false)
-const selectedPlanForPayment = ref<SubscriptionPlan | null>(null)
-
+const isCreatingInvoice = ref(false)
+const selectedBillingInterval = ref<BillingInterval>('MONTHLY')
 // Check permissions
 const canViewPlans = computed(() => {
   // For development: always return true
@@ -41,35 +44,167 @@ const canViewPlans = computed(() => {
   // return RoleManager.hasPermission(authStore.loggedInUser, 'plans:view')
 })
 
+const supportsBillingInterval = (plan: SubscriptionPlan, billingInterval: BillingInterval) => {
+  if (Number(plan.cost || 0) === 0) {
+    return true
+  }
+
+  if (billingInterval === 'ANNUAL') {
+    return Number(plan.yearlyCost || 0) > 0
+  }
+
+  return true
+}
+
+const getPlanPrice = (plan: SubscriptionPlan, billingInterval: BillingInterval) =>
+  billingInterval === 'ANNUAL' && Number(plan.yearlyCost || 0) > 0
+    ? Number(plan.yearlyCost || 0)
+    : Number(plan.cost || 0)
+
+const hasAnnualPlans = computed(() =>
+  storeActivePlans.value.some(plan => plan.planAudience !== 'CORPORATE' && supportsBillingInterval(plan, 'ANNUAL'))
+)
+
+const activePlans = computed(() =>
+  storeActivePlans.value.filter(plan =>
+    plan.planAudience !== 'CORPORATE' && supportsBillingInterval(plan, selectedBillingInterval.value)
+  )
+)
+
 // Lifecycle
 onMounted(async () => {
   if (canViewPlans.value) {
     await subscriptionsStore.fetchPlans()
 
     // Fetch the user's active subscription
-    if (authStore.loggedInUser?.id) {
-      await subscriptionsStore.fetchActiveSubscription(authStore.loggedInUser.id)
+    const userId = resolveCurrentUserId()
+    if (userId) {
+      await subscriptionsStore.fetchActiveSubscription(userId)
     }
   }
+
+  await handleInvoiceReturn()
 })
 
-// Methods
-const selectPlan = (plan: SubscriptionPlan) => {
-  selectedPlanForPayment.value = plan
-  showPaymentDialog.value = true
-}
+const handleInvoiceReturn = async () => {
+  if (route.query.invoice_paid === '1') {
+    toast.success('Payment completed successfully.')
 
-const handlePaymentSuccess = async () => {
-  showPaymentDialog.value = false
-
-  // Refresh the page data
-  if (authStore.loggedInUser?.id) {
-    await subscriptionsStore.fetchActiveSubscription(authStore.loggedInUser.id)
-    await subscriptionsStore.fetchPlans()
+    const userId = resolveCurrentUserId()
+    if (userId) {
+      await subscriptionsStore.fetchActiveSubscription(userId)
+      await subscriptionsStore.fetchPlans()
+    }
+  } else if (route.query.invoice_cancelled === '1') {
+    toast.info('Payment was cancelled.')
   }
 
-  // Reload the page to reflect changes
-  window.location.reload()
+  if ('invoice_paid' in route.query || 'invoice_cancelled' in route.query || 'plan_id' in route.query || 'context' in route.query) {
+    const query = { ...route.query }
+    delete query.invoice_paid
+    delete query.invoice_cancelled
+    delete query.plan_id
+    delete query.context
+    await router.replace({ query })
+  }
+}
+
+const resolveCurrentUserId = (): string | null => {
+  const storeUserId = authStore.loggedInUser?.id
+  if (storeUserId) {
+    return storeUserId
+  }
+
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem('loggedInUser')
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw)
+        return parsed?.id || null
+      } catch {
+        return null
+      }
+    }
+  }
+
+  return null
+}
+
+// Methods
+const selectPlan = async (plan: SubscriptionPlan) => {
+  if (isCreatingInvoice.value) {
+    return
+  }
+
+  const userId = resolveCurrentUserId()
+  if (!userId) {
+    toast.error('User not logged in. Please sign in again.')
+    return
+  }
+
+  isCreatingInvoice.value = true
+  try {
+    const quote = await invoicesApi.quotePlanInvoice({
+      userId,
+      planId: plan.id,
+      billingInterval: selectedBillingInterval.value,
+    })
+
+    if (!quote.success || !quote.data) {
+      throw new Error(quote.message || 'Failed to calculate plan quote')
+    }
+
+    const quoteData = quote.data
+    const resolvedBillingInterval = quoteData.billingInterval || selectedBillingInterval.value
+    if (quoteData.requiresPayment === false || !(Number(quoteData.amount) > 0)) {
+      const applyResponse = await subscriptionsApi.applyPlanChange({
+        userId,
+        planId: plan.id,
+        billingInterval: resolvedBillingInterval,
+      })
+
+      if (!applyResponse.success) {
+        throw new Error(applyResponse.message || 'Failed to update subscription')
+      }
+
+      toast.success(applyResponse.message || 'Subscription updated successfully.')
+      await subscriptionsStore.fetchActiveSubscription(userId)
+      await subscriptionsStore.fetchPlans()
+      return
+    }
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const redirectSuccessUrl = `${origin}/app/plans?invoice_paid=1&context=${quoteData.context}&plan_id=${plan.id}`
+    const redirectCancelUrl = `${origin}/app/plans?invoice_cancelled=1&plan_id=${plan.id}`
+
+    const response = await invoicesApi.createInvoice({
+      payerUserId: userId,
+      amount: Number(quoteData.amount),
+      currency: quoteData.currency || plan.currency || 'KES',
+      description: quoteData.description || `Subscription plan: ${plan.name}`,
+      metadata: {
+        invoiceContext: quoteData.context,
+        source: 'PLANS_PAGE',
+        planId: plan.id,
+        billingInterval: resolvedBillingInterval,
+        subscriptionId: quoteData.subscriptionId || null,
+        quotedAmount: quoteData.amount,
+        quoteCurrency: quoteData.currency,
+      },
+      redirectSuccessUrl,
+      redirectCancelUrl,
+    })
+
+    if (!response.success || !response.data?.paymentUrl) {
+      throw new Error(response.message || 'Failed to create payment invoice')
+    }
+
+    window.location.href = response.data.paymentUrl
+  } catch (error: any) {
+    toast.error(error?.response?.data?.message || error?.message || 'Failed to redirect to payment page')
+  } finally {
+    isCreatingInvoice.value = false
+  }
 }
 
 const formatCurrency = (amount: number, currency: string = 'USD') => {
@@ -80,6 +215,26 @@ const formatCurrency = (amount: number, currency: string = 'USD') => {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(amount)
+}
+
+const formatBillingInterval = (billingInterval: BillingInterval) =>
+  billingInterval === 'ANNUAL' ? 'Year' : 'Month'
+
+const getAnnualSavingsLabel = (plan: SubscriptionPlan) => {
+  const monthlyCost = Number(plan.cost || 0)
+  const yearlyCost = Number(plan.yearlyCost || 0)
+
+  if (!(monthlyCost > 0) || !(yearlyCost > 0)) {
+    return null
+  }
+
+  const annualizedMonthlyCost = monthlyCost * 12
+  if (!(annualizedMonthlyCost > yearlyCost)) {
+    return null
+  }
+
+  const savingsPercent = Math.round(((annualizedMonthlyCost - yearlyCost) / annualizedMonthlyCost) * 100)
+  return savingsPercent > 0 ? `Save ${savingsPercent}% annually` : null
 }
 
 // Get all unique features across all plans
@@ -125,6 +280,7 @@ const getFeatureValue = (plan: SubscriptionPlan, featureName: string): string | 
 // Check if a plan is the current subscription
 const isCurrentPlan = (plan: SubscriptionPlan): boolean => {
   return activeSubscription.value?.plan?.id === plan.id
+    && (activeSubscription.value?.billingInterval || 'MONTHLY') === selectedBillingInterval.value
 }
 
 // Check if user should upgrade to this plan
@@ -158,6 +314,25 @@ const getPlanBadge = (plan: SubscriptionPlan): { text: string; variant: 'current
           </p>
         </div>
       </div>
+
+      <div v-if="hasAnnualPlans" class="inline-flex rounded-full border border-[#d9a8d3] bg-white p-1 shadow-sm">
+        <button
+          type="button"
+          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          :class="selectedBillingInterval === 'MONTHLY' ? 'bg-[#a03b93] text-white' : 'text-slate-600'"
+          @click="selectedBillingInterval = 'MONTHLY'"
+        >
+          Monthly
+        </button>
+        <button
+          type="button"
+          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          :class="selectedBillingInterval === 'ANNUAL' ? 'bg-[#a03b93] text-white' : 'text-slate-600'"
+          @click="selectedBillingInterval = 'ANNUAL'"
+        >
+          Annual
+        </button>
+      </div>
     </div>
 
     <!-- Error Alert -->
@@ -179,10 +354,11 @@ const getPlanBadge = (plan: SubscriptionPlan): { text: string; variant: 'current
     </Card>
 
     <!-- Pricing Table -->
-    <Card v-else-if="activePlans.length > 0" class="border-2 border-purple-300 shadow-lg overflow-hidden">
-      <CardContent class="p-0">
-        <div class="overflow-x-auto">
-          <table class="w-full border-collapse">
+    <div v-else-if="activePlans.length > 0" class="space-y-8">
+      <Card v-if="activePlans.length > 0" class="border-2 border-purple-300 shadow-lg overflow-hidden">
+        <CardContent class="p-0">
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse">
             <!-- Table Header with Plan Names -->
             <thead>
               <tr class="bg-purple-50">
@@ -214,6 +390,12 @@ const getPlanBadge = (plan: SubscriptionPlan): { text: string; variant: 'current
                     >
                       {{ getPlanBadge(plan)?.text }}
                     </span>
+                    <span
+                      v-else-if="selectedBillingInterval === 'ANNUAL' && getAnnualSavingsLabel(plan)"
+                      class="text-xs font-semibold px-3 py-1 rounded-full text-[#7a286f] bg-[#f5e6f2]"
+                    >
+                      {{ getAnnualSavingsLabel(plan) }}
+                    </span>
                   </div>
                 </th>
               </tr>
@@ -230,23 +412,32 @@ const getPlanBadge = (plan: SubscriptionPlan): { text: string; variant: 'current
                     'border p-4 text-center',
                     isCurrentPlan(plan) ? 'border-x-2' : 'border-purple-300'
                   ]"
-                  :style="isCurrentPlan(plan) ? {
+                    :style="isCurrentPlan(plan) ? {
                     backgroundColor: '#faf7fa',
                     borderColor: '#9b3699'
                   } : {}"
                 >
                   <div class="space-y-1">
                     <div class="text-2xl font-bold text-purple-700">
-                      {{ formatCurrency(plan.cost, plan.currency) }}
-                      <span v-if="plan.cost > 0" class="text-base font-normal text-muted-foreground">
-                        /Month
+                      {{ formatCurrency(getPlanPrice(plan, selectedBillingInterval), plan.currency) }}
+                      <span v-if="getPlanPrice(plan, selectedBillingInterval) > 0" class="text-base font-normal text-muted-foreground">
+                        /{{ formatBillingInterval(selectedBillingInterval) }}
                       </span>
                     </div>
-                    <div v-if="plan.cost === 0" class="text-sm text-muted-foreground">
+                    <div v-if="getPlanPrice(plan, selectedBillingInterval) === 0" class="text-sm text-muted-foreground">
                       $0
                     </div>
-                    <div v-else-if="plan.yearlyCost && plan.yearlyCost > 0" class="text-sm text-muted-foreground">
+                    <div
+                      v-else-if="selectedBillingInterval === 'MONTHLY' && plan.yearlyCost && plan.yearlyCost > 0"
+                      class="text-sm text-muted-foreground"
+                    >
                       Or {{ formatCurrency(plan.yearlyCost, plan.currency) }}/Year
+                    </div>
+                    <div
+                      v-else-if="selectedBillingInterval === 'ANNUAL'"
+                      class="text-sm text-muted-foreground"
+                    >
+                      Billed once every 12 months
                     </div>
                   </div>
                 </td>
@@ -287,7 +478,7 @@ const getPlanBadge = (plan: SubscriptionPlan): { text: string; variant: 'current
                   } : {}"
                 >
                   <div v-if="plan.sessionsPerPeriod > 0">
-                    {{ plan.sessionsPerPeriod }} session{{ plan.sessionsPerPeriod > 1 ? 's' : '' }} per period
+                    {{ plan.sessionsPerPeriod }} session{{ plan.sessionsPerPeriod > 1 ? 's' : '' }} per {{ formatBillingInterval(selectedBillingInterval).toLowerCase() }}
                   </div>
                   <div v-else class="text-muted-foreground">
                     Access to platform
@@ -374,6 +565,7 @@ const getPlanBadge = (plan: SubscriptionPlan): { text: string; variant: 'current
                     v-else-if="shouldUpgrade(plan)"
                     class="w-full"
                     style="background-color: #9b3699;"
+                    :disabled="isCreatingInvoice"
                     @click="selectPlan(plan)"
                   >
                     Upgrade Now
@@ -382,6 +574,7 @@ const getPlanBadge = (plan: SubscriptionPlan): { text: string; variant: 'current
                     v-else-if="activeSubscription"
                     variant="outline"
                     class="w-full"
+                    :disabled="isCreatingInvoice"
                     @click="selectPlan(plan)"
                   >
                     Change Plan
@@ -390,6 +583,7 @@ const getPlanBadge = (plan: SubscriptionPlan): { text: string; variant: 'current
                     v-else
                     class="w-full"
                     style="background-color: #9b3699;"
+                    :disabled="isCreatingInvoice"
                     @click="selectPlan(plan)"
                   >
                     Get Started
@@ -397,10 +591,12 @@ const getPlanBadge = (plan: SubscriptionPlan): { text: string; variant: 'current
                 </td>
               </tr>
             </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+    </div>
 
     <!-- Empty State -->
     <Card v-else-if="!isLoading" class="border-2 border-purple-200">
@@ -413,11 +609,5 @@ const getPlanBadge = (plan: SubscriptionPlan): { text: string; variant: 'current
       </CardContent>
     </Card>
 
-    <!-- Payment Dialog -->
-    <PaymentDialog
-      v-model:open="showPaymentDialog"
-      :plan="selectedPlanForPayment"
-      @success="handlePaymentSuccess"
-    />
   </div>
 </template>

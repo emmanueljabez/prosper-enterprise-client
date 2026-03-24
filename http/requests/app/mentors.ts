@@ -742,6 +742,15 @@ export const mentorProgramsApi = {
     return data
   },
 
+  async getLivePrograms(): Promise<{
+    success: boolean
+    count: number
+    programs: any[]
+  }> {
+    const { data } = await api.get('/v1/programs/live')
+    return data
+  },
+
   /**
    * Get a single program by ID
    */

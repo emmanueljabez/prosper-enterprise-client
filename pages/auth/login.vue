@@ -28,15 +28,16 @@ const login = handleSubmit(async (values) => {
     const result = await authStore.login({ email: values.email, password: values.password }) as any
     if (authStore.loggedInUser) {
       const message = result.message || 'Login successful!'
+      let role = result.profile.role
       toast({
         title: 'Success',
         description: message,
         variant: 'success',
       })
-      if(result.role === "mentee") {
+      if(role === "mentee") {
         router.push('/app/dashboard')
-      } else if(result.role === "mentee") {
-        router.push('/app/dashboard/corporate-admin')
+      } else if (['company', 'company_admin', 'corporate_admin'].includes(String(role || '').toLowerCase())) {
+        router.push('/app/admin')
       }
     }
   } catch (error: any) {
@@ -102,7 +103,7 @@ const loginWithMicrosoft = async () => {
       <div class="mx-auto grid w-[350px] gap-8">
         <div class="grid gap-2">
           <p class="text-xl font-semibold">
-            Enter your username & password to login
+            Login
           </p>
 
         </div>
@@ -124,9 +125,9 @@ const loginWithMicrosoft = async () => {
               <Checkbox id="remember" v-model="rememberMe" />
               <Label for="remember" class="text-sm">Remember me</Label>
             </div>
-            <a href="/forgot-password" class="text-sm underline">
+            <NuxtLink to="/forgot-password" class="text-sm underline">
               Forgot your password?
-            </a>
+            </NuxtLink>
           </div>
           <Button type="submit" class="w-full" :disabled="isSubmitting" style="background-color:#a03b93">
             Login

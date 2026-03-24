@@ -64,7 +64,7 @@ check_health() {
             
             # Check if application responds to HTTP requests
             if curl -f -s -o /dev/null --max-time 10 http://localhost:3000 || \
-               curl -f -s -o /dev/null --max-time 10 https://app.prospermentor.com; then
+               curl -f -s -o /dev/null --max-time 10 https://enterprise.prospermentor.com; then
                 echo "✅ Application is responding to requests"
                 echo "🎉 Health check passed!"
                 return 0
@@ -108,4 +108,4 @@ EOF
 rm deployment.tar.gz
 
 echo "🎉 Deployment completed successfully!"
-echo "🌐 Your site should be updated at: https://app.prospermentor.com"
+echo "🌐 Your site should be updated at: https://enterprise.prospermentor.com"

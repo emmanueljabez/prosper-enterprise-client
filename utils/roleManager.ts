@@ -37,6 +37,7 @@ export const ALL_PERMISSIONS: Permission[] = [
   
   // Admin permissions
   createPermission('admin:users', 'Manage Users', 'Manage organization users', 'admin', 'users'),
+  createPermission('admin:programs', 'Manage Programs', 'Manage company mentorship programs and matches', 'admin', 'programs'),
   createPermission('admin:mentors', 'Manage Mentors', 'Manage mentor marketplace', 'admin', 'mentors'),
   createPermission('admin:reports', 'View Reports', 'Access comprehensive reports', 'admin', 'reports'),
   createPermission('admin:company', 'Manage Company', 'Manage company settings', 'admin', 'company'),
@@ -160,7 +161,7 @@ export class RoleManager {
   }
   
   static isCorporateAdmin(user: User | null): boolean {
-    return this.hasRole(user, 'corporate_admin')
+    return this.hasAnyRole(user, ['corporate_admin', 'company_admin', 'company'])
   }
   
   static canAccessRoute(user: User | null, routePath: string): boolean {
@@ -173,12 +174,23 @@ export class RoleManager {
       '/app/sessions': ['sessions:view'],
       '/app/profile': ['profile:view'],
       '/app/admin': ['admin:users', 'admin:mentors', 'admin:reports'],
+      '/app/admin/programs': ['admin:programs'],
+      '/app/admin/participants': ['admin:users'],
+      '/app/admin/matches': ['admin:programs'],
       '/app/admin/users': ['admin:users'],
       '/app/admin/mentors': ['admin:mentors'],
       '/app/admin/analytics': ['admin:reports'],
       '/app/admin/settings': ['admin:settings'],
       '/app/admin/billing': ['admin:billing'],
-      '/app/admin/branding': ['admin:branding']
+      '/app/admin/branding': ['admin:branding'],
+      '/app/admin/trust': ['admin:settings'],
+      '/app/employee/programs': ['mentors:view'],
+      '/app/employee/journey': ['sessions:view'],
+      '/app/employee/matches': ['mentors:view'],
+      '/app/employee/mentor': ['mentors:view'],
+      '/app/employee/goals': ['profile:view'],
+      '/app/employee/pulses': ['profile:view'],
+      '/app/employee/preferences': ['profile:view']
     }
     
     // Check if route requires specific permissions

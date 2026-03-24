@@ -26,26 +26,26 @@ export const useSidebarStore = defineStore('sidebar', {
     
     roleBasedNavigation: (state) => {
       //const authStore = useAuthStore();
-      const userStr = localStorage.getItem("loggedInUser");
-      if (!userStr) return [];
-      
-      const user = JSON.parse(userStr);
-      const role = user.user_metadata.role;
-      
-      if (!user) return [];
+      const role = localStorage.getItem("role");
+      if (!role) return [];
       
       // Get role-specific navigation based on user's primary role
       let baseNavigation: NavigationItem[] = [];
       
-      if (role === 'corporateAdmin') {
-        baseNavigation = JSON.parse(JSON.stringify(corporateAdminNavigation));
+      const cloneNav = (nav: NavigationItem[]) =>
+        nav.map(item => ({
+          ...item,
+          children: item.children?.map(child => ({ ...child })) ?? [],
+        }));
+
+      if (role === 'company') {
+        baseNavigation = cloneNav(corporateAdminNavigation);
       } else if (role === 'mentor') {
-        baseNavigation = JSON.parse(JSON.stringify(mentorNavigation));
+        baseNavigation = cloneNav(mentorNavigation);
       } else if (role === 'mentee') {
-        baseNavigation = JSON.parse(JSON.stringify(employeeNavigation));
+        baseNavigation = cloneNav(employeeNavigation);
       } else {
-        // Fallback to employee navigation for users without specific roles
-        baseNavigation = JSON.parse(JSON.stringify(employeeNavigation));
+        baseNavigation = cloneNav(employeeNavigation);
       }
 
       // Set active states based on current route

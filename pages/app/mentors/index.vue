@@ -422,10 +422,10 @@ const dismissError = () => {
           <div v-if="!isLoading && mentors.length > 0">
 
             <!-- Original mentor display -->
-            <div 
+            <div
               :class="{
-                'grid gap-6': viewMode === 'grid',
-                'grid-cols-1 md:grid-cols-2 xl:grid-cols-3': viewMode === 'grid',
+                'grid gap-4': viewMode === 'grid',
+                'grid-cols-2 md:grid-cols-3 xl:grid-cols-4': viewMode === 'grid',
                 'space-y-4': viewMode === 'list'
               }"
             >
@@ -460,8 +460,8 @@ const dismissError = () => {
           <div v-else-if="isLoading || isSearching" class="space-y-6">
             <div
               :class="{
-                'grid gap-6': viewMode === 'grid',
-                'grid-cols-1 md:grid-cols-2 xl:grid-cols-3': viewMode === 'grid',
+                'grid gap-4': viewMode === 'grid',
+                'grid-cols-2 md:grid-cols-3 xl:grid-cols-4': viewMode === 'grid',
                 'space-y-4': viewMode === 'list'
               }"
             >

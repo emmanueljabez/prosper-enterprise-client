@@ -1,20 +1,15 @@
 import type { NavigationItem } from './navigation'
-import { 
-  LayoutDashboard, 
-  Users, 
+import {
+  LayoutDashboard,
+  Users,
   UserCheck,
   BarChart3,
   Settings,
   CreditCard,
-  Palette,
-  Download,
-  Building2,
-  MessageSquare,
   Shield,
   FileText,
-  Database,
-  Briefcase,
-  TrendingUp
+  BookOpen,
+  GitBranch
 } from 'lucide-vue-next'
 
 export const corporateAdminNavigation: NavigationItem[] = [
@@ -22,21 +17,34 @@ export const corporateAdminNavigation: NavigationItem[] = [
     title: 'Overview',
     children: [
       {
-        title: 'Admin Dashboard',
+        title: 'Dashboard',
         icon: LayoutDashboard,
-        url: '/app/dashboard/corporate-admin',
-        permission: 'admin:dashboard:view'
+        url: '/app/admin',
+        permission: null
       }
     ]
   },
+
   {
-    title: 'User Management',
+    title: 'Program Management',
     children: [
+      {
+        title: 'Company Programs',
+        icon: BookOpen,
+        url: '/app/admin/programs',
+        permission: 'admin:programs'
+      },
       {
         title: 'Employees',
         icon: Users,
-        url: '/app/admin/users',
+        url: '/app/admin/participants',
         permission: 'admin:users'
+      },
+      {
+        title: 'Mentor Matches',
+        icon: GitBranch,
+        url: '/app/admin/matches',
+        permission: 'admin:programs'
       },
       {
         title: 'Mentors',
@@ -45,58 +53,49 @@ export const corporateAdminNavigation: NavigationItem[] = [
         permission: 'admin:mentors'
       },
       {
-        title: 'Role Management',
-        icon: Shield,
-        url: '/app/admin/roles',
-        permission: 'admin:users'
-      }
-    ]
-  },
-  {
-    title: 'Financial',
-    children: [
-      {
-        title: 'Payments',
-        icon: CreditCard,
-        url: '/app/admin/billing/payments',
-        permission: 'admin:billing'
-      },
-      {
-        title: 'Invoices',
-        icon: FileText,
-        url: '/app/admin/billing/invoices',
-        permission: 'admin:billing'
-      }
-    ]
-  },
-  {
-    title: 'Program Management',
-    children: [
-      {
-        title: 'Session Monitoring',
+        title: 'Sessions',
         icon: FileText,
         url: '/app/admin/sessions',
         permission: 'admin:reports'
-      },
-      {
-        title: 'Announcements',
-        icon: MessageSquare,
-        url: '/app/admin/announcements',
-        permission: 'communication:broadcast'
       }
     ]
   },
+
   {
-    title: 'Company Settings',
+    title: 'Insights',
     children: [
       {
-        title: 'Organization',
-        icon: Building2,
-        url: '/app/admin/company',
-        permission: 'admin:company'
+        title: 'Analytics',
+        icon: BarChart3,
+        url: '/app/admin/analytics',
+        permission: 'admin:reports'
+      }
+    ]
+  },
+
+  {
+    title: 'Finance',
+    children: [
+      {
+        title: 'Billing',
+        icon: CreditCard,
+        url: '/app/admin/billing',
+        permission: 'admin:billing'
+      }
+    ]
+  },
+
+  {
+    title: 'Governance',
+    children: [
+      {
+        title: 'Trust & Safety',
+        icon: Shield,
+        url: '/app/admin/trust',
+        permission: 'admin:settings'
       },
       {
-        title: 'Platform Settings',
+        title: 'Settings',
         icon: Settings,
         url: '/app/admin/settings',
         permission: 'admin:settings'

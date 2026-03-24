@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
+import { useSessionsStore } from '@/store/modules/sessions/sessions'
 import { useAppToast } from '@/composables/services/toastService'
 
 // UI Components
@@ -13,13 +14,14 @@ import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // Icons
-import { 
-  Calendar, 
-  Clock, 
-  Video, 
-  Phone, 
+import {
+  Calendar,
+  Clock,
+  Video,
+  Phone,
   MessageSquare,
   ExternalLink,
   Eye,
@@ -33,14 +35,6 @@ import {
   Zap
 } from 'lucide-vue-next'
 
-// Mock data
-import { 
-  mockSessions, 
-  getUpcomingSessions, 
-  getPastSessions, 
-  getTodaysSessions 
-} from '@/mock/mockSessionData.js'
-
 definePageMeta({
   title: 'My Sessions',
   description: 'Manage your mentoring sessions',
@@ -49,41 +43,61 @@ definePageMeta({
 
 // Stores
 const authStore = useAuthStore()
+const sessionsStore = useSessionsStore()
 const router = useRouter()
 const toast = useAppToast()
 
 // State
-const selectedTab = ref('upcoming')
+const selectedTab = ref<'all' | 'today' | 'upcoming' | 'past'>('upcoming')
 const selectedSession = ref(null)
 const showSessionDetails = ref(false)
-const isLoading = ref(false)
+const completingSessionId = ref<string | null>(null)
 
-// Data
-const allSessions = ref(mockSessions)
-const upcomingSessions = ref(getUpcomingSessions())
-const pastSessions = ref(getPastSessions())
-const todaysSessions = ref(getTodaysSessions())
+// Get mentee ID from localStorage
+const getMenteeId = () => {
+  const loggedInUser = localStorage.getItem('loggedInUser')
+  if (loggedInUser) {
+    try {
+      const user = JSON.parse(loggedInUser)
+      return user.id
+    } catch (e) {
+      console.error('Error parsing loggedInUser from localStorage:', e)
+    }
+  }
+  return null
+}
 
 // Computed
+const sessions = computed(() => sessionsStore.sessions)
+const isLoading = computed(() => sessionsStore.isLoading)
+const pagination = computed(() => sessionsStore.pagination)
+const sessionStats = computed(() => sessionsStore.sessionStats)
+
 const currentSessions = computed(() => {
+  const now = new Date()
+
   switch (selectedTab.value) {
+    case 'all':
+      return sessions.value
     case 'upcoming':
-      return upcomingSessions.value
+      return sessions.value.filter(s => {
+        const sessionDate = new Date(s.scheduledStart)
+        return sessionDate > now && !['CANCELLED', 'COMPLETED'].includes(s.status)
+      })
     case 'past':
-      return pastSessions.value
+      return sessions.value.filter(s => {
+        const sessionDate = new Date(s.scheduledStart)
+        return sessionDate < now || s.status === 'COMPLETED' || s.status === 'CANCELLED'
+      })
     case 'today':
-      return todaysSessions.value
+      return sessions.value.filter(s => {
+        const sessionDate = new Date(s.scheduledStart)
+        return sessionDate.toDateString() === now.toDateString()
+      })
     default:
-      return upcomingSessions.value
+      return sessions.value
   }
 })
-
-const sessionStats = computed(() => ({
-  total: allSessions.value.length,
-  upcoming: upcomingSessions.value.length,
-  today: todaysSessions.value.length,
-  completed: pastSessions.value.filter(s => s.status === 'completed').length
-}))
 
 // Methods
 const formatDate = (date) => {
@@ -112,31 +126,34 @@ const formatDuration = (minutes) => {
   return `${mins}m`
 }
 
-const getStatusVariant = (status) => {
-  switch (status) {
-    case 'confirmed': return 'default'
-    case 'scheduled': return 'secondary'
-    case 'completed': return 'outline'
-    case 'cancelled': return 'destructive'
-    case 'in-progress': return 'default'
+const getStatusVariant = (status: string) => {
+  switch (status.toUpperCase()) {
+    case 'CONFIRMED': return 'default'
+    case 'SCHEDULED': return 'default'
+    case 'IN_PROGRESS': return 'default'
+    case 'PENDING': return 'secondary'
+    case 'COMPLETED': return 'outline'
+    case 'CANCELLED': return 'destructive'
     default: return 'secondary'
   }
 }
 
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'confirmed': return 'text-green-600'
-    case 'scheduled': return 'text-blue-600'
-    case 'completed': return 'text-gray-600'
-    case 'cancelled': return 'text-red-600'
-    case 'in-progress': return 'text-orange-600'
+const getStatusColor = (status: string) => {
+  switch (status.toUpperCase()) {
+    case 'CONFIRMED': return 'text-green-600'
+    case 'SCHEDULED': return 'text-green-600'
+    case 'IN_PROGRESS': return 'text-green-600'
+    case 'PENDING': return 'text-blue-600'
+    case 'COMPLETED': return 'text-gray-600'
+    case 'CANCELLED': return 'text-red-600'
     default: return 'text-gray-600'
   }
 }
 
-const getPlatformIcon = (platform) => {
-  switch (platform) {
+const getPlatformIcon = (platform: string) => {
+  switch (platform.toLowerCase()) {
     case 'zoom': return Video
+    case 'google_meet':
     case 'google-meet': return Video
     case 'teams': return Video
     case 'phone': return Phone
@@ -144,67 +161,141 @@ const getPlatformIcon = (platform) => {
   }
 }
 
-const canJoinSession = (session) => {
+const canJoinSession = (session: any) => {
   const now = new Date()
   const sessionStart = new Date(session.scheduledStart)
   const sessionEnd = new Date(session.scheduledEnd)
-  
+
   // Can join 15 minutes before to 15 minutes after end
   const joinWindow = 15 * 60 * 1000 // 15 minutes in ms
-  return now >= (sessionStart.getTime() - joinWindow) && 
+  return now >= (sessionStart.getTime() - joinWindow) &&
          now <= (sessionEnd.getTime() + joinWindow) &&
-         session.status === 'confirmed'
+         session.status === 'CONFIRMED'
 }
 
-const joinSession = (session) => {
-  if (session.meetingLink) {
-    window.open(session.meetingLink, '_blank')
+const joinSession = (session: any) => {
+  if (session.meetingUrl) {
+    window.open(session.meetingUrl, '_blank')
     toast.success('Opening session meeting...')
   } else {
     toast.error('Meeting link not available')
   }
 }
 
-const viewSessionDetails = (session) => {
+const viewSessionDetails = (session: any) => {
   selectedSession.value = session
   showSessionDetails.value = true
 }
 
-const rescheduleSession = (session) => {
+const rescheduleSession = (session: any) => {
   // TODO: Implement reschedule functionality
   toast.info('Reschedule feature coming soon!')
 }
 
-const cancelSession = (session) => {
+const cancelSession = (session: any) => {
   // TODO: Implement cancel functionality
   toast.info('Cancel feature coming soon!')
 }
 
-const isUpcoming = (session) => {
-  return new Date(session.scheduledStart) > new Date() && 
-         !['cancelled', 'completed'].includes(session.status)
+const canMarkComplete = (session: any) => {
+  const scheduledEnd = new Date(session.scheduledEnd).getTime()
+  const normalizedStatus = String(session.status || '').toUpperCase()
+
+  return !Number.isNaN(scheduledEnd) &&
+         scheduledEnd <= Date.now() &&
+         ['CONFIRMED', 'SCHEDULED', 'IN_PROGRESS'].includes(normalizedStatus)
 }
 
-const timeUntilSession = (session) => {
+const handleCompleteSession = async (session: any) => {
+  completingSessionId.value = session.id
+
+  try {
+    const response = await sessionsStore.completeSession(session.id)
+    const updatedSession = response?.data || response?.session || null
+
+    session.status = 'COMPLETED'
+
+    if (updatedSession) {
+      Object.assign(session, updatedSession)
+    }
+
+    if (selectedSession.value?.id === session.id) {
+      selectedSession.value = {
+        ...selectedSession.value,
+        ...(updatedSession || {}),
+        status: 'COMPLETED'
+      }
+    }
+  } catch (error) {
+    console.error('Error marking session as completed:', error)
+  } finally {
+    completingSessionId.value = null
+  }
+}
+
+const isUpcoming = (session: any) => {
+  return new Date(session.scheduledStart) > new Date() &&
+         !['CANCELLED', 'COMPLETED'].includes(session.status)
+}
+
+const timeUntilSession = (session: any) => {
   const now = new Date()
   const sessionStart = new Date(session.scheduledStart)
-  const diffMs = sessionStart - now
-  
+  const diffMs = sessionStart.getTime() - now.getTime()
+
   if (diffMs < 0) return 'Started'
-  
+
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
   const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
   const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
-  
+
   if (diffDays > 0) return `in ${diffDays}d`
   if (diffHours > 0) return `in ${diffHours}h ${diffMinutes}m`
   return `in ${diffMinutes}m`
 }
 
+const loadMoreSessions = async () => {
+  const menteeId = getMenteeId()
+  if (!menteeId) return
+  await sessionsStore.loadMoreSessions(menteeId)
+}
+
+// Watch for tab changes
+watch(selectedTab, async (newTab) => {
+  const menteeId = getMenteeId()
+  if (!menteeId) return
+
+  // Map tab values to filter values
+  const filterMap: Record<string, 'all' | 'today' | 'upcoming' | 'past'> = {
+    'all': 'all',
+    'upcoming': 'upcoming',
+    'today': 'today',
+    'past': 'past'
+  }
+
+  const filter = filterMap[newTab] || 'all'
+  await sessionsStore.changeFilter(menteeId, filter)
+})
+
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
   console.log('📅 Loading sessions page...')
-  // In a real app, this would load from API
+  const menteeId = getMenteeId()
+
+  if (!menteeId) {
+    console.error('No mentee ID found in localStorage')
+    toast.error('Unable to load sessions. Please log in again.')
+    return
+  }
+
+  // Load sessions with 'all' filter initially
+  await sessionsStore.loadSessions({
+    menteeId,
+    filter: 'all',
+    page: 0,
+    size: 10
+  })
+
   console.log('📊 Session stats:', sessionStats.value)
 })
 </script>
@@ -268,28 +359,46 @@ onMounted(() => {
     <Card>
       <CardHeader>
         <Tabs v-model="selectedTab" class="w-full">
-          <TabsList class="grid w-full grid-cols-3">
+          <TabsList class="grid w-full grid-cols-4">
+            <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
             <TabsTrigger value="today">Today</TabsTrigger>
             <TabsTrigger value="past">Past Sessions</TabsTrigger>
           </TabsList>
         </Tabs>
       </CardHeader>
-      
+
       <CardContent>
-        <div v-if="currentSessions.length === 0" class="text-center py-12">
+        <!-- Loading State -->
+        <div v-if="isLoading && currentSessions.length === 0" class="space-y-4">
+          <div v-for="i in 3" :key="i" class="border rounded-lg p-4">
+            <div class="flex items-start space-x-4">
+              <Skeleton class="h-12 w-12 rounded-full" />
+              <div class="flex-1 space-y-2">
+                <Skeleton class="h-5 w-3/4" />
+                <Skeleton class="h-4 w-full" />
+                <Skeleton class="h-4 w-2/3" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="currentSessions.length === 0" class="text-center py-12">
           <Calendar class="h-16 w-16 mx-auto text-muted-foreground mb-4" />
           <h3 class="text-lg font-semibold mb-2">No sessions found</h3>
           <p class="text-muted-foreground mb-4">
-            <span v-if="selectedTab === 'upcoming'">You don't have any upcoming sessions.</span>
+            <span v-if="selectedTab === 'all'">You don't have any sessions yet.</span>
+            <span v-else-if="selectedTab === 'upcoming'">You don't have any upcoming sessions.</span>
             <span v-else-if="selectedTab === 'today'">No sessions scheduled for today.</span>
             <span v-else>No past sessions to display.</span>
           </p>
-          <Button v-if="selectedTab === 'upcoming'" @click="router.push('/app/mentors')">
+          <Button v-if="selectedTab === 'upcoming' || selectedTab === 'all'" @click="router.push('/app/mentors')">
             Find Mentors
           </Button>
         </div>
-        
+
+        <!-- Sessions List -->
         <div v-else class="space-y-4">
           <div
             v-for="session in currentSessions"
@@ -299,30 +408,33 @@ onMounted(() => {
             <div class="flex items-start justify-between">
               <!-- Session Info -->
               <div class="flex space-x-4 flex-1">
-                <!-- Mentor Avatar -->
-                <Avatar class="h-12 w-12">
-                  <AvatarImage :src="session.mentor.profilePhoto" :alt="session.mentor.name" />
-                  <AvatarFallback>{{ session.mentor.name.split(' ').map(n => n[0]).join('') }}</AvatarFallback>
-                </Avatar>
-                
+                <!-- Skill Icon/Avatar -->
+                <div class="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Users class="h-6 w-6 text-primary" />
+                </div>
+
                 <!-- Session Details -->
                 <div class="flex-1 space-y-2">
                   <div class="flex items-center justify-between">
                     <h3 class="text-lg font-semibold">{{ session.title }}</h3>
                     <div class="flex items-center space-x-2">
                       <Badge :variant="getStatusVariant(session.status)">
-                        {{ session.status.charAt(0).toUpperCase() + session.status.slice(1) }}
+                        {{ session.status.charAt(0).toUpperCase() + session.status.slice(1).toLowerCase() }}
                       </Badge>
                       <Badge v-if="isUpcoming(session)" variant="outline" class="text-xs">
                         {{ timeUntilSession(session) }}
                       </Badge>
                     </div>
                   </div>
-                  
+
+                  <div v-if="session.companyProgramName">
+                    <Badge variant="outline" class="text-xs">{{ session.companyProgramName }}</Badge>
+                  </div>
+
                   <div class="flex items-center space-x-4 text-sm text-muted-foreground">
-                    <div class="flex items-center space-x-1">
-                      <Users class="h-4 w-4" />
-                      <span>{{ session.mentor.name }}</span>
+                    <div v-if="session.skill" class="flex items-center space-x-1">
+                      <FileText class="h-4 w-4" />
+                      <span>{{ session.skill.name }}</span>
                     </div>
                     <div class="flex items-center space-x-1">
                       <Calendar class="h-4 w-4" />
@@ -333,28 +445,22 @@ onMounted(() => {
                       <span>{{ formatTime(session.scheduledStart) }} - {{ formatTime(session.scheduledEnd) }}</span>
                     </div>
                     <div class="flex items-center space-x-1">
-                      <component :is="getPlatformIcon(session.platform)" class="h-4 w-4" />
-                      <span class="capitalize">{{ session.platform.replace('-', ' ') }}</span>
+                      <component :is="getPlatformIcon(session.meetingPlatform)" class="h-4 w-4" />
+                      <span class="capitalize">{{ session.meetingPlatform.replace('_', ' ').toLowerCase() }}</span>
                     </div>
                   </div>
-                  
+
                   <p v-if="session.description" class="text-sm text-muted-foreground">
                     {{ session.description }}
                   </p>
-                  
-                  <!-- Action Items (for completed sessions) -->
-                  <div v-if="session.actionItems && session.actionItems.length > 0" class="space-y-1">
-                    <p class="text-sm font-medium">Action Items:</p>
-                    <ul class="text-sm text-muted-foreground space-y-1">
-                      <li v-for="item in session.actionItems" :key="item" class="flex items-center space-x-2">
-                        <CheckCircle class="h-3 w-3 text-green-600" />
-                        <span>{{ item }}</span>
-                      </li>
-                    </ul>
+
+                  <div v-if="session.menteeMessage" class="text-sm">
+                    <span class="font-medium">Your message: </span>
+                    <span class="text-muted-foreground">{{ session.menteeMessage }}</span>
                   </div>
-                  
+
                   <!-- Cancellation Reason -->
-                  <Alert v-if="session.status === 'cancelled'" variant="destructive" class="mt-2">
+                  <Alert v-if="session.status === 'CANCELLED' && session.cancellationReason" variant="destructive" class="mt-2">
                     <AlertCircle class="h-4 w-4" />
                     <AlertDescription>
                       Cancelled: {{ session.cancellationReason }}
@@ -383,6 +489,17 @@ onMounted(() => {
                   <Eye class="h-4 w-4 mr-2" />
                   View Details
                 </Button>
+
+                <Button
+                  v-if="canMarkComplete(session)"
+                  variant="outline"
+                  size="sm"
+                  @click="handleCompleteSession(session)"
+                  :disabled="completingSessionId === session.id"
+                >
+                  <CheckCircle class="h-4 w-4 mr-2" />
+                  {{ completingSessionId === session.id ? 'Completing...' : 'Mark Complete' }}
+                </Button>
                 
                 <div v-if="isUpcoming(session)" class="flex space-x-1">
                   <Button
@@ -405,6 +522,21 @@ onMounted(() => {
               </div>
             </div>
           </div>
+
+          <!-- Pagination -->
+          <div v-if="pagination.hasNext" class="flex justify-center pt-6">
+            <Button
+              @click="loadMoreSessions"
+              :disabled="isLoading"
+              variant="outline"
+              size="lg"
+            >
+              {{ isLoading ? 'Loading...' : 'Load More Sessions' }}
+            </Button>
+            <p class="text-sm text-muted-foreground ml-4 flex items-center">
+              Showing {{ currentSessions.length }} of {{ pagination.totalSessions }}
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -415,10 +547,10 @@ onMounted(() => {
         <DialogHeader>
           <DialogTitle>Session Details</DialogTitle>
           <DialogDescription v-if="selectedSession">
-            {{ selectedSession.title }} with {{ selectedSession.mentor.name }}
+            {{ selectedSession.title }}
           </DialogDescription>
         </DialogHeader>
-        
+
         <div v-if="selectedSession" class="space-y-6">
           <!-- Basic Info -->
           <div class="grid grid-cols-2 gap-4">
@@ -435,37 +567,44 @@ onMounted(() => {
                 </div>
                 <div class="flex justify-between">
                   <span class="text-muted-foreground">Duration:</span>
-                  <span>{{ formatDuration(selectedSession.duration) }}</span>
+                  <span>{{ formatDuration(selectedSession.durationMinutes) }}</span>
                 </div>
                 <div class="flex justify-between">
                   <span class="text-muted-foreground">Platform:</span>
-                  <span class="capitalize">{{ selectedSession.platform.replace('-', ' ') }}</span>
+                  <span class="capitalize">{{ selectedSession.meetingPlatform.replace('_', ' ').toLowerCase() }}</span>
+                </div>
+                <div v-if="selectedSession.companyProgramName" class="flex justify-between">
+                  <span class="text-muted-foreground">Program:</span>
+                  <span>{{ selectedSession.companyProgramName }}</span>
                 </div>
                 <div class="flex justify-between">
                   <span class="text-muted-foreground">Status:</span>
                   <Badge :variant="getStatusVariant(selectedSession.status)">
-                    {{ selectedSession.status.charAt(0).toUpperCase() + selectedSession.status.slice(1) }}
+                    {{ selectedSession.status.charAt(0).toUpperCase() + selectedSession.status.slice(1).toLowerCase() }}
                   </Badge>
                 </div>
               </div>
             </div>
-            
+
             <div>
-              <h4 class="font-semibold mb-2">Mentor Information</h4>
-              <div class="flex items-center space-x-3 mb-3">
-                <Avatar class="h-10 w-10">
-                  <AvatarImage :src="selectedSession.mentor.profilePhoto" :alt="selectedSession.mentor.name" />
-                  <AvatarFallback>{{ selectedSession.mentor.name.split(' ').map(n => n[0]).join('') }}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <p class="font-medium">{{ selectedSession.mentor.name }}</p>
-                  <p class="text-sm text-muted-foreground">{{ selectedSession.mentor.title }}</p>
-                  <p class="text-sm text-muted-foreground">{{ selectedSession.mentor.company }}</p>
-                </div>
+              <h4 class="font-semibold mb-2">Skill</h4>
+              <div v-if="selectedSession.skill" class="space-y-2 text-sm">
+                <p class="font-medium">{{ selectedSession.skill.name }}</p>
               </div>
-              <div class="flex items-center space-x-1">
-                <Star class="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                <span class="text-sm font-medium">{{ selectedSession.mentor.rating }}</span>
+              <div v-if="selectedSession.price" class="mt-4">
+                <h4 class="font-semibold mb-2">Payment</h4>
+                <div class="space-y-2 text-sm">
+                  <div class="flex justify-between">
+                    <span class="text-muted-foreground">Price:</span>
+                    <span>{{ selectedSession.currency }} {{ selectedSession.price }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-muted-foreground">Status:</span>
+                    <Badge :variant="selectedSession.paid ? 'default' : 'secondary'">
+                      {{ selectedSession.paid ? 'Paid' : selectedSession.paymentStatus }}
+                    </Badge>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -475,71 +614,74 @@ onMounted(() => {
             <h4 class="font-semibold mb-2">Description</h4>
             <p class="text-sm text-muted-foreground">{{ selectedSession.description }}</p>
           </div>
-          
-          <!-- Booking Notes -->
-          <div v-if="selectedSession.bookingNotes">
-            <h4 class="font-semibold mb-2">Your Notes</h4>
-            <p class="text-sm text-muted-foreground">{{ selectedSession.bookingNotes }}</p>
+
+          <!-- Mentee Message -->
+          <div v-if="selectedSession.menteeMessage">
+            <h4 class="font-semibold mb-2">Your Message</h4>
+            <p class="text-sm text-muted-foreground">{{ selectedSession.menteeMessage }}</p>
           </div>
-          
-          <!-- Preparation Materials -->
-          <div v-if="selectedSession.preparationMaterials && selectedSession.preparationMaterials.length > 0">
-            <h4 class="font-semibold mb-2">Preparation Materials</h4>
-            <ul class="space-y-1">
-              <li v-for="material in selectedSession.preparationMaterials" :key="material" class="flex items-center space-x-2 text-sm">
-                <FileText class="h-4 w-4 text-blue-600" />
-                <span>{{ material }}</span>
-              </li>
-            </ul>
+
+          <!-- Mentor Response -->
+          <div v-if="selectedSession.mentorResponse">
+            <h4 class="font-semibold mb-2">Mentor Response</h4>
+            <p class="text-sm text-muted-foreground">{{ selectedSession.mentorResponse }}</p>
           </div>
-          
+
           <!-- Session Notes (for completed sessions) -->
-          <div v-if="selectedSession.sessionNotes">
+          <div v-if="selectedSession.notes">
             <h4 class="font-semibold mb-2">Session Notes</h4>
-            <p class="text-sm text-muted-foreground">{{ selectedSession.sessionNotes }}</p>
+            <p class="text-sm text-muted-foreground">{{ selectedSession.notes }}</p>
           </div>
-          
-          <!-- Action Items (for completed sessions) -->
-          <div v-if="selectedSession.actionItems && selectedSession.actionItems.length > 0">
-            <h4 class="font-semibold mb-2">Action Items</h4>
-            <ul class="space-y-1">
-              <li v-for="item in selectedSession.actionItems" :key="item" class="flex items-center space-x-2 text-sm">
-                <CheckCircle class="h-4 w-4 text-green-600" />
-                <span>{{ item }}</span>
-              </li>
-            </ul>
-          </div>
-          
+
           <!-- Feedback (for completed sessions) -->
-          <div v-if="selectedSession.mentorFeedback || selectedSession.menteeFeedback" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div v-if="selectedSession.mentorFeedback">
-              <h4 class="font-semibold mb-2">Mentor Feedback</h4>
-              <p class="text-sm text-muted-foreground">{{ selectedSession.mentorFeedback }}</p>
-              <div v-if="selectedSession.mentorRating" class="flex items-center space-x-1 mt-2">
-                <Star class="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                <span class="text-sm font-medium">{{ selectedSession.mentorRating }}/5</span>
-              </div>
+          <div v-if="selectedSession.feedback || selectedSession.rating" class="space-y-2">
+            <h4 class="font-semibold mb-2">Session Feedback</h4>
+            <div v-if="selectedSession.rating" class="flex items-center space-x-1">
+              <Star class="h-4 w-4 fill-yellow-400 text-yellow-400" />
+              <span class="text-sm font-medium">{{ selectedSession.rating }}/5</span>
             </div>
-            
-            <div v-if="selectedSession.menteeFeedback">
-              <h4 class="font-semibold mb-2">Your Feedback</h4>
-              <p class="text-sm text-muted-foreground">{{ selectedSession.menteeFeedback }}</p>
-              <div v-if="selectedSession.menteeRating" class="flex items-center space-x-1 mt-2">
-                <Star class="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                <span class="text-sm font-medium">{{ selectedSession.menteeRating }}/5</span>
+            <p v-if="selectedSession.feedback" class="text-sm text-muted-foreground">{{ selectedSession.feedback }}</p>
+          </div>
+
+          <!-- Cancellation Info -->
+          <div v-if="selectedSession.status === 'CANCELLED'" class="space-y-2">
+            <h4 class="font-semibold mb-2">Cancellation Details</h4>
+            <div class="text-sm space-y-1">
+              <div v-if="selectedSession.cancelledBy">
+                <span class="text-muted-foreground">Cancelled by:</span>
+                <span class="ml-2">{{ selectedSession.cancelledBy }}</span>
+              </div>
+              <div v-if="selectedSession.cancelledAt">
+                <span class="text-muted-foreground">Cancelled at:</span>
+                <span class="ml-2">{{ formatDate(selectedSession.cancelledAt) }}</span>
+              </div>
+              <div v-if="selectedSession.cancellationReason">
+                <span class="text-muted-foreground">Reason:</span>
+                <span class="ml-2">{{ selectedSession.cancellationReason }}</span>
               </div>
             </div>
           </div>
-          
+
           <!-- Meeting Link -->
-          <div v-if="selectedSession.meetingLink && isUpcoming(selectedSession)">
-            <Button 
+          <div v-if="selectedSession.meetingUrl && isUpcoming(selectedSession)">
+            <Button
               @click="joinSession(selectedSession)"
               :disabled="!canJoinSession(selectedSession)"
               class="w-full"
             >
               <Video class="h-4 w-4 mr-2" />
               Join Session
+            </Button>
+          </div>
+
+          <div v-if="canMarkComplete(selectedSession)">
+            <Button
+              @click="handleCompleteSession(selectedSession)"
+              :disabled="completingSessionId === selectedSession.id"
+              class="w-full"
+            >
+              <CheckCircle class="h-4 w-4 mr-2" />
+              {{ completingSessionId === selectedSession.id ? 'Completing...' : 'Mark Session as Complete' }}
             </Button>
           </div>
         </div>

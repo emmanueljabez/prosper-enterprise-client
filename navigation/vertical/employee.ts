@@ -1,15 +1,14 @@
 import type { NavigationItem } from './navigation'
 import {
-  LayoutDashboard,
-  Users,
+  House,
   Calendar,
-  TrendingUp,
   User,
-  MessageSquare,
-  Search,
   BookOpen,
   Target,
-  CreditCard
+  Users,
+  GitBranch,
+  MessageSquare,
+  SlidersHorizontal
 } from 'lucide-vue-next'
 
 export const employeeNavigation: NavigationItem[] = [
@@ -18,25 +17,37 @@ export const employeeNavigation: NavigationItem[] = [
     children: [
       {
         title: 'Dashboard',
-        icon: LayoutDashboard,
+        icon: House,
         url: '/app/dashboard',
         permission: 'dashboard:view'
       }
     ]
   },
   {
-    title: 'Mentorship',
+    title: 'My Mentorship',
     children: [
       {
-        title: 'Programs',
+        title: 'My Programs',
         icon: BookOpen,
-        url: '/app/mentors/programs',
+        url: '/app/employee/programs',
         permission: 'mentors:view'
       },
       {
-        title: 'Find Mentors',
-        icon: Search,
-        url: '/app/mentors',
+        title: 'My Journey',
+        icon: Target,
+        url: '/app/employee/journey',
+        permission: 'sessions:view'
+      },
+      {
+        title: 'Mentor Matches',
+        icon: GitBranch,
+        url: '/app/employee/matches',
+        permission: 'mentors:view'
+      },
+      {
+        title: 'My Mentor',
+        icon: Users,
+        url: '/app/employee/mentor',
         permission: 'mentors:view'
       },
       {
@@ -44,6 +55,23 @@ export const employeeNavigation: NavigationItem[] = [
         icon: Calendar,
         url: '/app/sessions',
         permission: 'sessions:view'
+      }
+    ]
+  },
+  {
+    title: 'Growth',
+    children: [
+      {
+        title: 'Goals',
+        icon: Target,
+        url: '/app/employee/goals',
+        permission: 'profile:view'
+      },
+      {
+        title: 'Feedback & Pulses',
+        icon: MessageSquare,
+        url: '/app/employee/pulses',
+        permission: 'profile:view'
       }
     ]
   },
@@ -57,10 +85,10 @@ export const employeeNavigation: NavigationItem[] = [
         permission: 'profile:view'
       },
       {
-        title: 'Plans',
-        icon: CreditCard,
-        url: '/app/plans',
-        permission: 'plans:view'
+        title: 'Preferences',
+        icon: SlidersHorizontal,
+        url: '/app/employee/preferences',
+        permission: 'profile:view'
       }
     ]
   }

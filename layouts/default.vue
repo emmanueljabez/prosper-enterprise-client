@@ -20,8 +20,23 @@ const isCollapsed = ref(false);
 
 // Define logic for when to show the sidebar
 const shouldShowSidebar = computed(() => {
-  const hiddenRoutes = ['/auth/login', '/auth/register', '/auth/onboarding', '/auth/email-verification', '/', '/auth/about', '/auth/account-setup', '/auth/employees', '/auth/password',];
-  return !hiddenRoutes.includes(route.path);
+  const hiddenRoutes = [
+    '/auth/login',
+    '/auth/register',
+    '/auth/onboarding',
+    '/auth/email-verification',
+    '/',
+    '/auth/about',
+    '/auth/account-setup',
+    '/auth/employees',
+    '/auth/password',
+    '/auth/complete-signup',
+    '/forgot-password',
+    '/reset-password',
+  ];
+  // Also hide sidebar for session review pages (dynamic routes)
+  const isSessionReviewPage = route.path.startsWith('/app/sessions/review/');
+  return !hiddenRoutes.includes(route.path) && !isSessionReviewPage;
 });
 
 onMounted(() => {

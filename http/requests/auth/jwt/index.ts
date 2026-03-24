@@ -7,7 +7,45 @@ export default {
     },
 
     register(userData: any) {
-        return axiosInstance.post(`/createTenant`, userData)
+        return axiosInstance.post(`/auth/signup`, userData)
+    },
+
+    forgotPassword(data: {
+        email: string;
+        redirectTo?: string;
+    }) {
+        return axiosInstance.post(`/auth/forgot-password`, data)
+    },
+
+    resetPassword(data: {
+        accessToken: string;
+        password: string;
+    }) {
+        return axiosInstance.post(`/auth/reset-password`, data)
+    },
+
+    completeInvitationSignup(data: {
+        email: string;
+        password: string;
+        invitationToken: string;
+        firstName: string;
+        lastName: string;
+        phoneNumber: string;
+        dateOfBirth?: string;
+    }) {
+        return axiosInstance.post(`/auth/complete-invitation-signup`, data)
+    },
+
+    completeCompanyRegistration(data: {
+        email: string;
+        password: string;
+        registrationToken: string;
+        firstName: string;
+        lastName: string;
+        phoneNumber: string;
+        dateOfBirth?: string;
+    }) {
+        return axiosInstance.post(`/auth/complete-company-registration`, data)
     },
 
     confirmEmail(token: string) {

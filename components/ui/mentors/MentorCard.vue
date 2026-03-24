@@ -162,9 +162,10 @@ const handleContact = () => {
 </script>
 
 <template>
-  <Card 
+  <Card
     :class="{
-      'hover:shadow-lg transition-shadow cursor-pointer': true,
+      'hover:shadow-lg transition-shadow cursor-pointer flex flex-col overflow-hidden': viewMode === 'grid',
+      'hover:shadow-lg transition-shadow cursor-pointer': viewMode === 'list',
       'border-primary/20': isFeatured,
       'border-orange-200': isTrending
     }"
@@ -172,50 +173,48 @@ const handleContact = () => {
   >
     <!-- Grid View -->
     <template v-if="viewMode === 'grid'">
-      <CardContent class="pt-8 pb-6 px-6">
-        <!-- Centered Avatar -->
-        <div class="flex justify-center mb-4">
-          <div class="relative">
-            <Avatar class="h-24 w-24 ring-2 ring-gray-100">
-              <AvatarImage :src="mentor.profilePhoto" :alt="fullName" />
-              <AvatarFallback class="text-2xl">{{ initials }}</AvatarFallback>
-            </Avatar>
-            <div
-              v-if="mentor.isVerified"
-              :class="[
-                'absolute -bottom-1 -right-1 h-6 w-6 rounded-full border-2 border-white bg-green-500 flex items-center justify-center'
-              ]"
-              title="Verified"
-            >
-              <Shield class="h-3 w-3 text-white" />
-            </div>
-          </div>
-        </div>
+      <!-- Portrait Image -->
+      <div class="mentor-card-img">
+        <div class="mentor-card-initials-fallback">{{ initials }}</div>
+        <img
+          v-if="mentor.profilePhoto"
+          :src="mentor.profilePhoto"
+          :alt="fullName"
+          class="absolute inset-0 w-full h-full object-cover"
+          @error="($event.target as HTMLImageElement).style.display = 'none'"
+        />
+      </div>
 
-        <!-- Name -->
-        <h3 class="font-bold text-xl text-center mb-1 truncate">{{ fullName }}</h3>
+      <!-- Card Body -->
+      <div class="p-4 flex flex-col gap-2 flex-1">
+        <h3 class="mentor-name">{{ fullName }}</h3>
+        <p class="text-xs text-muted-foreground line-clamp-2">
+          {{ mentor.profileSummary || 'Professional mentor ready to help you grow.' }}
+        </p>
 
-        <!-- Rating -->
-        <div class="flex items-center justify-center gap-2 mb-6">
-          <Star class="h-5 w-5 fill-yellow-400 text-yellow-400" />
-          <span v-if="displayRating > 0" class="text-sm text-gray-600">
-            {{ displayRating }} ({{ mentor.reviewCount || mentor.totalReviews || 0 }} reviews)
+        <!-- Info Pills -->
+        <div class="flex gap-2 mt-1">
+          <span v-if="mentor.industry || mentor.title" class="info-pill">
+            <span class="info-pill-label">Expertise</span>
+            <span class="info-pill-value">{{ mentor.industry || mentor.title }}</span>
           </span>
-          <span v-else class="text-sm text-gray-500">
-            No ratings yet
+          <span v-if="mentor.company" class="info-pill">
+            <span class="info-pill-label">Location</span>
+            <span class="info-pill-value">{{ mentor.company }}</span>
           </span>
         </div>
 
-        <!-- View Profile Button -->
-        <Button
-          class="w-full text-white"
-          style="background-color: rgb(160, 59, 147);"
-          size="lg"
-          @click.stop="handleViewProfile"
-        >
-          View Profile
-        </Button>
-      </CardContent>
+        <!-- Actions -->
+        <div class="flex items-center gap-2 mt-auto pt-2">
+          <Button
+            class="w-full get-in-touch-btn"
+            size="sm"
+            @click.stop="handleViewProfile"
+          >
+            Get in touch
+          </Button>
+        </div>
+      </div>
     </template>
 
     <!-- List View -->
@@ -390,5 +389,97 @@ const handleContact = () => {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ── Grid card: portrait image ── */
+.mentor-card-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: linear-gradient(135deg, #e9d5ff 0%, #c084fc 100%);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.mentor-card-initials-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Grid card: name ── */
+.mentor-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #a03b93;
+  line-height: 1.3;
+}
+
+/* ── Grid card: info pills ── */
+.info-pill {
+  display: inline-flex;
+  flex-direction: column;
+  background-color: #f3f4f6;
+  border-radius: 8px;
+  padding: 4px 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.info-pill-label {
+  color: #9ca3af;
+  font-weight: 500;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.info-pill-value {
+  color: #374151;
+  font-weight: 600;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Grid card: buttons ── */
+.get-in-touch-btn {
+  background-color: #a03b93;
+  color: white;
+  font-size: 12px;
+  height: 32px;
+  padding: 0 12px;
+}
+
+.get-in-touch-btn:hover {
+  background-color: #882f7c;
+}
+
+.heart-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #e9d5ff;
+  color: #7c3aed;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: white;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.heart-btn:hover {
+  background-color: #f3e8ff;
 }
 </style> 

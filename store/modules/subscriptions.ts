@@ -3,9 +3,12 @@ import { ref, computed } from 'vue'
 import subscriptionsApi, {
   type SubscriptionPlan,
   type ActiveSubscription,
+  type ActiveSubscriptionData,
+  type BillingInterval,
   type UpgradePayload,
   type PaymentInfo,
-  type AddonPurchasePayload
+  type AddonPurchasePayload,
+  type RenewNowData
 } from '@/http/requests/app/subscriptions'
 
 export const useSubscriptionsStore = defineStore('subscriptions', () => {
@@ -13,6 +16,7 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
   const plans = ref<SubscriptionPlan[]>([])
   const selectedPlan = ref<SubscriptionPlan | null>(null)
   const activeSubscription = ref<ActiveSubscription | null>(null)
+  const activeSubscriptionContext = ref<ActiveSubscriptionData | null>(null)
   const isLoading = ref(false)
   const isLoadingActiveSubscription = ref(false)
   const isUpgrading = ref(false)
@@ -31,15 +35,83 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     plans.value.find(plan => plan.id === id)
 
   // Actions
-  const fetchPlans = async () => {
+  const normalizePlan = (plan: SubscriptionPlan | null | undefined): SubscriptionPlan | null => {
+    if (!plan) {
+      return null
+    }
+
+    return {
+      ...plan,
+      formattedPrice: plan.formattedPrice || (
+        Number(plan.cost) === 0
+          ? 'Free'
+          : `${plan.currency || 'KES'} ${Number(plan.cost || 0).toLocaleString()}`
+      ),
+      unlimited: typeof plan.unlimited === 'boolean' ? plan.unlimited : Number(plan.sessionsPerPeriod) === -1,
+      free: typeof plan.free === 'boolean' ? plan.free : Number(plan.cost) === 0,
+    }
+  }
+
+  const normalizeBillingInterval = (billingInterval?: BillingInterval | null): BillingInterval =>
+    billingInterval === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY'
+
+  const normalizeActiveSubscription = (data: ActiveSubscriptionData | null): ActiveSubscription | null => {
+    if (!data) {
+      return null
+    }
+
+    if (data.subscription) {
+      const normalizedPlan = normalizePlan(data.subscription.plan)
+      return {
+        ...data.subscription,
+        billingInterval: normalizeBillingInterval(data.subscription.billingInterval),
+        plan: normalizedPlan || data.subscription.plan,
+        remainingSessionsCount: data.remainingSessions ?? data.subscription.remainingSessionsCount,
+      }
+    }
+
+    if (data.subscriptionSource === 'CORPORATE' && data.companySubscription?.plan) {
+      const normalizedPlan = normalizePlan(data.companySubscription.plan)
+      return {
+        id: data.companySubscription.id,
+        userId: data.corporateSeat?.profileId || '',
+        plan: normalizedPlan || data.companySubscription.plan,
+        sessionsPerMonth: normalizedPlan?.sessionsPerPeriod ?? data.companySubscription.plan.sessionsPerPeriod,
+        sessionsUsed: data.corporateSeat?.sessionsUsed ?? 0,
+        startDate: data.companySubscription.startDate || '',
+        endDate: data.companySubscription.endDate || '',
+        currentPeriodStart: data.companySubscription.currentPeriodStart || '',
+        currentPeriodEnd: data.companySubscription.currentPeriodEnd || '',
+        status: data.companySubscription.status,
+        billingInterval: normalizeBillingInterval(data.companySubscription.billingInterval),
+        autoRenew: Boolean(data.companySubscription.autoRenew),
+        isTrial: false,
+        createdAt: data.companySubscription.createdAt || '',
+        updatedAt: data.companySubscription.updatedAt || '',
+        active: data.companySubscription.status === 'ACTIVE',
+        remainingSessionsCount: data.remainingSessions ?? 0,
+        autoRenewCardOnFile: false,
+        autoRenewCardType: null,
+        autoRenewCardLastFour: null,
+        autoRenewTokenizedAt: null,
+        autoRenewLastChargeAt: null,
+        autoRenewLastFailureReason: null,
+        expired: data.companySubscription.status === 'EXPIRED' || data.companySubscription.status === 'CANCELLED',
+      }
+    }
+
+    return null
+  }
+
+  const fetchPlans = async (audience?: 'INDIVIDUAL' | 'CORPORATE' | 'BOTH') => {
     isLoading.value = true
     error.value = null
 
     try {
-      const response = await subscriptionsApi.getPlans()
+      const response = await subscriptionsApi.getPlans(audience)
 
       if (response.success) {
-        plans.value = response.data
+        plans.value = (response.data || []).map(plan => normalizePlan(plan) || plan)
       } else {
         error.value = response.message || 'Failed to fetch subscription plans'
       }
@@ -59,14 +131,15 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
       const response = await subscriptionsApi.getPlanById(planId)
 
       if (response.success) {
-        selectedPlan.value = response.data
+        const normalizedPlan = normalizePlan(response.data) || response.data
+        selectedPlan.value = normalizedPlan
 
         // Update in plans array if exists
         const index = plans.value.findIndex(p => p.id === planId)
         if (index !== -1) {
-          plans.value[index] = response.data
+          plans.value[index] = normalizedPlan
         } else {
-          plans.value.push(response.data)
+          plans.value.push(normalizedPlan)
         }
       } else {
         error.value = response.message || 'Failed to fetch plan details'
@@ -91,17 +164,19 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
       const response = await subscriptionsApi.getActiveSubscription(userId)
 
       if (response.success && response.data) {
-        // Extract the subscription from the nested data structure
-        activeSubscription.value = response.data.subscription
-        return response.data.subscription
+        activeSubscriptionContext.value = response.data
+        activeSubscription.value = normalizeActiveSubscription(response.data)
+        return activeSubscription.value
       } else {
         error.value = response.message || 'Failed to fetch active subscription'
+        activeSubscriptionContext.value = null
         activeSubscription.value = null
         return null
       }
     } catch (err: any) {
       error.value = err.message || 'An error occurred while fetching active subscription'
       console.error('Error fetching active subscription:', err)
+      activeSubscriptionContext.value = null
       activeSubscription.value = null
       return null
     } finally {
@@ -209,10 +284,105 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     }
   }
 
+  const initiateCyberSourcePayment = async (payload: any) => {
+    isUpgrading.value = true
+    error.value = null
+
+    try {
+      const response = await subscriptionsApi.initiateCyberSourcePayment(payload)
+
+      if (response.success && response.data) {
+        return response
+      } else {
+        error.value = response.message || 'Failed to initiate card payment'
+        return null
+      }
+    } catch (err: any) {
+      error.value = err.message || 'An error occurred while initiating card payment'
+      console.error('Error initiating CyberSource payment:', err)
+      return null
+    } finally {
+      isUpgrading.value = false
+    }
+  }
+
+  const renewNow = async (userId: string): Promise<RenewNowData | null> => {
+    isUpgrading.value = true
+    error.value = null
+
+    try {
+      const response = await subscriptionsApi.renewNow({ userId })
+      if (!response.success || !response.data) {
+        error.value = response.message || 'Failed to initiate renewal'
+        return null
+      }
+
+      if (response.data.renewed) {
+        await fetchActiveSubscription(userId)
+      }
+      return response.data
+    } catch (err: any) {
+      error.value = err?.response?.data?.message || err.message || 'An error occurred while renewing subscription'
+      console.error('Error renewing subscription:', err)
+      return null
+    } finally {
+      isUpgrading.value = false
+    }
+  }
+
+  const updateAutoRenewPreference = async (userId: string, autoRenew: boolean): Promise<boolean> => {
+    isUpgrading.value = true
+    error.value = null
+
+    try {
+      const response = await subscriptionsApi.updateAutoRenew({ userId, autoRenew })
+      if (!response.success || !response.data) {
+        error.value = response.message || 'Failed to update auto-renew preference'
+        return false
+      }
+
+      if (activeSubscription.value && activeSubscription.value.id === response.data.id) {
+        activeSubscription.value = response.data
+      } else {
+        await fetchActiveSubscription(userId)
+      }
+      return true
+    } catch (err: any) {
+      error.value = err?.response?.data?.message || err.message || 'An error occurred while updating auto-renew preference'
+      console.error('Error updating auto-renew preference:', err)
+      return false
+    } finally {
+      isUpgrading.value = false
+    }
+  }
+
+  const cancelActiveSubscription = async (userId: string): Promise<boolean> => {
+    isUpgrading.value = true
+    error.value = null
+
+    try {
+      const response = await subscriptionsApi.cancelSubscription(userId)
+      if (!response.success) {
+        error.value = response.message || 'Failed to cancel subscription'
+        return false
+      }
+
+      await fetchActiveSubscription(userId)
+      return true
+    } catch (err: any) {
+      error.value = err?.response?.data?.message || err.message || 'An error occurred while cancelling subscription'
+      console.error('Error cancelling subscription:', err)
+      return false
+    } finally {
+      isUpgrading.value = false
+    }
+  }
+
   const resetSubscriptions = () => {
     plans.value = []
     selectedPlan.value = null
     activeSubscription.value = null
+    activeSubscriptionContext.value = null
     error.value = null
     isLoading.value = false
     isLoadingActiveSubscription.value = false
@@ -225,6 +395,7 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     plans,
     selectedPlan,
     activeSubscription,
+    activeSubscriptionContext,
     isLoading,
     isLoadingActiveSubscription,
     isUpgrading,
@@ -243,6 +414,10 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     setSelectedPlan,
     upgradeSubscription,
     purchaseAddonSessions,
+    initiateCyberSourcePayment,
+    renewNow,
+    updateAutoRenewPreference,
+    cancelActiveSubscription,
     pollPaymentStatus,
     clearError,
     resetSubscriptions

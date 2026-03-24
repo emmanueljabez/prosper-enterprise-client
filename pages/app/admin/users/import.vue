@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Upload, FileText, CheckCircle, XCircle, ArrowLeft, Download } from 'lucide-vue-next'
 import { useAppToast } from '@/composables/services/toastService'
+import { useCompanyStore } from '@/store/modules/company'
 
 definePageMeta({
   title: 'Import Employees',
@@ -20,6 +21,10 @@ definePageMeta({
 
 const router = useRouter()
 const { success, error: toastError } = useAppToast()
+const companyStore = useCompanyStore()
+
+// Company ID - this should ideally come from user context/auth
+const COMPANY_ID = 'bf65f6fa-be7d-4225-9880-a19d9e612e09'
 
 type Employee = {
   id: string
@@ -32,8 +37,9 @@ type Employee = {
 }
 
 // Wizard steps
-const step = ref<1 | 2 | 3 | 4>(1)
+const step = ref<1 | 2 | 3 | 4 | 5>(1)
 const fileName = ref('')
+const uploadedFile = ref<File | null>(null)
 const rawRows = ref<any[]>([])
 const parsedRows = ref<Employee[]>([])
 const invalidRows = ref<{ index: number, reason: string }[]>([])
@@ -83,8 +89,28 @@ const handleFile = async (e: Event) => {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+
+  // Validate file type
+  const allowedExtensions = ['.csv', '.json', '.xlsx', '.xls']
+  const fileExtension = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
+
+  if (!allowedExtensions.includes(fileExtension)) {
+    toastError('Please upload a CSV, JSON, or Excel file')
+    if (fileInput.value) fileInput.value.value = ''
+    return
+  }
+
   try {
     fileName.value = file.name
+    uploadedFile.value = file
+
+    // For Excel files, we'll skip the preview and go straight to options
+    if (fileExtension === '.xlsx' || fileExtension === '.xls') {
+      step.value = 3
+      return
+    }
+
+    // For CSV/JSON, parse and show preview
     const text = await file.text()
     let rows: any[] = []
     if (file.name.toLowerCase().endsWith('.json')) {
@@ -130,14 +156,19 @@ const roleOptions = computed(() => {
   return Array.from(set)
 })
 
-// Simulated import persistence. In a real app, POST to API.
+// Import via API
 const confirmImport = async () => {
+  if (!uploadedFile.value) {
+    toastError('No file selected')
+    return
+  }
+
   try {
-    // TODO: API call
-    success(`Imported ${parsedRows.value.length} employees`)
-    router.push('/app/admin/users')
+    const result = await companyStore.bulkUploadWhitelist(COMPANY_ID, uploadedFile.value)
+    step.value = 5 // Move to results step
   } catch (e) {
-    toastError('Failed to import employees')
+    // Error is already handled in the store
+    console.error('Import failed:', e)
   }
 }
 
@@ -153,18 +184,28 @@ const download = (filename: string, content: string, type = 'text/plain;charset=
 }
 
 const downloadCsvTemplate = () => {
-  const header = ['id','name','email','department','role','status','joinedAt']
-  const sample = ['emp-001','Jane Doe','jane@example.com','Engineering','Software Engineer','invited','2024-11-01']
+  const header = ['email','name']
+  const sample = ['jane@example.com','Jane Doe']
   const csv = `${header.join(',')}\n${sample.join(',')}`
-  download('employees_template.csv', csv, 'text/csv;charset=utf-8;')
+  download('whitelist_template.csv', csv, 'text/csv;charset=utf-8;')
 }
 
 const downloadJsonTemplate = () => {
   const sample = [
-    { id: 'emp-001', name: 'Jane Doe', email: 'jane@example.com', department: 'Engineering', role: 'Software Engineer', status: 'invited', joinedAt: '2024-11-01' },
-    { id: 'emp-002', name: 'John Smith', email: 'john@example.com', department: 'HR', role: 'HRBP', status: 'active', joinedAt: '2023-05-10' }
+    { email: 'jane@example.com', name: 'Jane Doe' },
+    { email: 'john@example.com', name: 'John Smith' }
   ]
-  download('employees_template.json', JSON.stringify(sample, null, 2), 'application/json;charset=utf-8;')
+  download('whitelist_template.json', JSON.stringify(sample, null, 2), 'application/json;charset=utf-8;')
+}
+
+const startOver = () => {
+  step.value = 1
+  fileName.value = ''
+  uploadedFile.value = null
+  rawRows.value = []
+  parsedRows.value = []
+  invalidRows.value = []
+  companyStore.clearUploadResult()
 }
 </script>
 
@@ -173,7 +214,7 @@ const downloadJsonTemplate = () => {
     <div class="flex items-center justify-between">
       <div class="space-y-1">
         <h1 class="text-3xl font-bold tracking-tight">Import Employees</h1>
-        <p class="text-muted-foreground">Upload a CSV or JSON file, review, and confirm import</p>
+        <p class="text-muted-foreground">Upload a CSV, JSON, or Excel file to bulk import employees</p>
       </div>
       <Button variant="outline" class="gap-2" @click="router.push('/app/admin/users')"><ArrowLeft class="h-4 w-4" /> Back</Button>
     </div>
@@ -182,14 +223,13 @@ const downloadJsonTemplate = () => {
     <Card v-if="step === 1">
       <CardHeader>
         <CardTitle>Upload file</CardTitle>
-        <CardDescription>Accepted formats: .csv, .json</CardDescription>
+        <CardDescription>Accepted formats: .csv, .json, .xlsx, .xls</CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
-        <input ref="fileInput" type="file" accept=".csv,.json" class="hidden" @change="handleFile" />
+        <input ref="fileInput" type="file" accept=".csv,.json,.xlsx,.xls" class="hidden" @change="handleFile" />
         <div class="flex flex-wrap gap-2">
           <Button class="gap-2" @click="triggerSelect"><Upload class="h-4 w-4" /> Choose file</Button>
           <Button variant="outline" class="gap-2" @click="downloadCsvTemplate"><Download class="h-4 w-4" /> CSV template</Button>
-          <Button variant="outline" class="gap-2" @click="downloadJsonTemplate"><Download class="h-4 w-4" /> JSON template</Button>
         </div>
       </CardContent>
     </Card>
@@ -295,7 +335,7 @@ const downloadJsonTemplate = () => {
     <Card v-if="step === 4">
       <CardHeader>
         <CardTitle>Review & confirm</CardTitle>
-        <CardDescription>Ready to import {{ parsedRows.length }} employees</CardDescription>
+        <CardDescription>Ready to import from {{ fileName }}</CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
         <ul class="text-sm list-disc pl-5 text-muted-foreground">
@@ -304,8 +344,82 @@ const downloadJsonTemplate = () => {
           <li v-if="options.requireApprovalForNew">New employees will be marked as pending_approval</li>
         </ul>
         <div class="flex items-center justify-between">
-          <Button variant="outline" @click="step = 3">Back</Button>
-          <Button @click="confirmImport">Confirm Import</Button>
+          <Button variant="outline" @click="step = 3" :disabled="companyStore.isLoading">Back</Button>
+          <Button @click="confirmImport" :disabled="companyStore.isLoading">
+            {{ companyStore.isLoading ? 'Uploading...' : 'Confirm Import' }}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- Step 5: Results -->
+    <Card v-if="step === 5">
+      <CardHeader>
+        <CardTitle>Import Results</CardTitle>
+        <CardDescription>Upload completed</CardDescription>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <div v-if="companyStore.lastUploadResult" class="space-y-4">
+          <!-- Summary Stats -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="p-4 border rounded-lg">
+              <div class="text-2xl font-bold">{{ companyStore.lastUploadResult.totalProcessed }}</div>
+              <div class="text-sm text-muted-foreground">Total Processed</div>
+            </div>
+            <div class="p-4 border rounded-lg bg-green-50">
+              <div class="text-2xl font-bold text-green-600">{{ companyStore.lastUploadResult.successCount }}</div>
+              <div class="text-sm text-muted-foreground">Successful</div>
+            </div>
+            <div class="p-4 border rounded-lg bg-red-50" v-if="companyStore.lastUploadResult.failureCount > 0">
+              <div class="text-2xl font-bold text-red-600">{{ companyStore.lastUploadResult.failureCount }}</div>
+              <div class="text-sm text-muted-foreground">Failed</div>
+            </div>
+            <div class="p-4 border rounded-lg bg-yellow-50" v-if="companyStore.lastUploadResult.duplicateCount > 0">
+              <div class="text-2xl font-bold text-yellow-600">{{ companyStore.lastUploadResult.duplicateCount }}</div>
+              <div class="text-sm text-muted-foreground">Duplicates</div>
+            </div>
+          </div>
+
+          <!-- Success List -->
+          <div v-if="companyStore.lastUploadResult.successEmails.length" class="space-y-2">
+            <h3 class="font-semibold flex items-center gap-2">
+              <CheckCircle class="h-5 w-5 text-green-600" />
+              Successfully Added ({{ companyStore.lastUploadResult.successEmails.length }})
+            </h3>
+            <div class="border rounded-lg p-4 max-h-60 overflow-y-auto">
+              <div class="space-y-1">
+                <div v-for="email in companyStore.lastUploadResult.successEmails" :key="email" class="text-sm">
+                  <Badge variant="outline" class="gap-1">
+                    <CheckCircle class="h-3 w-3" />
+                    {{ email }}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Error List -->
+          <div v-if="companyStore.lastUploadResult.errors.length" class="space-y-2">
+            <h3 class="font-semibold flex items-center gap-2">
+              <XCircle class="h-5 w-5 text-red-600" />
+              Errors ({{ companyStore.lastUploadResult.errors.length }})
+            </h3>
+            <div class="border rounded-lg p-4 max-h-60 overflow-y-auto">
+              <div class="space-y-2">
+                <Alert v-for="(error, idx) in companyStore.lastUploadResult.errors" :key="idx" class="bg-red-50">
+                  <AlertDescription>
+                    <span v-if="error.email" class="font-semibold">{{ error.email }}:</span>
+                    {{ error.reason }}
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <Button variant="outline" @click="startOver">Import Another File</Button>
+          <Button @click="router.push('/app/admin/users')">Go to Users</Button>
         </div>
       </CardContent>
     </Card>

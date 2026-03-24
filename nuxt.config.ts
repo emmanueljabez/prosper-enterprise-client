@@ -13,6 +13,12 @@ export default defineNuxtConfig({
   // Vite configuration for hot module replacement
   vite: {
     server: {
+      allowedHosts: [
+        'localhost',
+        '127.0.0.1',
+        'noddingly-pharmacognostic-deon.ngrok-free.dev',
+        '.ngrok-free.dev'
+      ],
       hmr: {
         port: 24678,
         host: 'localhost'
@@ -28,7 +34,10 @@ export default defineNuxtConfig({
   },
   
   runtimeConfig: {
+    cybersourceBackendApiBase: process.env.NUXT_CYBERSOURCE_BACKEND_API_BASE || '',
+    cybersourceResponseTtlMs: Number(process.env.NUXT_CYBERSOURCE_RESPONSE_TTL_MS || 900000),
     public: {
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || '',
       // mapboxToken: process.env.NUXT_PUBLIC_MAPBOX_TOKEN
       nodeEnv: process.env.NODE_ENV,
       googleMapsApiKey: process.env.NUXT_PUBLIC_GOOGLE_MAPS_API_KEY,
@@ -78,7 +87,7 @@ export default defineNuxtConfig({
         { 
           rel: 'icon',
           type: 'image/x-icon',
-          href: '/images/favicon-32x32.png'
+          href: '/favicon/favicon-32x32.png'
         }
       ]
     }

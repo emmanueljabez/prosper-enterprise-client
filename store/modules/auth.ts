@@ -104,6 +104,20 @@ export const DUMMY_USER_DATA = {
   }
 }
 
+const normalizeFrontendRoleName = (roleName?: string): 'employee' | 'mentor' | 'corporate_admin' => {
+  const normalized = String(roleName || '').trim().toLowerCase()
+
+  if (normalized === 'mentor') {
+    return 'mentor'
+  }
+
+  if (['company', 'company_admin', 'corporate_admin'].includes(normalized)) {
+    return 'corporate_admin'
+  }
+
+  return 'employee'
+}
+
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     loggedInUser: null,
@@ -167,7 +181,7 @@ export const useAuthStore = defineStore('auth', {
           // Create a User object from the decoded token
           console.log('🔍 Auth Store: Raw roles from JWT:', decoded.roles);
           const mappedRoles = decoded.roles?.map(roleName => {
-            const role = roleName as 'employee' | 'mentor' | 'corporate_admin'
+            const role = normalizeFrontendRoleName(roleName)
             console.log('🔍 Auth Store: Mapping role:', roleName, 'to:', DEFAULT_ROLES[role]);
             return DEFAULT_ROLES[role] || DEFAULT_ROLES.employee
           }) || [DEFAULT_ROLES.employee]
@@ -367,7 +381,7 @@ export const useAuthStore = defineStore('auth', {
             picture: responseData.picture,
             provider: ssoData.provider,
             roles: responseData.roles?.map((roleName: string) => {
-              const role = roleName as 'employee' | 'mentor' | 'corporate_admin'
+              const role = normalizeFrontendRoleName(roleName)
               return DEFAULT_ROLES[role] || DEFAULT_ROLES.employee
             }) || [DEFAULT_ROLES.employee],
             isVerified: true,
@@ -523,15 +537,61 @@ export const useAuthStore = defineStore('auth', {
         jwt.login(loginData)
             .then((response) => {
               if (response && response.data) {
-                if (response.data) {
-                  this.loggedInUser = response.data.user.email
-                  localStorage.setItem('token', response.data.access_token)
-                  localStorage.setItem('provider', 'local')
-                  localStorage.setItem('loggedInUser', JSON.stringify(response.data.user))
+                const responseData = response.data.data || response.data
+                const responseUser = responseData?.user || response.data?.user || {}
+                const responseProfile = responseData?.profile || response.data?.profile || {}
 
+                const roleNames: string[] = Array.isArray(responseUser.roles)
+                  ? responseUser.roles
+                  : responseProfile?.role
+                    ? [responseProfile.role]
+                    : ['employee']
+
+                const mappedRoles = roleNames.map((roleName: string) => {
+                  const normalizedRole = normalizeFrontendRoleName(roleName)
+                  return DEFAULT_ROLES[normalizedRole]
+                })
+
+                const firstName = responseProfile.firstName || responseUser?.user_metadata?.first_name
+                const lastName = responseProfile.lastName || responseUser?.user_metadata?.last_name
+                const fallbackName = [firstName, lastName].filter(Boolean).join(' ').trim()
+                const resolvedName = responseUser.name || fallbackName || responseUser.email || loginData.email
+                const resolvedUserId = responseUser.id || responseData.id || responseProfile.id || ''
+
+                this.loggedInUser = {
+                  id: resolvedUserId,
+                  email: responseUser.email || loginData.email,
+                  name: resolvedName,
+                  firstName: firstName || undefined,
+                  lastName: lastName || undefined,
+                  provider: 'local',
+                  roles: mappedRoles.length > 0 ? mappedRoles : [DEFAULT_ROLES.employee],
+                  isVerified: true,
+                  createdAt: responseUser.created_at || new Date().toISOString(),
+                  lastLoginAt: new Date().toISOString(),
+                  companyId: responseProfile.companyId || responseProfile.company_id
                 }
 
-                resolve(response.data.user.user_metadata)
+                if (typeof window !== 'undefined') {
+                  const authToken = responseData?.access_token || response.data?.access_token || responseData?.jwtToken || response.data?.jwtToken
+                  if (authToken) {
+                    localStorage.setItem('token', authToken)
+                  }
+                  localStorage.setItem('provider', 'local')
+                  localStorage.setItem('loggedInUser', JSON.stringify(responseUser?.id ? responseUser : this.loggedInUser))
+                  if (responseProfile && Object.keys(responseProfile).length > 0) {
+                    localStorage.setItem('profile', JSON.stringify(responseProfile))
+                    if (responseProfile.role) {
+                      localStorage.setItem('role', responseProfile.role)
+                    }
+                  }
+                }
+
+                if (!this.loggedInUser.id) {
+                  this.initializeFromStorage()
+                }
+
+                resolve(response.data)
               } else {
                 reject({
                   message: "Invalid response format",
@@ -540,6 +600,7 @@ export const useAuthStore = defineStore('auth', {
               }
             })
             .catch((error) => {
+              console.log(error)
               if (error.response) {
                 const statusCode = error.response.status
                 const errorData = error.response.data || {}
@@ -584,7 +645,7 @@ export const useAuthStore = defineStore('auth', {
                 lastName: userData.lastName || undefined,
                 provider: 'local',
                 roles: responseData.roles?.map((roleName: string) => {
-                  const role = roleName as 'employee' | 'mentor' | 'corporate_admin'
+                  const role = normalizeFrontendRoleName(roleName)
                   return DEFAULT_ROLES[role] || DEFAULT_ROLES.employee
                 }) || [DEFAULT_ROLES.employee],
                 isVerified: false, // Email verification required
@@ -631,6 +692,83 @@ export const useAuthStore = defineStore('auth', {
           })
       })
     }, 
+
+    requestPasswordReset(email: string, redirectTo?: string) {
+      this.loading = true
+
+      return new Promise((resolve, reject) => {
+        jwt.forgotPassword({ email, redirectTo })
+          .then((response) => {
+            if (response && response.data) {
+              resolve(response.data)
+            } else {
+              reject({
+                message: 'Invalid response format',
+                success: false,
+              })
+            }
+          })
+          .catch((error) => {
+            if (error.response) {
+              const errorData = error.response.data || {}
+              this.error = errorData.error || errorData.message || 'Failed to send password reset email'
+              reject({
+                message: this.error,
+                success: false,
+                statusCode: error.response.status,
+              })
+            } else {
+              this.error = 'Network error. Please try again'
+              reject({
+                message: this.error,
+                success: false,
+              })
+            }
+          })
+          .finally(() => {
+            this.loading = false
+          })
+      })
+    },
+
+    resetPasswordWithRecoveryToken(accessToken: string, password: string) {
+      this.loading = true
+
+      return new Promise((resolve, reject) => {
+        jwt.resetPassword({ accessToken, password })
+          .then((response) => {
+            if (response && response.data) {
+              resolve(response.data)
+            } else {
+              reject({
+                message: 'Invalid response format',
+                success: false,
+              })
+            }
+          })
+          .catch((error) => {
+            if (error.response) {
+              const errorData = error.response.data || {}
+              this.error = errorData.error || errorData.message || 'Failed to reset password'
+              reject({
+                message: this.error,
+                success: false,
+                statusCode: error.response.status,
+              })
+            } else {
+              this.error = 'Network error. Please try again'
+              reject({
+                message: this.error,
+                success: false,
+              })
+            }
+          })
+          .finally(() => {
+            this.loading = false
+          })
+      })
+    },
+
     async confirmEmail(token: string) {
       this.loading = true;
       let confirmEmailResponse: any = null;
@@ -653,6 +791,150 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this.loading = false
       }
+    },
+
+    async completeInvitationSignup(data: {
+      email: string;
+      password: string;
+      invitationToken: string;
+      firstName: string;
+      lastName: string;
+      phoneNumber: string;
+      dateOfBirth?: string;
+    }) {
+      this.loading = true
+
+      return new Promise((resolve, reject) => {
+        jwt.completeInvitationSignup(data)
+          .then((response) => {
+            if (response && response.data) {
+              const responseData = response.data.data || response.data
+
+              // Create User object from invitation signup response
+              this.loggedInUser = {
+                id: responseData.user?.id || responseData.id,
+                email: data.email,
+                name: responseData.user?.name || `${data.firstName} ${data.lastName}`,
+                firstName: data.firstName,
+                lastName: data.lastName,
+                provider: 'local',
+                roles: responseData.profile?.role
+                  ? [DEFAULT_ROLES[normalizeFrontendRoleName(responseData.profile.role)] || DEFAULT_ROLES.employee]
+                  : [DEFAULT_ROLES.employee],
+                isVerified: true,
+                createdAt: responseData.user?.createdAt || new Date().toISOString(),
+                lastLoginAt: new Date().toISOString(),
+                companyId: responseData.profile?.companyId
+              }
+
+              // Store auth tokens
+              if (response.data.access_token && typeof window !== 'undefined') {
+                localStorage.setItem('token', response.data.access_token)
+                localStorage.setItem('loggedInUser', JSON.stringify(response.data.user))
+
+                if (response.data.profile) {
+                  localStorage.setItem('profile', JSON.stringify(response.data.profile))
+                  localStorage.setItem('role', response.data.profile.role || 'mentee')
+                }
+              }
+
+              resolve(response.data)
+            } else {
+              reject({
+                message: "Invalid response format",
+                success: false
+              })
+            }
+          })
+          .catch((error) => {
+            console.error('Complete invitation signup error:', error)
+            if (error.response) {
+              const statusCode = error.response.status
+              const errorData = error.response.data || {}
+
+              this.error = errorData.error || errorData.message || "An error occurred"
+
+              reject({
+                message: this.error,
+                success: false,
+                statusCode
+              })
+            } else {
+              this.error = "Network error. Please try again"
+              reject({
+                message: this.error,
+                success: false
+              })
+            }
+          })
+          .finally(() => {
+            this.loading = false
+          })
+      })
+    },
+
+    async completeCompanyRegistrationSignup(data: {
+      email: string;
+      password: string;
+      registrationToken: string;
+      firstName: string;
+      lastName: string;
+      phoneNumber: string;
+      dateOfBirth?: string;
+    }) {
+      this.loading = true
+
+      return new Promise((resolve, reject) => {
+        jwt.completeCompanyRegistration(data)
+          .then((response) => {
+            if (response && response.data) {
+              const responseData = response.data.data || response.data
+
+              this.loggedInUser = {
+                id: responseData.user?.id || responseData.id,
+                email: data.email,
+                name: responseData.user?.name || `${data.firstName} ${data.lastName}`,
+                firstName: data.firstName,
+                lastName: data.lastName,
+                provider: 'local',
+                roles: responseData.profile?.role
+                  ? [DEFAULT_ROLES[normalizeFrontendRoleName(responseData.profile.role)] || DEFAULT_ROLES.corporate_admin]
+                  : [DEFAULT_ROLES.corporate_admin],
+                isVerified: true,
+                createdAt: responseData.user?.createdAt || new Date().toISOString(),
+                lastLoginAt: new Date().toISOString(),
+                companyId: responseData.profile?.company?.id || responseData.company?.companyId
+              }
+
+              if (response.data.access_token && typeof window !== 'undefined') {
+                localStorage.setItem('token', response.data.access_token)
+                localStorage.setItem('loggedInUser', JSON.stringify(response.data.user))
+
+                if (response.data.profile) {
+                  localStorage.setItem('profile', JSON.stringify(response.data.profile))
+                  localStorage.setItem('role', response.data.profile.role || 'company')
+                } else if (responseData.profile) {
+                  localStorage.setItem('profile', JSON.stringify(responseData.profile))
+                  localStorage.setItem('role', responseData.profile.role || 'company')
+                } else {
+                  localStorage.setItem('role', 'company')
+                }
+              }
+
+              resolve(response.data)
+            } else {
+              reject(new Error('Invalid response from server'))
+            }
+          })
+          .catch((error) => {
+            const message = error.response?.data?.error || error.message || 'Failed to complete company registration'
+            this.error = message
+            reject(new Error(message))
+          })
+          .finally(() => {
+            this.loading = false
+          })
+      })
     },
 
     async goToDashboard(router: any) {

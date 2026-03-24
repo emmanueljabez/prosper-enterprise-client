@@ -9,24 +9,12 @@
       </SheetTrigger>
     </Sheet>
 
-    <!-- Search Bar -->
-    <div class="flex-1 max-w-xl">
-      <Popover>
-        <PopoverTrigger asChild>
-          <div class="relative w-full">
-            <Input type="search" placeholder="Search..." class="w-full pl-10" />
-            <Search class="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          </div>
-        </PopoverTrigger>
-        <PopoverContent class="w-[400px] p-4">
-          <Command>
-            <CommandInput placeholder="Search anything..." />
-            <CommandList>
-              <CommandEmpty>No results found.</CommandEmpty>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+    <div class="flex min-w-0 flex-1 items-center">
+      <img
+        :src="companyLogoUrl || '/images/prosper_mentor_logo.png'"
+        alt="Company logo"
+        class="h-14 w-[260px] object-contain object-left md:h-16 md:w-[340px]"
+      />
     </div>
 
     <div class="navbar-items flex items-center justify-end gap-4">
@@ -82,25 +70,16 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Sheet, SheetTrigger } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import {
   Menu,
   User2,
   BellRing,
-  Search,
-  LayoutGrid,
-  MessageCircle,
-  Boxes,
-  Server,
-  BarChart2,
-  BadgeDollarSign,
   Calendar
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/store/modules/auth'
@@ -111,6 +90,17 @@ import { useToast } from '@/components/ui/toast'
 const authStore = useAuthStore()
 const calendarStore = useCalendarStore()
 const { toast } = useToast()
+
+const companyLogoUrl = computed(() => {
+  try {
+    const profileStr = localStorage.getItem('profile')
+    if (!profileStr) return null
+    const profile = JSON.parse(profileStr)
+    return profile?.company?.logoUrl || null
+  } catch {
+    return null
+  }
+})
 
 // Initialize calendar store on mount
 onMounted(() => {

@@ -22,6 +22,10 @@ export interface UserProfile {
   linkedinUrl: string | null
   favouriteQuote: string | null
   country: string | null
+  company?: {
+    id: string
+    name?: string | null
+  } | null
 }
 
 export interface UserProfileResponse {

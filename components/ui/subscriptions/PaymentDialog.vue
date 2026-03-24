@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useSubscriptionsStore } from '@/store/modules/subscriptions'
 import { useAuthStore } from '@/store/modules/auth'
 import type { SubscriptionPlan } from '@/http/requests/app/subscriptions'
@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
+import CyberSourcePayment from '@/components/ui/subscriptions/CyberSourcePayment.vue'
 
 // Icons
 import { Loader2, CreditCard, Smartphone, AlertCircle, CheckCircle, XCircle } from 'lucide-vue-next'
@@ -46,6 +47,10 @@ const paymentStatus = ref<'idle' | 'pending' | 'polling' | 'completed' | 'failed
 const errorMessage = ref<string | null>(null)
 const checkoutRequestId = ref<string | null>(null)
 const remainingSeconds = ref(120) // 2 minutes
+
+// CyberSource state
+const showCyberSourcePayment = ref(false)
+const cyberSourcePaymentData = ref<any>(null)
 
 // Computed
 const isOpen = computed({
@@ -89,7 +94,10 @@ const canProceed = computed(() => {
   if (paymentMethod.value === 'mpesa') {
     return phoneNumber.value.length >= 10
   }
-  return false // Card payment disabled
+  if (paymentMethod.value === 'card') {
+    return true // Card payment enabled
+  }
+  return false
 })
 
 const formattedTime = computed(() => {
@@ -97,6 +105,39 @@ const formattedTime = computed(() => {
   const seconds = remainingSeconds.value % 60
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 })
+
+const activeSubscriptionId = computed(() => subscriptionsStore.activeSubscription?.id || null)
+
+const resolveCurrentUserId = async (): Promise<string | null> => {
+  const storeUserId = authStore.loggedInUser?.id
+  if (typeof storeUserId === 'string' && storeUserId.trim().length > 0) {
+    return storeUserId
+  }
+
+  if (typeof window !== 'undefined') {
+    const loggedInUserRaw = localStorage.getItem('loggedInUser')
+    if (loggedInUserRaw) {
+      try {
+        const parsed = JSON.parse(loggedInUserRaw)
+        if (parsed?.id && typeof parsed.id === 'string') {
+          return parsed.id
+        }
+      } catch (error) {
+        console.warn('Unable to parse loggedInUser from localStorage', error)
+      }
+    }
+  }
+
+  const initialized = authStore.initializeFromStorage()
+  if (initialized) {
+    const hydratedUserId = authStore.loggedInUser?.id
+    if (typeof hydratedUserId === 'string' && hydratedUserId.trim().length > 0) {
+      return hydratedUserId
+    }
+  }
+
+  return null
+}
 
 // Methods
 const formatPhoneNumber = (phone: string): string => {
@@ -117,16 +158,92 @@ const formatPhoneNumber = (phone: string): string => {
 }
 
 const handlePayment = async () => {
-  if (!authStore.loggedInUser?.id) return
 
   // Validate we have either a plan or addon option
-  if (!props.plan && !isAddonPurchase.value) return
+  if (!props.plan && !isAddonPurchase.value) {
+    console.error('❌ Payment validation failed:', {
+      hasPlan: !!props.plan,
+      isAddonPurchase: isAddonPurchase.value,
+      addonOption: props.addonOption,
+      addonQuantity: props.addonQuantity
+    })
+    errorMessage.value = 'Invalid payment configuration. Please try again or contact support.'
+    return
+  }
 
   errorMessage.value = null
   isProcessing.value = true
   paymentStatus.value = 'pending'
 
   try {
+    const currentUserId = await resolveCurrentUserId()
+    if (!currentUserId) {
+      console.error('❌ User not logged in or user ID missing')
+      paymentStatus.value = 'failed'
+      errorMessage.value = 'User session expired. Please log in again.'
+      isProcessing.value = false
+      return
+    }
+
+    // Handle Card Payment via CyberSource
+    if (paymentMethod.value === 'card') {
+      console.log('💳 Initiating CyberSource card payment')
+
+      if (!activeSubscriptionId.value) {
+        await subscriptionsStore.fetchActiveSubscription(currentUserId)
+      }
+
+      const resolvedSubscriptionId = subscriptionsStore.activeSubscription?.id || null
+
+      if (isAddonPurchase.value && !resolvedSubscriptionId) {
+        paymentStatus.value = 'failed'
+        errorMessage.value = 'Active subscription is required for add-on card payment.'
+        isProcessing.value = false
+        return
+      }
+
+      const paymentType = isAddonPurchase.value
+        ? 'ADDON'
+        : resolvedSubscriptionId
+          ? 'UPGRADE'
+          : 'SUBSCRIPTION'
+
+      const callbackBaseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+
+      const paymentRequest = {
+        userId: currentUserId,
+        amount: totalAmount.value,
+        currency: isAddonPurchase.value ? props.addonOption.currency : 'KES',
+        paymentType,
+        description: isAddonPurchase.value
+          ? `Purchase ${props.addonQuantity} addon session(s)`
+          : `Upgrade to ${props.plan?.name}`,
+        planId: props.plan?.id || null,
+        addonQuantity: props.addonQuantity || null,
+        subscriptionId: resolvedSubscriptionId,
+        returnUrl: callbackBaseUrl ? `${callbackBaseUrl}/payment/cybersource/response` : undefined,
+        cancelUrl: callbackBaseUrl ? `${callbackBaseUrl}/payment/cybersource/cancel` : undefined
+      }
+
+      console.log('📤 Payment request:', paymentRequest)
+
+      const result = await subscriptionsStore.initiateCyberSourcePayment(paymentRequest)
+
+      if (result && result.success) {
+        console.log('✅ CyberSource payment initialized:', result.data)
+        cyberSourcePaymentData.value = result.data
+        showCyberSourcePayment.value = true
+        isProcessing.value = false
+      } else {
+        console.error('❌ CyberSource payment initialization failed:', result)
+        paymentStatus.value = 'failed'
+        errorMessage.value = result?.message || 'Failed to initialize card payment. Please try again.'
+        isProcessing.value = false
+      }
+      return
+    }
+
+    // Handle M-Pesa Payment
     const formattedPhone = formatPhoneNumber(phoneNumber.value)
 
     let result
@@ -134,7 +251,7 @@ const handlePayment = async () => {
     if (isAddonPurchase.value) {
       // Addon session purchase
       console.log('🛒 Addon Purchase:', {
-        userId: authStore.loggedInUser.id,
+        userId: currentUserId,
         quantity: props.addonQuantity,
         costPerSession: props.addonOption?.costPerSession,
         totalAmount: totalAmount.value,
@@ -142,20 +259,28 @@ const handlePayment = async () => {
       })
 
       result = await subscriptionsStore.purchaseAddonSessions({
-        userId: authStore.loggedInUser.id,
+        userId: currentUserId,
         quantity: props.addonQuantity!,
         phoneNumber: formattedPhone
       })
     } else {
       // Standard subscription upgrade
+      console.log('📈 Subscription Upgrade:', {
+        userId: currentUserId,
+        newPlanId: props.plan!.id,
+        planName: props.plan!.name,
+        phoneNumber: formattedPhone
+      })
+
       result = await subscriptionsStore.upgradeSubscription({
-        userId: authStore.loggedInUser.id,
+        userId: currentUserId,
         newPlanId: props.plan!.id,
         phoneNumber: formattedPhone
       })
     }
 
     if (result && result.payment) {
+      console.log('✅ Payment initiated successfully:', result.payment)
       checkoutRequestId.value = result.payment.checkoutRequestId
       paymentStatus.value = 'polling'
       remainingSeconds.value = 120 // Reset countdown
@@ -180,22 +305,29 @@ const handlePayment = async () => {
       clearInterval(countdownInterval)
 
       if (status === 'COMPLETED') {
+        console.log('✅ Payment completed successfully')
         paymentStatus.value = 'completed'
         setTimeout(() => {
           emit('success')
           resetDialog()
         }, 2000)
       } else if (status === 'TIMEOUT') {
+        console.warn('⏱️ Payment verification timed out')
         paymentStatus.value = 'timeout'
         errorMessage.value = 'Payment verification timed out. Please check your phone and try again if payment was not completed.'
       }
     } else {
+      console.error('❌ Payment initiation failed:', {
+        result,
+        storeError: subscriptionsStore.error
+      })
       paymentStatus.value = 'failed'
-      errorMessage.value = subscriptionsStore.error || 'Failed to initiate payment'
+      errorMessage.value = subscriptionsStore.error || 'Failed to initiate payment. Please try again.'
     }
   } catch (error: any) {
+    console.error('❌ Payment error:', error)
     paymentStatus.value = 'failed'
-    errorMessage.value = error.message || 'An error occurred while processing payment'
+    errorMessage.value = error.response?.data?.message || error.message || 'An error occurred while processing payment'
   } finally {
     isProcessing.value = false
   }
@@ -218,7 +350,53 @@ const resetDialog = () => {
     checkoutRequestId.value = null
     isProcessing.value = false
     remainingSeconds.value = 120
+    showCyberSourcePayment.value = false
+    cyberSourcePaymentData.value = null
   }, 300)
+}
+
+// CyberSource Payment Handlers
+const handleCyberSourceSuccess = (data: any) => {
+  console.log('✅ CyberSource payment successful:', data)
+  showCyberSourcePayment.value = false
+  paymentStatus.value = 'completed'
+  setTimeout(() => {
+    emit('success')
+    resetDialog()
+  }, 2000)
+}
+
+const handleCyberSourceFailure = (data: any) => {
+  console.error('❌ CyberSource payment failed:', data)
+  showCyberSourcePayment.value = false
+  paymentStatus.value = 'failed'
+  errorMessage.value = data?.errorMessage || data?.message || 'Card payment failed. Please try again.'
+}
+
+const handleCyberSourceCancel = () => {
+  console.log('❌ CyberSource payment cancelled')
+  showCyberSourcePayment.value = false
+  paymentStatus.value = 'idle'
+  errorMessage.value = 'Payment was cancelled. Please try again.'
+}
+
+const handleCyberSourceWindowMessage = (event: MessageEvent) => {
+  if (event.origin !== window.location.origin) {
+    return
+  }
+
+  const payload = event.data
+  if (!payload || typeof payload !== 'object') {
+    return
+  }
+
+  if (payload.type === 'PAYMENT_SUCCESS') {
+    handleCyberSourceSuccess(payload)
+  } else if (payload.type === 'PAYMENT_FAILED') {
+    handleCyberSourceFailure(payload)
+  } else if (payload.type === 'PAYMENT_CANCELLED') {
+    handleCyberSourceCancel()
+  }
 }
 
 // Watch for dialog close
@@ -226,6 +404,14 @@ watch(isOpen, (newValue) => {
   if (!newValue && paymentStatus.value !== 'polling') {
     resetDialog()
   }
+})
+
+onMounted(() => {
+  window.addEventListener('message', handleCyberSourceWindowMessage)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('message', handleCyberSourceWindowMessage)
 })
 </script>
 
@@ -260,7 +446,9 @@ watch(isOpen, (newValue) => {
         <CheckCircle class="h-12 w-12 text-green-600" />
         <div class="text-center">
           <p class="font-semibold text-green-600">Payment Successful!</p>
-          <p class="text-sm text-muted-foreground">Your subscription has been upgraded</p>
+          <p class="text-sm text-muted-foreground">
+            {{ isAddonPurchase ? 'Additional sessions have been added to your account' : 'Your subscription has been upgraded' }}
+          </p>
         </div>
       </div>
 
@@ -328,14 +516,14 @@ watch(isOpen, (newValue) => {
               </Label>
             </div>
 
-            <div class="flex items-center space-x-2 p-3 border rounded-lg opacity-50 cursor-not-allowed"
+            <div class="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-purple-50 transition-colors"
                  :class="paymentMethod === 'card' ? 'border-[#9b3699] bg-purple-50' : 'border-gray-200'">
-              <RadioGroupItem value="card" id="card" disabled />
-              <Label for="card" class="flex items-center gap-2 cursor-not-allowed flex-1">
-                <CreditCard class="h-5 w-5 text-gray-400" />
+              <RadioGroupItem value="card" id="card" />
+              <Label for="card" class="flex items-center gap-2 cursor-pointer flex-1">
+                <CreditCard class="h-5 w-5" style="color: #9b3699;" />
                 <div>
-                  <p class="font-medium text-gray-500">Card Payment</p>
-                  <p class="text-xs text-muted-foreground">Coming soon</p>
+                  <p class="font-medium">Card Payment</p>
+                  <p class="text-xs text-muted-foreground">Pay with Visa, Mastercard, or Amex</p>
                 </div>
               </Label>
             </div>
@@ -369,7 +557,11 @@ watch(isOpen, (newValue) => {
         <Alert v-if="paymentStatus === 'pending'">
           <AlertCircle class="h-4 w-4" />
           <AlertDescription>
-            You will receive an M-Pesa prompt on your phone. Please enter your PIN to complete the payment.
+            {{
+              paymentMethod === 'card'
+                ? 'A secure payment window has opened. Please complete card payment to continue.'
+                : 'You will receive an M-Pesa prompt on your phone. Please enter your PIN to complete the payment.'
+            }}
           </AlertDescription>
         </Alert>
       </div>
@@ -388,5 +580,14 @@ watch(isOpen, (newValue) => {
         </Button>
       </DialogFooter>
     </DialogContent>
+
+    <!-- CyberSource Payment Component -->
+    <CyberSourcePayment
+      v-if="showCyberSourcePayment && cyberSourcePaymentData"
+      :payment-data="cyberSourcePaymentData"
+      @success="handleCyberSourceSuccess"
+      @failure="handleCyberSourceFailure"
+      @cancel="handleCyberSourceCancel"
+    />
   </Dialog>
 </template>

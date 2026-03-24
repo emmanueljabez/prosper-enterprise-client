@@ -14,7 +14,7 @@
         </p>
       </div>
       
-      <!-- View Controls -->
+      <!-- Timezone selector -->
       <div class="flex items-center space-x-3">
         <Select v-model="selectedTimezone">
           <SelectTrigger class="w-[200px]">
@@ -24,25 +24,6 @@
             <SelectItem value="Africa/Nairobi">Africa/Nairobi</SelectItem>
           </SelectContent>
         </Select>
-        
-        <div class="flex rounded-lg border overflow-hidden">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            :class="{ 'bg-blue-50 text-blue-600': viewMode === 'week' }"
-            @click="viewMode = 'week'"
-          >
-            Week
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm"
-            :class="{ 'bg-blue-50 text-blue-600': viewMode === 'month' }"
-            @click="viewMode = 'month'"
-          >
-            Month
-          </Button>
-        </div>
       </div>
     </div>
 
@@ -186,14 +167,16 @@
             v-for="date in monthDates"
             :key="date.toISOString()"
             :class="{
-              'bg-gray-50': !isCurrentMonth(date),
+              'bg-gray-50 opacity-50': !isCurrentMonth(date),
               'bg-white': isCurrentMonth(date),
-              'ring-2 ring-blue-500': isToday(date)
+              'ring-2 ring-blue-500': isToday(date),
+              'cursor-pointer hover:bg-green-50': isCurrentMonth(date) && getDateSlots(date).filter(s => !s.isPast && s.isAvailable).length > 0,
+              'cursor-default': !isCurrentMonth(date) || !getDateSlots(date).filter(s => !s.isPast && s.isAvailable).length
             }"
-            class="bg-white p-2 min-h-[120px] relative cursor-pointer hover:bg-gray-50"
+            class="p-2 min-h-[100px] relative"
             @click="selectDate(date)"
           >
-            <div 
+            <div
               :class="{
                 'text-gray-400': !isCurrentMonth(date),
                 'text-gray-900': isCurrentMonth(date),
@@ -203,22 +186,11 @@
             >
               {{ date.getDate() }}
             </div>
-            
-            <!-- Day Availability Indicators -->
-            <div class="space-y-1">
-              <div
-                v-for="(slot, index) in getDateSlots(date).slice(0, 3)"
-                :key="slot.id"
-                :class="getSlotClasses(slot)"
-                class="text-xs p-1 rounded truncate"
-              >
-                {{ getSlotTimeLabel(slot) }}
-              </div>
-              <div
-                v-if="getDateSlots(date).length > 3"
-                class="text-xs text-gray-500"
-              >
-                +{{ getDateSlots(date).length - 3 }} more
+
+            <!-- Day Availability Indicator (date only, no times) -->
+            <div v-if="getDateSlots(date).filter(s => !s.isPast && s.isAvailable).length > 0" class="mt-1">
+              <div class="text-xs p-1 rounded bg-green-100 text-green-800 text-center font-medium">
+                Available
               </div>
             </div>
           </div>
@@ -232,11 +204,17 @@
         <DialogHeader>
           <DialogTitle>Book a Session</DialogTitle>
           <DialogDescription>
-            Schedule a mentoring session for {{ formatSlotDateTime(selectedSlot) }}
+            Request a mentoring session on {{ formatSlotDate(selectedSlot) }}
           </DialogDescription>
         </DialogHeader>
-        
+
         <div v-if="selectedSlot" class="space-y-4">
+          <!-- Time confirmation note -->
+          <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
+            <p class="text-xs text-blue-700">
+              The exact session time will be confirmed once the mentor accepts your booking request.
+            </p>
+          </div>
           <!-- Topic -->
           <div class="space-y-2" v-if="props.topics && props.topics.length">
             <Label>Topic</Label>
@@ -386,7 +364,7 @@ const emit = defineEmits<Emits>()
 const mentorsStore = useMentorsStore()
 
 // State
-const viewMode = ref<'week' | 'month'>('week')
+const viewMode = ref<'week' | 'month'>('month')
 const selectedDate = ref(new Date())
 const selectedTimezone = ref(props.defaultTimezone)
 const showBookingForm = ref(false)
@@ -431,9 +409,17 @@ const nextAvailableSlot = computed(() => {
   const next = availableSlots.value
     .filter(slot => slot.isAvailable && new Date(slot.startTime) > new Date())
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0]
-  
-  return next ? formatDateTime(new Date(next.startTime)) : 'No upcoming slots'
+  if (!next) return 'No upcoming slots'
+  const d = new Date(next.startTime)
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 })
+
+const formatSlotDate = (slot: any) => {
+  if (!slot) return ''
+  return new Date(slot.startTime).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  })
+}
 
 const weekDays = computed(() => {
   const start = getWeekStart(selectedDate.value)
@@ -671,10 +657,17 @@ const isToday = (date: Date) => {
 }
 
 const selectDate = (date: Date) => {
-  selectedDate.value = date
-  if (viewMode.value === 'month') {
-    viewMode.value = 'week'
+  const slots = getDateSlots(date).filter((s: any) => !s.isPast && s.isAvailable)
+  if (!slots.length) return
+  const slot = slots[0]
+  const formattedSlot = {
+    ...slot,
+    startTime: new Date(slot.startTime).toISOString(),
+    endTime: new Date(slot.endTime).toISOString()
   }
+  selectedSlot.value = formattedSlot
+  showBookingForm.value = true
+  emit('slot-select', formattedSlot)
 }
 
 const previousPeriod = () => {
