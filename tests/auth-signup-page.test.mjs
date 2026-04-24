@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+
+const signupSource = readFileSync(new URL('../pages/auth/signup.vue', import.meta.url), 'utf8')
+const loginSource = readFileSync(new URL('../pages/auth/login.vue', import.meta.url), 'utf8')
+const authShellSource = readFileSync(new URL('../components/auth/AuthSplitShell.vue', import.meta.url), 'utf8')
+const emailVerificationSource = readFileSync(new URL('../pages/auth/email-verification.vue', import.meta.url), 'utf8')
+const confirmEmailSource = readFileSync(new URL('../pages/auth/confirm-email.vue', import.meta.url), 'utf8')
+const defaultLayoutSource = readFileSync(new URL('../layouts/default.vue', import.meta.url), 'utf8')
+
+assert.match(signupSource, /AuthSplitShell/, 'Signup should use the shared auth shell.')
+assert.match(signupSource, /Create your company account/, 'Signup copy should be company-only.')
+assert.doesNotMatch(signupSource, /Create your company admin account/, 'Signup heading should not mention admin.')
+assert.match(signupSource, /<Label for="name">Name<\/Label>/, 'Signup should collect one combined name field.')
+assert.match(signupSource, /Enter your first and last name\./, 'Signup should validate the combined name field.')
+assert.match(signupSource, /Password must be at least 8 characters\./, 'Signup should validate password strength.')
+assert.doesNotMatch(signupSource, /applyAuthenticatedSession/, 'Signup should not create an authenticated app session.')
+assert.doesNotMatch(signupSource, /\/app\/admin\/activate/, 'Signup should not send users directly to activation.')
+assert.match(signupSource, /\/auth\/email-verification/, 'Signup should send users to the email verification holding page.')
+assert.match(emailVerificationSource, /AuthSplitShell/, 'Email verification page should use the shared auth shell.')
+assert.match(emailVerificationSource, /Check your email/, 'Email verification page should orient users after signup.')
+assert.match(emailVerificationSource, /\/auth\/login/, 'Email verification page should send users back to login after verification.')
+assert.match(confirmEmailSource, /token_hash/, 'Confirm email page should accept first-party token hash links.')
+assert.match(confirmEmailSource, /verify_url/, 'Confirm email page should still support older wrapped Supabase verification URLs.')
+assert.match(confirmEmailSource, /\/v1\/public\/auth\/confirm-email/, 'Confirm email page should verify email through the backend.')
+assert.doesNotMatch(confirmEmailSource, /external: true/, 'Confirm email page should not navigate the browser away from Enterprise to Supabase.')
+assert.ok(defaultLayoutSource.includes("'/auth/confirm-email'"), 'Confirm email page should not render inside the app sidebar layout.')
+assert.match(loginSource, /to="\/auth\/signup"/, 'Login should link to the new signup route.')
+assert.match(authShellSource, /lg:grid-cols-2/, 'The shared shell should preserve the existing login-page two-column layout.')
+
+console.log('Auth signup page verified.')

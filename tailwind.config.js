@@ -15,7 +15,15 @@ module.exports = {
       },
     },
     extend: {
+      fontFamily: {
+        heading: ['Montserrat', 'Inter', 'ui-serif', 'Georgia', 'serif'],
+      },
       colors: {
+        'brand-purple': '#9F3C93',
+        'brand-green': '#027F63',
+        'brand-pink': '#F3E6F5',
+        'brand-gray': '#F5F5F5',
+        'brand-black': '#222222',
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

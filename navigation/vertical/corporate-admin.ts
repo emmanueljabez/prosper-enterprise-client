@@ -35,6 +35,12 @@ export const corporateAdminNavigation: NavigationItem[] = [
         permission: 'admin:programs'
       },
       {
+        title: 'Journey Templates',
+        icon: BookOpen,
+        url: '/app/admin/journey-templates',
+        permission: 'admin:programs'
+      },
+      {
         title: 'Employees',
         icon: Users,
         url: '/app/admin/participants',

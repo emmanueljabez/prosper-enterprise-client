@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import companySubscriptionsApi, {
   type CompanySubscriptionMember,
+  type CompanySessionWalletSummary,
   type CompanySubscriptionSummary,
 } from '@/http/requests/app/companySubscriptions'
 import { useAppToast } from '@/composables/services/toastService'
@@ -38,6 +39,13 @@ export const useCompanySubscriptionAdmin = () => {
     companySubscriptions.value.find(subscription => subscription.id === activeCompanySubscriptionId.value)
     || primaryCompanySubscription.value
   )
+
+  const managedCompanyWallet = computed<CompanySessionWalletSummary | null>(() =>
+    managedCompanySubscription.value?.wallet || null,
+  )
+
+  const getWalletReservedSessions = (wallet?: CompanySessionWalletSummary | null) =>
+    Math.max(0, Number(wallet?.sessionsAllocated || 0) - Number(wallet?.sessionsReturned || 0))
 
   const companySubscriptionMembers = computed(() =>
     membersBySubscriptionId.value[activeCompanySubscriptionId.value] || []
@@ -253,10 +261,12 @@ export const useCompanySubscriptionAdmin = () => {
     selectedCompanySubscriptionId,
     activeCompanySubscriptionId,
     managedCompanySubscription,
+    managedCompanyWallet,
     companySubscriptionMembers,
     memberMapByProfileId,
     loadCompanyBilling,
     selectCompanySubscription,
+    getWalletReservedSessions,
     getMembershipForProfile,
     getActiveMembershipForProfile,
     assignSeat,

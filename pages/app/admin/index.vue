@@ -36,6 +36,7 @@ import {
   UserCheck,
   UserPlus,
   Users,
+  Wallet,
   XCircle,
 } from 'lucide-vue-next'
 
@@ -275,6 +276,13 @@ const billingActionId = ref('')
 const formatNumber = (value: number | string) =>
   new Intl.NumberFormat('en-KE').format(Number(value || 0))
 
+const formatCurrency = (value: number | string) =>
+  new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency: 'KES',
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0))
+
 const roundTo = (value: number, digits = 1) => {
   const factor = 10 ** digits
   return Math.round((Number(value) || 0) * factor) / factor
@@ -389,9 +397,12 @@ const managedCompanySubscription = computed(() =>
   companySubscriptions.value.find(subscription => subscription.id === activeCompanySubscriptionId.value) ||
   primaryCompanySubscription.value,
 )
+const managedCompanyWallet = computed(() => managedCompanySubscription.value?.wallet || null)
 const activeCompanySubscriptionId = computed(() =>
   selectedCompanySubscriptionId.value || primaryCompanySubscription.value?.id || '',
 )
+const getWalletReservedSessions = (wallet = managedCompanyWallet.value) =>
+  Math.max(0, Number(wallet?.sessionsAllocated || 0) - Number(wallet?.sessionsReturned || 0))
 const memberMapByProfileId = computed(() => {
   const map = new Map<string, CompanySubscriptionMember>()
   companySubscriptionMembers.value.forEach(member => {
@@ -473,6 +484,12 @@ const pendingInvitationSendCount = computed(() => stats.value.pendingInvitationS
 const awaitingAcceptanceCount = computed(() => stats.value.awaitingAcceptanceCount)
 const invitationAcceptanceRate = computed(() => stats.value.invitationAcceptanceRate)
 const verificationRate = computed(() => stats.value.verificationRate)
+const walletAvailableSessions = computed(() => Number(managedCompanyWallet.value?.sessionsAvailable || 0))
+const walletPurchasedSessions = computed(() => Number(managedCompanyWallet.value?.sessionsPurchased || 0))
+const walletReservedSessions = computed(() => getWalletReservedSessions())
+const walletPricePerSession = computed(() => Number(managedCompanyWallet.value?.pricePerSession || 0))
+const hasCompanyWallet = computed(() => Boolean(managedCompanyWallet.value))
+const walletActionLabel = computed(() => (hasCompanyWallet.value ? 'Manage Billing' : 'Buy Sessions'))
 
 const overviewStats = computed(() => {
   const activeEmployeeDelta = getComparisonMeta(
@@ -604,6 +621,39 @@ const dashboardAlerts = computed<DashboardAlert[]>(() => {
 const goToPaymentUrl = (url?: string | null) => {
   if (!url) return
   window.location.assign(url)
+}
+
+const loadCompanyWalletSummary = async (resolvedCompanyId: string) => {
+  if (!resolvedCompanyId) {
+    billingError.value = 'Company ID not found. Log in again and retry.'
+    companySubscriptions.value = []
+    return
+  }
+
+  try {
+    const subscriptionsResponse = await companySubscriptionsApi.getCompanySubscriptions(resolvedCompanyId)
+
+    if (!subscriptionsResponse.success) {
+      throw new Error(subscriptionsResponse.message || 'Failed to load company wallet summary.')
+    }
+
+    companySubscriptions.value = subscriptionsResponse.data || []
+
+    if (!selectedCompanySubscriptionId.value && companySubscriptions.value.length) {
+      selectedCompanySubscriptionId.value =
+        companySubscriptions.value.find(subscription => subscription.status === 'ACTIVE')?.id
+        || companySubscriptions.value[0].id
+    }
+
+    billingError.value = null
+  } catch (walletError: any) {
+    console.error('Failed to load company wallet summary:', walletError)
+    billingError.value =
+      walletError?.response?.data?.message ||
+      walletError?.message ||
+      'Failed to load company wallet summary.'
+    companySubscriptions.value = []
+  }
 }
 
 const loadBillingData = async () => {
@@ -747,6 +797,10 @@ const renewCompanySubscription = async () => {
   }
 }
 
+const openBillingWorkspace = async () => {
+  await router.push('/app/admin/settings?tab=billing')
+}
+
 const refreshDashboard = async () => {
   const resolvedCompanyId = companyId.value
   if (!resolvedCompanyId) {
@@ -759,7 +813,11 @@ const refreshDashboard = async () => {
   loadMessage.value = 'Loading company dashboard...'
 
   try {
-    const response = await dashboardApi.getCompanyDashboard(resolvedCompanyId)
+    const [dashboardResult] = await Promise.all([
+      dashboardApi.getCompanyDashboard(resolvedCompanyId),
+      loadCompanyWalletSummary(resolvedCompanyId),
+    ])
+    const response = dashboardResult
     const payload = response?.data
 
     if (!payload?.success) {
@@ -844,23 +902,76 @@ onMounted(() => {
 
 <template>
   <div class="container mx-auto px-4 py-6 space-y-6">
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-      <div class="space-y-1">
-        <h1 class="text-3xl font-bold tracking-tight">Corporate Admin Dashboard</h1>
-        <p class="text-muted-foreground">
-          Live mentorship reporting for {{ companyName }} based on current employee, invite, and session data.
-        </p>
-        <p v-if="lastRefreshedAt" class="text-xs text-muted-foreground">
-          Last refreshed {{ formatDateTime(lastRefreshedAt) }}
-        </p>
+    <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+      <div class="space-y-4">
+        <div class="space-y-1">
+          <h1 class="text-3xl font-bold tracking-tight">Corporate Admin Dashboard</h1>
+          <p class="text-muted-foreground">
+            Live mentorship reporting for {{ companyName }} based on current employee, invite, and session data.
+          </p>
+          <p v-if="lastRefreshedAt" class="text-xs text-muted-foreground">
+            Last refreshed {{ formatDateTime(lastRefreshedAt) }}
+          </p>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <Button @click="refreshDashboard" :disabled="isLoading">
+            <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoading }" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      <div class="flex flex-wrap gap-2">
-        <Button @click="refreshDashboard" :disabled="isLoading">
-          <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoading }" />
-          Refresh
-        </Button>
-      </div>
+      <Card class="xl:justify-self-end">
+        <CardHeader class="space-y-2 p-4 pb-2">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle class="flex items-center gap-1.5 text-sm">
+                <Wallet class="h-3.5 w-3.5" />
+                Session Wallet
+              </CardTitle>
+            </div>
+            <Badge v-if="managedCompanySubscription" variant="secondary" class="max-w-[120px] truncate px-2 py-0 text-[11px]">
+              {{ managedCompanySubscription.planName || 'Enterprise Standard' }}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent class="space-y-3 p-4 pt-0">
+          <Alert v-if="billingError" variant="destructive">
+            <AlertTriangle class="h-4 w-4" />
+            <AlertDescription>{{ billingError }}</AlertDescription>
+          </Alert>
+
+          <template v-else-if="hasCompanyWallet">
+            <div class="flex items-end justify-between gap-3 rounded-xl border bg-muted/30 px-3 py-2.5">
+              <div>
+                <p class="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Available</p>
+                <p class="mt-1 text-2xl font-semibold leading-none">{{ formatNumber(walletAvailableSessions) }}</p>
+                <p class="mt-1 text-xs text-muted-foreground">
+                  {{ formatNumber(walletReservedSessions) }} reserved
+                  <span class="mx-1">•</span>
+                  {{ formatNumber(walletPurchasedSessions) }} purchased
+                </p>
+              </div>
+              <div class="text-right">
+                <p class="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Price</p>
+                <p class="mt-1 text-base font-semibold">{{ formatCurrency(walletPricePerSession) }}</p>
+                <p class="mt-0.5 text-[11px] text-muted-foreground">per session</p>
+              </div>
+            </div>
+          </template>
+
+          <div v-else class="rounded-xl border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+            No active company session wallet yet. Buy sessions to unlock company-funded booking.
+          </div>
+
+          <div class="flex justify-end border-t pt-2">
+            <Button size="sm" @click="openBillingWorkspace">
+              {{ walletActionLabel }}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
 
     <Alert v-if="isLoading">

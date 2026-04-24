@@ -118,6 +118,36 @@ const normalizeFrontendRoleName = (roleName?: string): 'employee' | 'mentor' | '
   return 'employee'
 }
 
+const resolveStoredCompanyId = () => {
+  if (typeof window === 'undefined') {
+    return undefined
+  }
+
+  try {
+    const storedProfile = localStorage.getItem('profile')
+    if (storedProfile) {
+      const parsedProfile = JSON.parse(storedProfile)
+      const profileCompanyId = parsedProfile?.companyId || parsedProfile?.company_id || parsedProfile?.company?.id
+      if (profileCompanyId) {
+        return profileCompanyId
+      }
+    }
+
+    const storedUser = localStorage.getItem('loggedInUser')
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser)
+      const userCompanyId = parsedUser?.companyId || parsedUser?.company_id || parsedUser?.company?.id
+      if (userCompanyId) {
+        return userCompanyId
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to hydrate stored company context', error)
+  }
+
+  return undefined
+}
+
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     loggedInUser: null,
@@ -197,7 +227,8 @@ export const useAuthStore = defineStore('auth', {
             roles: mappedRoles,
             isVerified: true,
             createdAt: new Date().toISOString(),
-            lastLoginAt: new Date().toISOString()
+            lastLoginAt: new Date().toISOString(),
+            companyId: resolveStoredCompanyId()
           }
           console.log('🔍 Auth Store: Created loggedInUser:', this.loggedInUser);
           return true
@@ -569,7 +600,7 @@ export const useAuthStore = defineStore('auth', {
                   isVerified: true,
                   createdAt: responseUser.created_at || new Date().toISOString(),
                   lastLoginAt: new Date().toISOString(),
-                  companyId: responseProfile.companyId || responseProfile.company_id
+                  companyId: responseProfile.companyId || responseProfile.company_id || responseProfile.company?.id
                 }
 
                 if (typeof window !== 'undefined') {
@@ -578,7 +609,7 @@ export const useAuthStore = defineStore('auth', {
                     localStorage.setItem('token', authToken)
                   }
                   localStorage.setItem('provider', 'local')
-                  localStorage.setItem('loggedInUser', JSON.stringify(responseUser?.id ? responseUser : this.loggedInUser))
+                  localStorage.setItem('loggedInUser', JSON.stringify(this.loggedInUser))
                   if (responseProfile && Object.keys(responseProfile).length > 0) {
                     localStorage.setItem('profile', JSON.stringify(responseProfile))
                     if (responseProfile.role) {
@@ -888,38 +919,11 @@ export const useAuthStore = defineStore('auth', {
         jwt.completeCompanyRegistration(data)
           .then((response) => {
             if (response && response.data) {
-              const responseData = response.data.data || response.data
-
-              this.loggedInUser = {
-                id: responseData.user?.id || responseData.id,
+              this.applyAuthenticatedSession(response.data, {
                 email: data.email,
-                name: responseData.user?.name || `${data.firstName} ${data.lastName}`,
                 firstName: data.firstName,
                 lastName: data.lastName,
-                provider: 'local',
-                roles: responseData.profile?.role
-                  ? [DEFAULT_ROLES[normalizeFrontendRoleName(responseData.profile.role)] || DEFAULT_ROLES.corporate_admin]
-                  : [DEFAULT_ROLES.corporate_admin],
-                isVerified: true,
-                createdAt: responseData.user?.createdAt || new Date().toISOString(),
-                lastLoginAt: new Date().toISOString(),
-                companyId: responseData.profile?.company?.id || responseData.company?.companyId
-              }
-
-              if (response.data.access_token && typeof window !== 'undefined') {
-                localStorage.setItem('token', response.data.access_token)
-                localStorage.setItem('loggedInUser', JSON.stringify(response.data.user))
-
-                if (response.data.profile) {
-                  localStorage.setItem('profile', JSON.stringify(response.data.profile))
-                  localStorage.setItem('role', response.data.profile.role || 'company')
-                } else if (responseData.profile) {
-                  localStorage.setItem('profile', JSON.stringify(responseData.profile))
-                  localStorage.setItem('role', responseData.profile.role || 'company')
-                } else {
-                  localStorage.setItem('role', 'company')
-                }
-              }
+              })
 
               resolve(response.data)
             } else {
@@ -935,6 +939,41 @@ export const useAuthStore = defineStore('auth', {
             this.loading = false
           })
       })
+    },
+
+    applyAuthenticatedSession(payload: any, fallback: { email: string; firstName: string; lastName: string }) {
+      const responseData = payload.data || payload
+
+      this.loggedInUser = {
+        id: responseData.user?.id || responseData.id,
+        email: fallback.email,
+        name: responseData.user?.name || `${fallback.firstName} ${fallback.lastName}`,
+        firstName: fallback.firstName,
+        lastName: fallback.lastName,
+        provider: 'local',
+        roles: responseData.profile?.role
+          ? [DEFAULT_ROLES[normalizeFrontendRoleName(responseData.profile.role)] || DEFAULT_ROLES.corporate_admin]
+          : [DEFAULT_ROLES.corporate_admin],
+        isVerified: true,
+        createdAt: responseData.user?.createdAt || new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+        companyId: responseData.profile?.company?.id || responseData.company?.companyId
+      }
+
+      if (payload.access_token && typeof window !== 'undefined') {
+        localStorage.setItem('token', payload.access_token)
+        localStorage.setItem('loggedInUser', JSON.stringify(payload.user))
+
+        if (payload.profile) {
+          localStorage.setItem('profile', JSON.stringify(payload.profile))
+          localStorage.setItem('role', payload.profile.role || 'company')
+        } else if (responseData.profile) {
+          localStorage.setItem('profile', JSON.stringify(responseData.profile))
+          localStorage.setItem('role', responseData.profile.role || 'company')
+        } else {
+          localStorage.setItem('role', 'company')
+        }
+      }
     },
 
     async goToDashboard(router: any) {

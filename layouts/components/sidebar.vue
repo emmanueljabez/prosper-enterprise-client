@@ -40,11 +40,11 @@ router.afterEach((to) => {
 
 <template>
   <div class="layout-container" style="height: 100vh; overflow: hidden; display: flex;">
-    <SidebarProvider :style="{ '--sidebar-width': '76px', '--sidebar-width-icon': '76px' }">
+    <SidebarProvider :style="{ '--sidebar-width': '92px', '--sidebar-width-icon': '92px' }">
       <Sidebar collapsible="none" class="sidebar-mini bg-background border-r z-50">
         <!-- Navigation Items -->
-        <SidebarContent class="overflow-y-auto pt-4">
-          <SidebarGroup class="px-2">
+        <SidebarContent class="overflow-y-auto px-2 pt-5 pb-4">
+          <SidebarGroup class="px-1.5">
             <SidebarMenu class="gap-1">
               <SidebarMenuItem v-for="subItem in flatNavigation" :key="subItem.title">
                 <NuxtLink
@@ -87,9 +87,9 @@ router.afterEach((to) => {
 
 :deep([data-slot="sidebar"]),
 :deep([data-sidebar="sidebar"]) {
-  width: 76px !important;
-  min-width: 76px !important;
-  max-width: 76px !important;
+  width: 92px !important;
+  min-width: 92px !important;
+  max-width: 92px !important;
   height: 100vh !important;
   overflow-y: auto;
   flex-shrink: 0;
@@ -101,8 +101,8 @@ router.afterEach((to) => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 18px 8px;
-  margin-bottom: 8px;
+  padding: 20px 10px;
+  margin-bottom: 10px;
   width: 100%;
   border-radius: 8px;
   color: #9ca3af;
@@ -125,6 +125,7 @@ router.afterEach((to) => {
   text-align: center;
   line-height: 1.2;
   font-weight: 500;
-  white-space: nowrap;
+  white-space: normal;
+  max-width: 100%;
 }
 </style>

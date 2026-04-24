@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
 import { useProfileStore } from '@/store/modules/profile'
 import { useSubscriptionsStore } from '@/store/modules/subscriptions'
+import { useCompanyProgramsStore } from '@/store/modules/company-programs'
 import invoicesApi, { type PublicInvoice } from '@/http/requests/app/invoices'
 import { useAppToast } from '@/composables/services/toastService'
 
@@ -62,6 +63,7 @@ definePageMeta({
 const authStore = useAuthStore()
 const profileStore = useProfileStore()
 const subscriptionsStore = useSubscriptionsStore()
+const companyProgramsStore = useCompanyProgramsStore()
 const toast = useAppToast()
 
 // State
@@ -290,6 +292,13 @@ const nextBillingDate = computed(() =>
   activeSubscription.value?.endDate ||
   null,
 )
+const sessionBalance = computed(() => companyProgramsStore.employeeSessionBalance)
+const isBillingRefreshing = computed(() =>
+  isLoadingInvoices.value || companyProgramsStore.employeeSessionBalanceLoading
+)
+const billingWorkspaceError = computed(() =>
+  billingError.value || companyProgramsStore.employeeSessionBalanceError || ''
+)
 const remainingSessions = computed(() =>
   activeSubscriptionContext.value?.remainingSessions ??
   activeSubscription.value?.remainingSessionsCount ??
@@ -451,13 +460,17 @@ const fetchUserInvoices = async (userId: string) => {
   }
 }
 
-const reloadBillingInvoices = async () => {
+const reloadBillingWorkspace = async () => {
   const userId = getUserIdFromStorage()
   if (!userId) {
     toast.error('User ID not found. Please log in again.')
     return
   }
-  await fetchUserInvoices(userId)
+
+  await Promise.all([
+    fetchUserInvoices(userId),
+    companyProgramsStore.loadMySessionBalance(),
+  ])
 }
 
 const goToPaymentUrl = (url: string) => {
@@ -633,7 +646,8 @@ onMounted(async () => {
     await Promise.all([
       profileStore.fetchProfile(userId),
       subscriptionsStore.fetchActiveSubscription(userId),
-      fetchUserInvoices(userId)
+      fetchUserInvoices(userId),
+      companyProgramsStore.loadMySessionBalance()
     ])
 
     // Update form with real profile data
@@ -985,17 +999,55 @@ onMounted(async () => {
                     <CreditCard class="h-5 w-5 text-purple-600" />
                     <span>Billing</span>
                   </CardTitle>
-                  <Button variant="outline" size="sm" @click="reloadBillingInvoices" :disabled="isLoadingInvoices">
-                    {{ isLoadingInvoices ? 'Refreshing...' : 'Refresh' }}
+                  <Button variant="outline" size="sm" @click="reloadBillingWorkspace" :disabled="isBillingRefreshing">
+                    {{ isBillingRefreshing ? 'Refreshing...' : 'Refresh' }}
                   </Button>
+                </div>
+
+                <div class="mb-6 rounded-lg border bg-muted/20 p-4">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h3 class="font-semibold">Company-Funded Session Balance</h3>
+                      <p class="text-sm text-muted-foreground">
+                        Sessions allocated by your employer for eligible mentorship bookings.
+                      </p>
+                    </div>
+                    <Badge v-if="sessionBalance?.companyName" variant="outline">
+                      {{ sessionBalance.companyName }}
+                    </Badge>
+                  </div>
+
+                  <div class="mt-4 grid gap-3 md:grid-cols-3">
+                    <div class="rounded-lg border bg-background p-4">
+                      <div class="text-sm text-muted-foreground">Available to book</div>
+                      <div class="mt-2 text-3xl font-semibold">{{ sessionBalance?.availableBalance || 0 }}</div>
+                    </div>
+                    <div class="rounded-lg border bg-background p-4">
+                      <div class="text-sm text-muted-foreground">Allocated by employer</div>
+                      <div class="mt-2 text-3xl font-semibold">{{ sessionBalance?.allocatedTotal || 0 }}</div>
+                    </div>
+                    <div class="rounded-lg border bg-background p-4">
+                      <div class="text-sm text-muted-foreground">Used sessions</div>
+                      <div class="mt-2 text-3xl font-semibold">{{ sessionBalance?.consumedTotal || 0 }}</div>
+                    </div>
+                  </div>
+
+                  <p class="mt-4 text-sm text-muted-foreground">
+                    <template v-if="sessionBalance?.companyName">
+                      These sessions are used automatically when you book eligible mentor sessions.
+                    </template>
+                    <template v-else>
+                      Your employer has not allocated company-funded sessions yet.
+                    </template>
+                  </p>
                 </div>
 
                 <div v-if="isLoadingInvoices" class="text-center py-12">
                   <p class="text-muted-foreground">Loading invoices...</p>
                 </div>
 
-                <div v-else-if="billingError" class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                  {{ billingError }}
+                <div v-else-if="billingWorkspaceError" class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  {{ billingWorkspaceError }}
                 </div>
 
                 <div v-else-if="billingInvoices.length === 0" class="text-center py-12">

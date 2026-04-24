@@ -7,6 +7,7 @@ export type JourneyActionItemOwnerType = 'MENTEE' | 'MENTOR' | 'SHARED'
 export type JourneyStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'CANCELLED'
 export type JourneyStepType = 'SESSION' | 'CHECK_IN' | 'ACTION_ITEM' | 'SURVEY' | 'REFLECTION'
 export type JourneyStepStatus = 'PENDING' | 'READY' | 'COMPLETED' | 'SKIPPED' | 'BLOCKED'
+export type JourneyDependencyType = 'FINISH_TO_START' | 'OPTIONAL_GATE'
 export type ParticipantConsentType = 'PROGRAM_PARTICIPATION' | 'AGGREGATED_ANALYTICS' | 'EMPLOYER_PROGRESS_VISIBILITY'
 export type ParticipantConsentStatus = 'GRANTED' | 'REVOKED'
 export type CompanyProgramCatalogStageType = 'CORE' | 'OPTIONAL'
@@ -44,6 +45,34 @@ export interface JourneyTemplateRecord {
   templateVersion?: number | null
   active?: boolean | null
   stepCount?: number | null
+  dependencyCount?: number | null
+  createdAt?: string | null
+  updatedAt?: string | null
+  steps?: JourneyTemplateStepRecord[] | null
+  dependencies?: JourneyTemplateDependencyRecord[] | null
+}
+
+export interface JourneyTemplateStepRecord {
+  id?: string | null
+  stepKey: string
+  defaultSequence?: number | null
+  title: string
+  description?: string | null
+  stepType: JourneyStepType
+  required?: boolean | null
+  defaultDueOffsetDays?: number | null
+  stepConfigJson?: string | null
+}
+
+export interface JourneyTemplateDependencyRecord {
+  id?: string | null
+  fromStepId?: string | null
+  fromStepKey: string
+  fromStepTitle?: string | null
+  toStepId?: string | null
+  toStepKey: string
+  toStepTitle?: string | null
+  dependencyType: JourneyDependencyType
 }
 
 export interface ParticipantConsentDecisionRecord {
@@ -125,6 +154,12 @@ export interface JourneyTemplatesResponse {
     templates: JourneyTemplateRecord[]
     count: number
   } | null
+}
+
+export interface JourneyTemplateResponse {
+  success: boolean
+  message: string
+  data: JourneyTemplateRecord | null
 }
 
 export interface CompanyProgramParticipantRecord {
@@ -468,6 +503,28 @@ export interface UpdateCompanyProgramPayload {
   endsAt?: string | null
 }
 
+export interface JourneyTemplateUpsertPayload {
+  name: string
+  programType?: string | null
+  description?: string | null
+  defaultDurationWeeks?: number | null
+  active?: boolean | null
+  steps: Array<{
+    stepKey: string
+    title: string
+    description?: string | null
+    stepType: JourneyStepType
+    required?: boolean | null
+    defaultDueOffsetDays?: number | null
+    stepConfigJson?: string | null
+  }>
+  dependencies?: Array<{
+    fromStepKey: string
+    toStepKey: string
+    dependencyType: JourneyDependencyType
+  }>
+}
+
 export interface EnrollCompanyProgramParticipantsPayload {
   profileIds: string[]
 }
@@ -504,6 +561,26 @@ export default {
 
   async getJourneyTemplates(): Promise<JourneyTemplatesResponse> {
     const { data } = await api.get('/v1/journey-templates')
+    return data
+  },
+
+  async getAdminJourneyTemplates(): Promise<JourneyTemplatesResponse> {
+    const { data } = await api.get('/v1/admin/journey-templates')
+    return data
+  },
+
+  async getAdminJourneyTemplate(journeyTemplateId: string): Promise<JourneyTemplateResponse> {
+    const { data } = await api.get(`/v1/admin/journey-templates/${journeyTemplateId}`)
+    return data
+  },
+
+  async createJourneyTemplate(payload: JourneyTemplateUpsertPayload): Promise<JourneyTemplateResponse> {
+    const { data } = await api.post('/v1/admin/journey-templates', payload)
+    return data
+  },
+
+  async updateJourneyTemplate(journeyTemplateId: string, payload: JourneyTemplateUpsertPayload): Promise<JourneyTemplateResponse> {
+    const { data } = await api.patch(`/v1/admin/journey-templates/${journeyTemplateId}`, payload)
     return data
   },
 

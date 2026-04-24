@@ -5,21 +5,20 @@ import { useCompanyProgramsStore } from '@/store/modules/company-programs'
 import type {
   CompanyProgramRecord,
   CompanyProgramStatus,
-  CreateCompanyProgramPayload,
   UpdateCompanyProgramPayload,
 } from '@/http/requests/app/companyPrograms'
 import { useAppToast } from '@/composables/services/toastService'
+import CompanyProgramEditor from '@/components/app/admin/CompanyProgramEditor.vue'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import { Input } from '~/components/ui/input'
 import { Badge } from '~/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
-import { Textarea } from '~/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~/components/ui/table'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Skeleton } from '~/components/ui/skeleton'
-import { ArrowDown, ArrowUp, CalendarRange, Layers3, PauseCircle, Pencil, PlayCircle, Plus, RefreshCw, Search, StopCircle, Target, Trash2, Trophy } from 'lucide-vue-next'
+import { CalendarRange, Layers3, PauseCircle, Pencil, PlayCircle, Plus, RefreshCw, Search, StopCircle, Target, Trophy, Users } from 'lucide-vue-next'
 
 definePageMeta({
   title: 'Company Programs',
@@ -48,48 +47,18 @@ const companyId = computed(() => {
   return authStore.loggedInUser?.companyId || ''
 })
 
-type CatalogStageForm = {
-  programId: string
-  journeyStageName: string
-}
-
 const showProgramDialog = ref(false)
 const showJourneyDialog = ref(false)
 const journeyProgramId = ref('')
 const journeyTemplateSelection = ref('NONE')
-const editingProgramId = ref<string | null>(null)
-const programJourneyTemplateSelection = ref('NONE')
+const editingProgram = ref<CompanyProgramRecord | null>(null)
 const filters = reactive({
   search: '',
   status: 'ALL' as CompanyProgramStatus | 'ALL',
 })
 
-const programForm = reactive<CreateCompanyProgramPayload & UpdateCompanyProgramPayload>({
-  name: '',
-  objective: '',
-  targetAudienceDescription: '',
-  matchingMode: 'ADMIN_ASSIGN',
-  maxParticipants: null,
-  startsAt: '',
-  endsAt: '',
-})
-const catalogStages = ref<CatalogStageForm[]>([
-  {
-    programId: '',
-    journeyStageName: '',
-  },
-])
-
-const isEditingProgram = computed(() => Boolean(editingProgramId.value))
-
 const selectedJourneyProgram = computed(() =>
   companyProgramsStore.programs.find(program => program.id === journeyProgramId.value) || null,
-)
-
-const selectedCatalogPrograms = computed(() =>
-  catalogStages.value
-    .map(stage => companyProgramsStore.catalogPrograms.find(program => program.id === stage.programId))
-    .filter((program): program is NonNullable<typeof program> => Boolean(program)),
 )
 
 const statusTone = (status: CompanyProgramStatus) => ({
@@ -117,11 +86,6 @@ const formatDateRange = (startsAt?: string | null, endsAt?: string | null) => {
   return `${format(startsAt)} - ${format(endsAt)}`
 }
 
-const createEmptyCatalogStage = (): CatalogStageForm => ({
-  programId: '',
-  journeyStageName: '',
-})
-
 const loadPrograms = async () => {
   if (!companyId.value) return
 
@@ -142,121 +106,31 @@ const loadPrograms = async () => {
   }
 }
 
-const resetProgramForm = () => {
-  editingProgramId.value = null
-  programForm.name = ''
-  programForm.objective = ''
-  programForm.targetAudienceDescription = ''
-  programForm.matchingMode = 'ADMIN_ASSIGN'
-  programForm.maxParticipants = null
-  programForm.startsAt = ''
-  programForm.endsAt = ''
-  programJourneyTemplateSelection.value = 'NONE'
-  catalogStages.value = [createEmptyCatalogStage()]
-}
-
-const openCreateDialog = () => {
-  resetProgramForm()
-  showProgramDialog.value = true
-}
-
 const openEditDialog = (program: CompanyProgramRecord) => {
-  editingProgramId.value = program.id
-  programForm.name = program.name || ''
-  programForm.objective = program.objective || ''
-  programForm.targetAudienceDescription = program.targetAudienceDescription || ''
-  programForm.matchingMode = program.matchingMode || 'ADMIN_ASSIGN'
-  programForm.maxParticipants = program.maxParticipants ?? null
-  programForm.startsAt = program.startsAt ? new Date(program.startsAt).toISOString().slice(0, 16) : ''
-  programForm.endsAt = program.endsAt ? new Date(program.endsAt).toISOString().slice(0, 16) : ''
-  programJourneyTemplateSelection.value = program.journeyTemplateId || 'NONE'
-  catalogStages.value = (program.catalogStages?.length
-    ? program.catalogStages
-        .slice()
-        .sort((left, right) => (left.journeyOrder || 0) - (right.journeyOrder || 0))
-        .map(stage => ({
-          programId: stage.programId,
-          journeyStageName: stage.journeyStageName || '',
-        }))
-    : program.templateProgramId
-      ? [{ programId: program.templateProgramId, journeyStageName: '' }]
-      : [createEmptyCatalogStage()])
+  editingProgram.value = program
   showProgramDialog.value = true
 }
 
-const addCatalogStage = () => {
-  catalogStages.value = [...catalogStages.value, createEmptyCatalogStage()]
+const closeProgramDialog = () => {
+  showProgramDialog.value = false
+  editingProgram.value = null
 }
 
-const removeCatalogStage = (index: number) => {
-  if (catalogStages.value.length === 1) {
-    catalogStages.value = [createEmptyCatalogStage()]
-    return
-  }
-
-  catalogStages.value = catalogStages.value.filter((_, stageIndex) => stageIndex !== index)
-}
-
-const moveCatalogStage = (index: number, direction: -1 | 1) => {
-  const nextIndex = index + direction
-  if (nextIndex < 0 || nextIndex >= catalogStages.value.length) {
-    return
-  }
-
-  const nextStages = [...catalogStages.value]
-  const [moved] = nextStages.splice(index, 1)
-  nextStages.splice(nextIndex, 0, moved)
-  catalogStages.value = nextStages
-}
-
-const updateCatalogStageProgram = (index: number, programId: string) => {
-  const nextStages = [...catalogStages.value]
-  nextStages[index] = {
-    ...nextStages[index],
-    programId: programId === 'NONE' ? '' : programId,
-  }
-  catalogStages.value = nextStages
-}
-
-const buildCatalogStagesPayload = () =>
-  catalogStages.value
-    .map(stage => ({
-      programId: stage.programId,
-      journeyStageName: stage.journeyStageName?.trim() || null,
-      stageType: 'CORE' as const,
-    }))
-    .filter(stage => Boolean(stage.programId))
-
-const saveProgram = async () => {
+const saveProgram = async (payload: UpdateCompanyProgramPayload) => {
   if (!companyId.value) {
     toast.error('Company context is missing')
     return
   }
 
-  const catalogStagePayload = buildCatalogStagesPayload()
-  if (!catalogStagePayload.length) {
-    toast.error('Select at least one Prosper program for this company journey')
-    return
-  }
-
-  const payload = {
-    ...programForm,
-    catalogStages: catalogStagePayload,
-    journeyTemplateId: programJourneyTemplateSelection.value !== 'NONE' ? programJourneyTemplateSelection.value : null,
-    maxParticipants: programForm.maxParticipants ? Number(programForm.maxParticipants) : null,
-    startsAt: programForm.startsAt || null,
-    endsAt: programForm.endsAt || null,
-  }
-
   try {
-    if (editingProgramId.value) {
-      await companyProgramsStore.updateCompanyProgram(editingProgramId.value, payload)
-    } else {
-      await companyProgramsStore.createCompanyProgram(companyId.value, payload)
+    if (!editingProgram.value?.id) {
+      toast.error('Select a program to edit first')
+      return
     }
+
+    await companyProgramsStore.updateCompanyProgram(editingProgram.value.id, payload)
     await loadPrograms()
-    showProgramDialog.value = false
-    resetProgramForm()
+    closeProgramDialog()
   } catch {
     // store already handles the toast
   }
@@ -299,6 +173,12 @@ watch(() => companyId.value, value => {
   }
 }, { immediate: true })
 
+watch(() => showProgramDialog.value, isOpen => {
+  if (!isOpen) {
+    editingProgram.value = null
+  }
+})
+
 onMounted(() => {
   if (companyId.value) {
     loadPrograms()
@@ -321,7 +201,7 @@ onMounted(() => {
           <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': companyProgramsStore.isLoading }" />
           Refresh
         </Button>
-        <Button @click="openCreateDialog">
+        <Button @click="navigateTo('/app/admin/programs/new')">
           <Plus class="mr-2 h-4 w-4" />
           New Company Program
         </Button>
@@ -455,6 +335,14 @@ onMounted(() => {
                   <Button
                     size="sm"
                     variant="outline"
+                    @click="navigateTo(`/app/admin/programs/${program.id}/employees`)"
+                  >
+                    <Users class="mr-2 h-4 w-4" />
+                    Employees
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     @click="openEditDialog(program)"
                     :disabled="companyProgramsStore.isSaving"
                   >
@@ -521,179 +409,22 @@ onMounted(() => {
     <Dialog v-model:open="showProgramDialog">
       <DialogContent class="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{{ isEditingProgram ? 'Edit company program' : 'Create company program' }}</DialogTitle>
+          <DialogTitle>Edit company program</DialogTitle>
           <DialogDescription>
             Build an employer-facing journey from one or more Prosper programs, then attach matching and guidance.
           </DialogDescription>
         </DialogHeader>
 
-        <form class="grid gap-4 py-2" @submit.prevent="saveProgram">
-          <div class="grid gap-2">
-            <label class="text-sm font-medium">Program name</label>
-            <Input v-model="programForm.name" placeholder="Onboarding Mentorship Cohort" />
-          </div>
-
-          <div class="grid gap-2">
-            <label class="text-sm font-medium">Objective</label>
-            <Textarea v-model="programForm.objective" placeholder="What business problem should this program solve?" />
-          </div>
-
-          <div class="grid gap-2">
-            <label class="text-sm font-medium">Target audience</label>
-            <Textarea v-model="programForm.targetAudienceDescription" placeholder="Who should participate in this cohort?" />
-          </div>
-
-          <div class="grid gap-3">
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="text-sm font-medium">Prosper program journey</label>
-                <p class="text-xs text-muted-foreground">Order one or more Prosper programs to form this company journey.</p>
-              </div>
-              <Button type="button" variant="outline" size="sm" @click="addCatalogStage">
-                <Plus class="mr-2 h-4 w-4" />
-                Add stage
-              </Button>
-            </div>
-
-            <div class="space-y-3">
-              <div
-                v-for="(stage, index) in catalogStages"
-                :key="`catalog-stage-${index}`"
-                class="rounded-lg border p-4"
-              >
-                <div class="mb-3 flex items-center justify-between">
-                  <div class="text-sm font-medium">Stage {{ index + 1 }}</div>
-                  <div class="flex gap-2">
-                    <Button type="button" size="icon" variant="ghost" @click="moveCatalogStage(index, -1)" :disabled="index === 0">
-                      <ArrowUp class="h-4 w-4" />
-                    </Button>
-                    <Button type="button" size="icon" variant="ghost" @click="moveCatalogStage(index, 1)" :disabled="index === catalogStages.length - 1">
-                      <ArrowDown class="h-4 w-4" />
-                    </Button>
-                    <Button type="button" size="icon" variant="ghost" @click="removeCatalogStage(index)">
-                      <Trash2 class="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div class="grid gap-3 md:grid-cols-[minmax(0,1fr),220px]">
-                  <div class="grid gap-2">
-                    <label class="text-sm font-medium">Prosper program</label>
-                    <Select :model-value="stage.programId || 'NONE'" @update:model-value="value => updateCatalogStageProgram(index, value)">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a Prosper program" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NONE">Select a Prosper program</SelectItem>
-                        <SelectItem
-                          v-for="catalogProgram in companyProgramsStore.catalogPrograms"
-                          :key="catalogProgram.id"
-                          :value="catalogProgram.id"
-                        >
-                          {{ catalogProgram.name }}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div class="grid gap-2">
-                    <label class="text-sm font-medium">Stage label</label>
-                    <Input v-model="stage.journeyStageName" placeholder="Optional stage label" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="rounded-lg border bg-muted/20 p-4 text-sm">
-              <div class="font-medium">Journey preview</div>
-              <div class="mt-1 text-muted-foreground">
-                {{ companyProgramsStore.catalogJourneyLabel(
-                  selectedCatalogPrograms.map((program, index) => ({
-                    programId: program.id,
-                    programName: program.name,
-                    journeyOrder: index + 1,
-                  })),
-                  'No Prosper program selected yet',
-                ) }}
-              </div>
-            </div>
-          </div>
-
-          <div class="grid gap-4 md:grid-cols-2">
-            <div class="grid gap-2">
-              <label class="text-sm font-medium">Matching mode</label>
-              <Select v-model="programForm.matchingMode">
-                <SelectTrigger>
-                  <SelectValue placeholder="Select matching mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ADMIN_ASSIGN">Admin assign</SelectItem>
-                  <SelectItem value="EMPLOYEE_SELECT">Employee select</SelectItem>
-                  <SelectItem value="SYSTEM_ASSIGN">System assign</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div class="grid gap-2">
-              <label class="text-sm font-medium">Journey template</label>
-              <Select v-model="programJourneyTemplateSelection">
-                <SelectTrigger>
-                  <SelectValue placeholder="Attach a guided journey" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="NONE">No guided journey yet</SelectItem>
-                  <SelectItem
-                    v-for="template in companyProgramsStore.journeyTemplates"
-                    :key="template.id"
-                    :value="template.id"
-                  >
-                    {{ template.name }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div class="grid gap-2">
-              <label class="text-sm font-medium">Max participants</label>
-              <Input v-model="programForm.maxParticipants" type="number" min="1" placeholder="Optional capacity" />
-            </div>
-          </div>
-
-          <div
-            v-if="companyProgramsStore.journeyTemplates.find(template => template.id === programJourneyTemplateSelection)"
-            class="rounded-lg border bg-muted/20 p-4 text-sm"
-          >
-            <div class="font-medium">
-              {{ companyProgramsStore.journeyTemplates.find(template => template.id === programJourneyTemplateSelection)?.name }}
-            </div>
-            <div class="mt-1 text-muted-foreground">
-              {{ companyProgramsStore.journeyTemplates.find(template => template.id === programJourneyTemplateSelection)?.description }}
-            </div>
-            <div class="mt-3 text-xs text-muted-foreground">
-              {{ companyProgramsStore.journeyTemplates.find(template => template.id === programJourneyTemplateSelection)?.stepCount || 0 }} milestones
-            </div>
-          </div>
-
-          <div class="grid gap-4 md:grid-cols-2">
-            <div class="grid gap-2">
-              <label class="text-sm font-medium">Start date</label>
-              <Input v-model="programForm.startsAt" type="datetime-local" />
-            </div>
-            <div class="grid gap-2">
-              <label class="text-sm font-medium">End date</label>
-              <Input v-model="programForm.endsAt" type="datetime-local" />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" @click="showProgramDialog = false" :disabled="companyProgramsStore.isSaving">
-              Cancel
-            </Button>
-            <Button type="submit" :disabled="companyProgramsStore.isSaving || !programForm.name.trim()">
-              <Plus class="mr-2 h-4 w-4" />
-              {{ isEditingProgram ? 'Save changes' : 'Create company program' }}
-            </Button>
-          </DialogFooter>
-        </form>
+        <CompanyProgramEditor
+          mode="edit"
+          :program="editingProgram"
+          :catalog-programs="companyProgramsStore.catalogPrograms"
+          :journey-templates="companyProgramsStore.journeyTemplates"
+          :is-saving="companyProgramsStore.isSaving"
+          submit-label="Save changes"
+          @submit="saveProgram"
+          @cancel="closeProgramDialog"
+        />
       </DialogContent>
     </Dialog>
 

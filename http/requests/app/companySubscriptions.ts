@@ -1,6 +1,19 @@
 import api from '@/http/axios'
 import type { BillingInterval } from '@/http/requests/app/subscriptions'
 
+export interface CompanySessionWalletSummary {
+  walletId: string
+  companySubscriptionId: string
+  companyId: string
+  pricePerSession: number | string
+  sessionsPurchased: number
+  sessionsAllocated: number
+  sessionsReturned: number
+  sessionsAvailable: number
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
 export interface CompanySubscriptionSummary {
   id: string
   companyId: string
@@ -9,9 +22,9 @@ export interface CompanySubscriptionSummary {
   planName?: string | null
   billingInterval?: BillingInterval
   status: 'PENDING_PAYMENT' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'SUSPENDED'
-  seatsPurchased: number
-  activeSeats: number
-  availableSeats: number
+  seatsPurchased?: number
+  activeSeats?: number
+  availableSeats?: number
   autoRenew: boolean
   createdByUserId?: string | null
   latestInvoiceId?: string | null
@@ -24,9 +37,12 @@ export interface CompanySubscriptionSummary {
   latestInvoice?: {
     invoiceId: string
     invoiceNumber: string
+    publicToken?: string | null
     status: string
+    sessionCount?: number | null
     paymentUrl?: string | null
   } | null
+  wallet?: CompanySessionWalletSummary | null
   members?: CompanySubscriptionMember[]
 }
 
@@ -53,18 +69,29 @@ export interface CompanySubscriptionInvoiceResponse {
   paymentUrl: string
   amount: number
   currency: string
+  sessionCount?: number
+  pricePerSession?: number | string | null
+  changeType?: string | null
 }
 
 export default {
   async createCompanySubscription(payload: {
     companyId: string
     planId: string
-    seatCount: number
+    sessionCount?: number
+    seatCount?: number
     billingInterval?: BillingInterval
     redirectSuccessUrl?: string
     redirectCancelUrl?: string
   }): Promise<{ success: boolean; message: string; data: CompanySubscriptionInvoiceResponse | null }> {
-    const { data } = await api.post('/v1/company-subscriptions', payload)
+    const normalizedPayload = {
+      ...payload,
+      sessionCount: payload.sessionCount ?? payload.seatCount,
+      // Backward compatibility: older corporate billing validators still require
+      // seatCount even though the product model now treats this as session count.
+      seatCount: payload.seatCount ?? payload.sessionCount,
+    }
+    const { data } = await api.post('/v1/company-subscriptions', normalizedPayload)
     return data
   },
 

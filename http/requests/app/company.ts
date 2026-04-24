@@ -40,6 +40,39 @@ export interface CompanyRecommendedProgramsResponse {
     } | null
 }
 
+export interface CompanyOnboardingStatus {
+    companyId: string
+    companyName?: string | null
+    completed: boolean
+    missingFields: string[]
+    industry?: string | null
+    companySizeBand?: string | null
+    country?: string | null
+    timezone?: string | null
+    mentorshipObjective?: string | null
+    targetAudienceDescription?: string | null
+    programDesignPreference?: string | null
+    recommendedProgramIds?: string[]
+    completedAt?: string | null
+}
+
+export interface CompanyOnboardingResponse {
+    success: boolean
+    message: string
+    data: CompanyOnboardingStatus | null
+}
+
+export interface UpdateCompanyOnboardingPayload {
+    industry: string
+    companySizeBand: string
+    country: string
+    timezone: string
+    mentorshipObjective: string
+    targetAudienceDescription: string
+    programDesignPreference?: 'PROSPER_PROGRAMS' | 'CUSTOM_MENTOR_POOL' | 'BOTH'
+    recommendedProgramIds?: string[]
+}
+
 export interface CompanySessionRecord {
     id: string
     employeeId: string
@@ -96,6 +129,14 @@ export interface CompanyRecord {
     country?: string | null
     primaryColor?: string | null
     secondaryColor?: string | null
+    industry?: string | null
+    companySizeBand?: string | null
+    timezone?: string | null
+    mentorshipObjective?: string | null
+    targetAudienceDescription?: string | null
+    programDesignPreference?: string | null
+    onboardingCompleted?: boolean | null
+    onboardingCompletedAt?: string | null
     isActive?: boolean | null
     registrationCompleted?: boolean | null
     createdAt?: string | null
@@ -120,6 +161,12 @@ export interface UpdateCompanyPayload {
     country?: string
     primaryColor?: string
     secondaryColor?: string
+    industry?: string
+    companySizeBand?: string
+    timezone?: string
+    mentorshipObjective?: string
+    targetAudienceDescription?: string
+    programDesignPreference?: string
     isActive?: boolean
 }
 
@@ -130,6 +177,17 @@ export default {
 
     updateCompany(companyId: string, payload: UpdateCompanyPayload): Promise<{ data: CompanyResponse }> {
         return axiosInstance.put(`/v1/companies/${companyId}`, payload)
+    },
+
+    getCompanyOnboarding(companyId: string): Promise<{ data: CompanyOnboardingResponse }> {
+        return axiosInstance.get(`/v1/companies/${companyId}/onboarding`)
+    },
+
+    updateCompanyOnboarding(
+        companyId: string,
+        payload: UpdateCompanyOnboardingPayload
+    ): Promise<{ data: CompanyOnboardingResponse }> {
+        return axiosInstance.put(`/v1/companies/${companyId}/onboarding`, payload)
     },
 
     getCompanyProfiles(params: ProfilesQueryParams) {

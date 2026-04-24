@@ -22,6 +22,8 @@ const isCollapsed = ref(false);
 const shouldShowSidebar = computed(() => {
   const hiddenRoutes = [
     '/auth/login',
+    '/auth/signup',
+    '/auth/confirm-email',
     '/auth/register',
     '/auth/onboarding',
     '/auth/email-verification',
@@ -31,8 +33,12 @@ const shouldShowSidebar = computed(() => {
     '/auth/employees',
     '/auth/password',
     '/auth/complete-signup',
+    '/app/admin/onboarding',
+    '/app/admin/activate',
     '/forgot-password',
     '/reset-password',
+    '/landing',
+    '/pricing',
   ];
   // Also hide sidebar for session review pages (dynamic routes)
   const isSessionReviewPage = route.path.startsWith('/app/sessions/review/');

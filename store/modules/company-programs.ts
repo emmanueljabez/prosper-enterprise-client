@@ -16,11 +16,17 @@ import companyProgramsApi, {
   type EmployeeCompanyProgramJourneyRecord,
   type EmployeeCompanyProgramMatchRecord,
   type EmployeeCompanyProgramRecord,
+  type JourneyStepType,
+  type JourneyDependencyType,
   type JourneyTemplateRecord,
+  type JourneyTemplateUpsertPayload,
   type MentorAssignmentSummaryRecord,
   type ProsperCatalogProgramRecord,
   type UpdateCompanyProgramPayload,
 } from '~/http/requests/app/companyPrograms'
+import companySessionAllocationsApi, {
+  type EmployeeSessionAllocationRecord,
+} from '~/http/requests/app/companySessionAllocations'
 import { useAppToast } from '@/composables/services/toastService'
 
 interface CompanyProgramsState {
@@ -44,6 +50,13 @@ interface CompanyProgramsState {
   journeyTemplatesLoading: boolean
   journeyTemplatesError: string | null
   journeyTemplates: JourneyTemplateRecord[]
+  adminJourneyTemplatesLoading: boolean
+  adminJourneyTemplatesError: string | null
+  adminJourneyTemplates: JourneyTemplateRecord[]
+  journeyTemplateDetailLoading: boolean
+  journeyTemplateDetailError: string | null
+  selectedJourneyTemplate: JourneyTemplateRecord | null
+  journeyTemplateSaving: boolean
   catalogProgramsLoading: boolean
   catalogProgramsError: string | null
   catalogPrograms: ProsperCatalogProgramRecord[]
@@ -80,6 +93,9 @@ interface CompanyProgramsState {
   employeeJourneysLoading: boolean
   employeeJourneysError: string | null
   employeeJourneys: EmployeeCompanyProgramJourneyRecord[]
+  employeeSessionBalanceLoading: boolean
+  employeeSessionBalanceError: string | null
+  employeeSessionBalance: EmployeeSessionAllocationRecord | null
   journeyActionItemSavingIds: string[]
   journeyStepSavingIds: string[]
 }
@@ -117,6 +133,13 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
     journeyTemplatesLoading: false,
     journeyTemplatesError: null,
     journeyTemplates: [],
+    adminJourneyTemplatesLoading: false,
+    adminJourneyTemplatesError: null,
+    adminJourneyTemplates: [],
+    journeyTemplateDetailLoading: false,
+    journeyTemplateDetailError: null,
+    selectedJourneyTemplate: null,
+    journeyTemplateSaving: false,
     catalogProgramsLoading: false,
     catalogProgramsError: null,
     catalogPrograms: [],
@@ -146,6 +169,9 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
     employeeJourneysLoading: false,
     employeeJourneysError: null,
     employeeJourneys: [],
+    employeeSessionBalanceLoading: false,
+    employeeSessionBalanceError: null,
+    employeeSessionBalance: null,
     journeyActionItemSavingIds: [],
     journeyStepSavingIds: [],
   }),
@@ -270,6 +296,98 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
         throw error
       } finally {
         this.journeyTemplatesLoading = false
+      }
+    },
+
+    async loadAdminJourneyTemplates() {
+      this.adminJourneyTemplatesLoading = true
+      this.adminJourneyTemplatesError = null
+
+      try {
+        const response = await companyProgramsApi.getAdminJourneyTemplates()
+
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to load journey templates')
+        }
+
+        this.adminJourneyTemplates = response.data.templates
+      } catch (error: any) {
+        this.adminJourneyTemplatesError = error?.response?.data?.message || error?.message || 'Failed to load journey templates'
+        throw error
+      } finally {
+        this.adminJourneyTemplatesLoading = false
+      }
+    },
+
+    async loadJourneyTemplateDetail(journeyTemplateId: string) {
+      this.journeyTemplateDetailLoading = true
+      this.journeyTemplateDetailError = null
+
+      try {
+        const response = await companyProgramsApi.getAdminJourneyTemplate(journeyTemplateId)
+
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to load journey template')
+        }
+
+        this.selectedJourneyTemplate = response.data
+        this.syncJourneyTemplateRecord(response.data)
+        return response.data
+      } catch (error: any) {
+        this.journeyTemplateDetailError = error?.response?.data?.message || error?.message || 'Failed to load journey template'
+        throw error
+      } finally {
+        this.journeyTemplateDetailLoading = false
+      }
+    },
+
+    async createJourneyTemplate(payload: JourneyTemplateUpsertPayload) {
+      const toast = useAppToast()
+      this.journeyTemplateSaving = true
+      this.journeyTemplateDetailError = null
+
+      try {
+        const response = await companyProgramsApi.createJourneyTemplate(payload)
+
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to create journey template')
+        }
+
+        this.selectedJourneyTemplate = response.data
+        this.syncJourneyTemplateRecord(response.data)
+        toast.success(response.message || 'Journey template created successfully')
+        return response.data
+      } catch (error: any) {
+        this.journeyTemplateDetailError = error?.response?.data?.message || error?.message || 'Failed to create journey template'
+        toast.error(this.journeyTemplateDetailError)
+        throw error
+      } finally {
+        this.journeyTemplateSaving = false
+      }
+    },
+
+    async updateJourneyTemplate(journeyTemplateId: string, payload: JourneyTemplateUpsertPayload) {
+      const toast = useAppToast()
+      this.journeyTemplateSaving = true
+      this.journeyTemplateDetailError = null
+
+      try {
+        const response = await companyProgramsApi.updateJourneyTemplate(journeyTemplateId, payload)
+
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to update journey template')
+        }
+
+        this.selectedJourneyTemplate = response.data
+        this.syncJourneyTemplateRecord(response.data)
+        toast.success(response.message || 'Journey template updated successfully')
+        return response.data
+      } catch (error: any) {
+        this.journeyTemplateDetailError = error?.response?.data?.message || error?.message || 'Failed to update journey template'
+        toast.error(this.journeyTemplateDetailError)
+        throw error
+      } finally {
+        this.journeyTemplateSaving = false
       }
     },
 
@@ -610,6 +728,26 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
       }
     },
 
+    async loadMySessionBalance() {
+      this.employeeSessionBalanceLoading = true
+      this.employeeSessionBalanceError = null
+
+      try {
+        const response = await companySessionAllocationsApi.getMyBalance()
+
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to load your session balance')
+        }
+
+        this.employeeSessionBalance = response.data
+      } catch (error: any) {
+        this.employeeSessionBalanceError = error?.response?.data?.message || error?.message || 'Failed to load your session balance'
+        throw error
+      } finally {
+        this.employeeSessionBalanceLoading = false
+      }
+    },
+
     async updateJourneyActionItem(actionItemId: string, completed: boolean) {
       const toast = useAppToast()
       this.journeyActionItemSavingIds = [...this.journeyActionItemSavingIds, actionItemId]
@@ -796,6 +934,30 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
       this.programs.splice(index, 1, program)
     },
 
+    syncJourneyTemplateRecord(template: JourneyTemplateRecord) {
+      const upsert = (collection: JourneyTemplateRecord[]) => {
+        const index = collection.findIndex(item => item.id === template.id)
+        if (index === -1) {
+          collection.unshift(template)
+          return
+        }
+        collection.splice(index, 1, template)
+      }
+
+      upsert(this.adminJourneyTemplates)
+
+      const activeIndex = this.journeyTemplates.findIndex(item => item.id === template.id)
+      if (template.active) {
+        if (activeIndex === -1) {
+          this.journeyTemplates.unshift(template)
+        } else {
+          this.journeyTemplates.splice(activeIndex, 1, template)
+        }
+      } else if (activeIndex !== -1) {
+        this.journeyTemplates.splice(activeIndex, 1)
+      }
+    },
+
     matchingModeLabel(value: CompanyProgramMatchingMode) {
       switch (value) {
         case 'ADMIN_ASSIGN':
@@ -843,6 +1005,34 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
       }
 
       return fallback || 'No Prosper program journey selected'
+    },
+
+    journeyStepTypeLabel(value: JourneyStepType) {
+      switch (value) {
+        case 'SESSION':
+          return 'Session'
+        case 'CHECK_IN':
+          return 'Check-In'
+        case 'ACTION_ITEM':
+          return 'Action Item'
+        case 'SURVEY':
+          return 'Survey'
+        case 'REFLECTION':
+          return 'Reflection'
+        default:
+          return value
+      }
+    },
+
+    journeyDependencyTypeLabel(value: JourneyDependencyType) {
+      switch (value) {
+        case 'FINISH_TO_START':
+          return 'Finish to Start'
+        case 'OPTIONAL_GATE':
+          return 'Optional Gate'
+        default:
+          return value
+      }
     },
 
     catalogMentorCount(program?: ProsperCatalogProgramRecord | null) {

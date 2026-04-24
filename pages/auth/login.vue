@@ -9,8 +9,14 @@ import { useRouter } from '#app'
 import { useField, useForm } from 'vee-validate'
 import * as yup from 'yup'
 import { useToast } from '@/components/ui/toast'
+import { useCompanyActivationStore } from '@/store/modules/company-activation'
+import { useCompanyOnboardingStore } from '@/store/modules/company-onboarding'
+import { useCompanySignupStore } from '@/store/modules/company-signup'
 
 const authStore = useAuthStore()
+const companyActivationStore = useCompanyActivationStore()
+const companyOnboardingStore = useCompanyOnboardingStore()
+const companySignupStore = useCompanySignupStore()
 const router = useRouter()
 const rememberMe = ref(false)
 const { toast } = useToast()
@@ -37,7 +43,23 @@ const login = handleSubmit(async (values) => {
       if(role === "mentee") {
         router.push('/app/dashboard')
       } else if (['company', 'company_admin', 'corporate_admin'].includes(String(role || '').toLowerCase())) {
-        router.push('/app/admin')
+        companySignupStore.hydratePendingSelection()
+        companySignupStore.hydrateIntentToken()
+        const companyId = authStore.loggedInUser?.companyId || result.profile?.company?.id || result.profile?.companyId || result.company?.companyId
+        if (companyId) {
+          await companyOnboardingStore.loadOnboardingStatus(companyId)
+          if (companyOnboardingStore.requiresOnboarding) {
+            router.push('/app/admin/onboarding')
+            return
+          }
+
+          await companyActivationStore.loadActivationState(companyId)
+        }
+        if (companySignupStore.intentToken || companySignupStore.pendingSelection || companyActivationStore.requiresActivation) {
+          router.push('/app/admin/activate')
+        } else {
+          router.push('/app/admin')
+        }
       }
     }
   } catch (error: any) {
@@ -175,9 +197,9 @@ const loginWithMicrosoft = async () => {
         
         <div class="mt-4 text-center text-sm">
           Don't have an account?
-          <a href="#" class="underline">
+          <NuxtLink to="/auth/signup" class="underline">
             Sign up
-          </a>
+          </NuxtLink>
         </div>
       </div>
     </div>
