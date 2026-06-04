@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, FileText, CheckCircle, XCircle, ArrowLeft, Download } from 'lucide-vue-next'
 import { useAppToast } from '@/composables/services/toastService'
 import { useCompanyStore } from '@/store/modules/company'
+import { useAuthStore } from '@/store/modules/auth'
 
 definePageMeta({
   title: 'Import Employees',
@@ -20,11 +21,25 @@ definePageMeta({
 })
 
 const router = useRouter()
-const { success, error: toastError } = useAppToast()
+const { error: toastError } = useAppToast()
 const companyStore = useCompanyStore()
+const authStore = useAuthStore()
 
-// Company ID - this should ideally come from user context/auth
-const COMPANY_ID = 'bf65f6fa-be7d-4225-9880-a19d9e612e09'
+const companyId = computed(() => {
+  if (typeof window !== 'undefined') {
+    const rawProfile = localStorage.getItem('profile')
+    if (rawProfile) {
+      try {
+        const parsedProfile = JSON.parse(rawProfile)
+        return parsedProfile?.company?.id || parsedProfile?.companyId || parsedProfile?.company_id || ''
+      } catch {
+        return authStore.loggedInUser?.companyId || ''
+      }
+    }
+  }
+
+  return authStore.loggedInUser?.companyId || ''
+})
 
 type Employee = {
   id: string
@@ -163,8 +178,13 @@ const confirmImport = async () => {
     return
   }
 
+  if (!companyId.value) {
+    toastError('Company context is missing')
+    return
+  }
+
   try {
-    const result = await companyStore.bulkUploadWhitelist(COMPANY_ID, uploadedFile.value)
+    await companyStore.bulkUploadWhitelist(companyId.value, uploadedFile.value)
     step.value = 5 // Move to results step
   } catch (e) {
     // Error is already handled in the store
@@ -216,7 +236,7 @@ const startOver = () => {
         <h1 class="text-3xl font-bold tracking-tight">Import Employees</h1>
         <p class="text-muted-foreground">Upload a CSV, JSON, or Excel file to bulk import employees</p>
       </div>
-      <Button variant="outline" class="gap-2" @click="router.push('/app/admin/users')"><ArrowLeft class="h-4 w-4" /> Back</Button>
+      <Button variant="outline" class="gap-2" @click="router.push('/app/admin/employees')"><ArrowLeft class="h-4 w-4" /> Back</Button>
     </div>
 
     <!-- Step 1: Upload -->
@@ -419,7 +439,7 @@ const startOver = () => {
 
         <div class="flex items-center justify-between">
           <Button variant="outline" @click="startOver">Import Another File</Button>
-          <Button @click="router.push('/app/admin/users')">Go to Users</Button>
+          <Button @click="router.push('/app/admin/employees')">Go to Employees</Button>
         </div>
       </CardContent>
     </Card>
@@ -429,5 +449,3 @@ const startOver = () => {
 <style scoped>
 .container { max-width: 1100px; }
 </style>
-
-

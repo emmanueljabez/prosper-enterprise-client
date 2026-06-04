@@ -123,6 +123,8 @@ const availabilityStatus = computed(() => {
   return { label: 'Busy', color: 'bg-yellow-500' }
 })
 
+const mentorProfilePath = computed(() => `/app/mentors/${props.mentor.id}`)
+
 // Helper functions
 const getCurrencySymbol = (currency: string) => {
   const symbols: Record<string, string> = {
@@ -162,218 +164,219 @@ const handleContact = () => {
 </script>
 
 <template>
-  <Card
-    :class="{
-      'hover:shadow-lg transition-shadow cursor-pointer flex flex-col overflow-hidden': viewMode === 'grid',
-      'hover:shadow-lg transition-shadow cursor-pointer': viewMode === 'list',
-      'border-primary/20': isFeatured,
-      'border-orange-200': isTrending
-    }"
-    @click="handleViewProfile"
+  <NuxtLink
+    class="block h-full"
+    :to="mentorProfilePath"
+    @click="emit('view-profile', mentor.id)"
   >
-    <!-- Grid View -->
-    <template v-if="viewMode === 'grid'">
-      <!-- Portrait Image -->
-      <div class="mentor-card-img">
-        <div class="mentor-card-initials-fallback">{{ initials }}</div>
-        <img
-          v-if="mentor.profilePhoto"
-          :src="mentor.profilePhoto"
-          :alt="fullName"
-          class="absolute inset-0 w-full h-full object-cover"
-          @error="($event.target as HTMLImageElement).style.display = 'none'"
-        />
-      </div>
-
-      <!-- Card Body -->
-      <div class="p-4 flex flex-col gap-2 flex-1">
-        <h3 class="mentor-name">{{ fullName }}</h3>
-        <p class="text-xs text-muted-foreground line-clamp-2">
-          {{ mentor.profileSummary || 'Professional mentor ready to help you grow.' }}
-        </p>
-
-        <!-- Info Pills -->
-        <div class="flex gap-2 mt-1">
-          <span v-if="mentor.industry || mentor.title" class="info-pill">
-            <span class="info-pill-label">Expertise</span>
-            <span class="info-pill-value">{{ mentor.industry || mentor.title }}</span>
-          </span>
-          <span v-if="mentor.company" class="info-pill">
-            <span class="info-pill-label">Location</span>
-            <span class="info-pill-value">{{ mentor.company }}</span>
-          </span>
+    <Card
+      :class="{
+        'hover:shadow-lg transition-shadow cursor-pointer flex flex-col overflow-hidden h-full': viewMode === 'grid',
+        'hover:shadow-lg transition-shadow cursor-pointer h-full': viewMode === 'list',
+        'border-primary/20': isFeatured,
+        'border-orange-200': isTrending
+      }"
+    >
+      <!-- Grid View -->
+      <template v-if="viewMode === 'grid'">
+        <!-- Portrait Image -->
+        <div class="mentor-card-img">
+          <div class="mentor-card-initials-fallback">{{ initials }}</div>
+          <img
+            v-if="mentor.profilePhoto"
+            :src="mentor.profilePhoto"
+            :alt="fullName"
+            class="absolute inset-0 w-full h-full object-cover"
+            @error="($event.target as HTMLImageElement).style.display = 'none'"
+          />
         </div>
 
-        <!-- Actions -->
-        <div class="flex items-center gap-2 mt-auto pt-2">
-          <Button
-            class="w-full get-in-touch-btn"
-            size="sm"
-            @click.stop="handleViewProfile"
-          >
-            Get in touch
-          </Button>
-        </div>
-      </div>
-    </template>
+        <!-- Card Body -->
+        <div class="p-4 flex flex-col gap-2 flex-1">
+          <h3 class="mentor-name">{{ fullName }}</h3>
+          <p class="text-xs text-muted-foreground line-clamp-2">
+            {{ mentor.profileSummary || 'Professional mentor ready to help you grow.' }}
+          </p>
 
-    <!-- List View -->
-    <template v-else>
-      <CardContent class="p-6">
-        <div class="flex space-x-4">
-          <!-- Avatar and Basic Info -->
-          <div class="flex-shrink-0">
-            <div class="relative">
-              <Avatar class="h-16 w-16">
-                <AvatarImage :src="mentor.profilePhoto" :alt="fullName" />
-                <AvatarFallback>{{ initials }}</AvatarFallback>
-              </Avatar>
-              <div 
-                :class="[
-                  'absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-2 border-white',
-                  availabilityStatus.color
-                ]"
-                :title="availabilityStatus.label"
-              />
-            </div>
+          <!-- Info Pills -->
+          <div class="flex gap-2 mt-1">
+            <span v-if="mentor.industry || mentor.title" class="info-pill">
+              <span class="info-pill-label">Expertise</span>
+              <span class="info-pill-value">{{ mentor.industry || mentor.title }}</span>
+            </span>
+            <span v-if="mentor.company" class="info-pill">
+              <span class="info-pill-label">Location</span>
+              <span class="info-pill-value">{{ mentor.company }}</span>
+            </span>
           </div>
 
-          <!-- Main Content -->
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between">
-              <div class="flex-1">
-                <!-- Header -->
-                <div class="flex items-center space-x-2 mb-1">
-                  <h3 class="font-semibold text-xl">{{ fullName }}</h3>
-                  <Badge
-                    v-for="badge in badgeVariants.slice(0, 2)"
-                    :key="badge.type"
-                    :variant="badge.variant as any"
-                    class="text-xs flex items-center gap-1"
-                  >
-                    <component :is="badge.icon" v-if="badge.icon" class="h-3 w-3" />
-                    {{ badge.type }}
-                  </Badge>
-                </div>
-                
-                <p class="text-muted-foreground mb-2">
-                  {{ mentor.title }} at {{ mentor.company }} • {{ mentor.industry }}
-                </p>
+          <!-- Actions -->
+          <div class="flex items-center gap-2 mt-auto pt-2">
+            <span class="w-full get-in-touch-btn inline-flex items-center justify-center rounded-md">
+              Get in touch
+            </span>
+          </div>
+        </div>
+      </template>
 
-                <!-- Rating and Stats Row -->
-                <div class="flex items-center space-x-6 text-sm mb-3">
-                  <div class="flex items-center space-x-2">
-                    <div class="flex items-center">
-                      <Star
-                        v-for="n in ratingStars.fullStars"
-                        :key="`full-${n}`"
-                        class="h-4 w-4 fill-yellow-400 text-yellow-400"
-                      />
-                      <Star
-                        v-if="ratingStars.hasHalfStar"
-                        class="h-4 w-4 fill-yellow-400/50 text-yellow-400"
-                      />
-                      <Star
-                        v-for="n in ratingStars.emptyStars"
-                        :key="`empty-${n}`"
-                        class="h-4 w-4 text-gray-300"
-                      />
-                    </div>
-                    <span class="font-medium">{{ mentor.averageRating }}</span>
-                    <span class="text-muted-foreground">({{ mentor.totalReviews }} reviews)</span>
-                  </div>
-                  
-                  <Separator orientation="vertical" class="h-4" />
-                  
-                  <div class="flex items-center space-x-1 text-muted-foreground">
-                    <Users class="h-4 w-4" />
-                    <span>{{ mentor.totalSessions }} sessions</span>
-                  </div>
-                  
-                  <Separator orientation="vertical" class="h-4" />
-                  
-                  <div class="flex items-center space-x-1 text-muted-foreground">
-                    <Clock class="h-4 w-4" />
-                    <span>{{ responseTimeText }}</span>
-                  </div>
-                </div>
+      <!-- List View -->
+      <template v-else>
+        <CardContent class="p-6">
+          <div class="flex space-x-4">
+            <!-- Avatar and Basic Info -->
+            <div class="flex-shrink-0">
+              <div class="relative">
+                <Avatar class="h-16 w-16">
+                  <AvatarImage :src="mentor.profilePhoto" :alt="fullName" />
+                  <AvatarFallback>{{ initials }}</AvatarFallback>
+                </Avatar>
+                <div
+                  :class="[
+                    'absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-2 border-white',
+                    availabilityStatus.color
+                  ]"
+                  :title="availabilityStatus.label"
+                />
+              </div>
+            </div>
 
-                <!-- Summary -->
-                <p class="text-sm text-muted-foreground mb-3 line-clamp-2">
-                  {{ mentor.profileSummary }}
-                </p>
-
-                <!-- Skills and Expertise -->
-                <div class="flex flex-wrap gap-1 mb-3">
-                  <Badge
-                    v-for="area in (mentor.expertiseAreas || []).slice(0, 4)"
-                    :key="area"
-                    variant="secondary"
-                    class="text-xs"
-                  >
-                    {{ area }}
-                  </Badge>
-                  <Badge
-                    v-if="(mentor.expertiseAreas || []).length > 4"
-                    variant="outline"
-                    class="text-xs"
-                  >
-                    +{{ (mentor.expertiseAreas || []).length - 4 }} more
-                  </Badge>
-                </div>
-
-                <!-- Session Types -->
-                <div class="flex items-center space-x-3">
-                  <span class="text-sm text-muted-foreground">Available for:</span>
-                  <div class="flex items-center space-x-2">
-                    <component
-                      v-for="(icon, index) in sessionTypeIcons.slice(0, 5)"
-                      :key="index"
-                      :is="icon"
-                      class="h-4 w-4 text-muted-foreground"
-                    />
-                    <span
-                      v-if="sessionTypeIcons.length > 5"
-                      class="text-xs text-muted-foreground"
+            <!-- Main Content -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <!-- Header -->
+                  <div class="flex items-center space-x-2 mb-1">
+                    <h3 class="font-semibold text-xl">{{ fullName }}</h3>
+                    <Badge
+                      v-for="badge in badgeVariants.slice(0, 2)"
+                      :key="badge.type"
+                      :variant="badge.variant as any"
+                      class="text-xs flex items-center gap-1"
                     >
-                      +{{ sessionTypeIcons.length - 5 }}
-                    </span>
+                      <component :is="badge.icon" v-if="badge.icon" class="h-3 w-3" />
+                      {{ badge.type }}
+                    </Badge>
+                  </div>
+
+                  <p class="text-muted-foreground mb-2">
+                    {{ mentor.title }} at {{ mentor.company }} • {{ mentor.industry }}
+                  </p>
+
+                  <!-- Rating and Stats Row -->
+                  <div class="flex items-center space-x-6 text-sm mb-3">
+                    <div class="flex items-center space-x-2">
+                      <div class="flex items-center">
+                        <Star
+                          v-for="n in ratingStars.fullStars"
+                          :key="`full-${n}`"
+                          class="h-4 w-4 fill-yellow-400 text-yellow-400"
+                        />
+                        <Star
+                          v-if="ratingStars.hasHalfStar"
+                          class="h-4 w-4 fill-yellow-400/50 text-yellow-400"
+                        />
+                        <Star
+                          v-for="n in ratingStars.emptyStars"
+                          :key="`empty-${n}`"
+                          class="h-4 w-4 text-gray-300"
+                        />
+                      </div>
+                      <span class="font-medium">{{ mentor.averageRating }}</span>
+                      <span class="text-muted-foreground">({{ mentor.totalReviews }} reviews)</span>
+                    </div>
+
+                    <Separator orientation="vertical" class="h-4" />
+
+                    <div class="flex items-center space-x-1 text-muted-foreground">
+                      <Users class="h-4 w-4" />
+                      <span>{{ mentor.totalSessions }} sessions</span>
+                    </div>
+
+                    <Separator orientation="vertical" class="h-4" />
+
+                    <div class="flex items-center space-x-1 text-muted-foreground">
+                      <Clock class="h-4 w-4" />
+                      <span>{{ responseTimeText }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Summary -->
+                  <p class="text-sm text-muted-foreground mb-3 line-clamp-2">
+                    {{ mentor.profileSummary }}
+                  </p>
+
+                  <!-- Skills and Expertise -->
+                  <div class="flex flex-wrap gap-1 mb-3">
+                    <Badge
+                      v-for="area in (mentor.expertiseAreas || []).slice(0, 4)"
+                      :key="area"
+                      variant="secondary"
+                      class="text-xs"
+                    >
+                      {{ area }}
+                    </Badge>
+                    <Badge
+                      v-if="(mentor.expertiseAreas || []).length > 4"
+                      variant="outline"
+                      class="text-xs"
+                    >
+                      +{{ (mentor.expertiseAreas || []).length - 4 }} more
+                    </Badge>
+                  </div>
+
+                  <!-- Session Types -->
+                  <div class="flex items-center space-x-3">
+                    <span class="text-sm text-muted-foreground">Available for:</span>
+                    <div class="flex items-center space-x-2">
+                      <component
+                        v-for="(icon, index) in sessionTypeIcons.slice(0, 5)"
+                        :key="index"
+                        :is="icon"
+                        class="h-4 w-4 text-muted-foreground"
+                      />
+                      <span
+                        v-if="sessionTypeIcons.length > 5"
+                        class="text-xs text-muted-foreground"
+                      >
+                        +{{ sessionTypeIcons.length - 5 }}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- Right Side Actions -->
-              <div class="flex flex-col items-end space-y-3 ml-4">
+                <!-- Right Side Actions -->
+                <div class="flex flex-col items-end space-y-3 ml-4">
 
-                <!-- Actions -->
-                <div class="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    @click.stop="handleFavoriteToggle"
-                    :class="{ 'text-red-500': isFavorite }"
-                  >
-                    <Heart 
-                      :class="{ 'fill-current': isFavorite }" 
-                      class="h-4 w-4" 
-                    />
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    @click.stop="handleViewProfile"
-                  >
-                    View Profile
-                  </Button>
+                  <!-- Actions -->
+                  <div class="flex space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      @click.stop="handleFavoriteToggle"
+                      :class="{ 'text-red-500': isFavorite }"
+                    >
+                      <Heart
+                        :class="{ 'fill-current': isFavorite }"
+                        class="h-4 w-4"
+                      />
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      @click.stop="handleViewProfile"
+                    >
+                      View Profile
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </template>
-  </Card>
+        </CardContent>
+      </template>
+    </Card>
+  </NuxtLink>
 </template>
 
 <style scoped>
@@ -482,4 +485,4 @@ const handleContact = () => {
 .heart-btn:hover {
   background-color: #f3e8ff;
 }
-</style> 
+</style>

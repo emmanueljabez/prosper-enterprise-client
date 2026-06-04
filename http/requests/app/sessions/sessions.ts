@@ -14,6 +14,7 @@ interface CreateSessionPayload {
     menteeMessage?: string | null
     companyProgramId?: string | null
     companyProgramParticipantId?: string | null
+    journeyInstanceStepId?: string | null
 }
 
 interface OutcomeActionItemPayload {

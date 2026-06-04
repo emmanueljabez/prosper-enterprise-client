@@ -40,6 +40,39 @@ export interface CompanyRecommendedProgramsResponse {
     } | null
 }
 
+export interface CompanyOnboardingStatus {
+    companyId: string
+    companyName?: string | null
+    completed: boolean
+    missingFields: string[]
+    industry?: string | null
+    companySizeBand?: string | null
+    country?: string | null
+    timezone?: string | null
+    mentorshipObjective?: string | null
+    targetAudienceDescription?: string | null
+    programDesignPreference?: string | null
+    recommendedProgramIds?: string[]
+    completedAt?: string | null
+}
+
+export interface CompanyOnboardingResponse {
+    success: boolean
+    message: string
+    data: CompanyOnboardingStatus | null
+}
+
+export interface UpdateCompanyOnboardingPayload {
+    industry: string
+    companySizeBand: string
+    country: string
+    timezone: string
+    mentorshipObjective?: string
+    targetAudienceDescription?: string
+    programDesignPreference?: 'PROSPER_PROGRAMS' | 'CUSTOM_MENTOR_POOL' | 'BOTH'
+    recommendedProgramIds?: string[]
+}
+
 export interface CompanySessionRecord {
     id: string
     employeeId: string
@@ -48,16 +81,77 @@ export interface CompanySessionRecord {
     department?: string | null
     mentorId: string
     mentorName: string
+    title?: string | null
+    description?: string | null
     status?: string | null
     platform?: string | null
     platformDisplayName?: string | null
     scheduledStart?: string | null
     scheduledEnd?: string | null
     durationMin?: number | null
+    cancelledAt?: string | null
+    cancellationReason?: string | null
+    cancelledBy?: string | null
     rating?: number | null
     cost?: number | string | null
     currency?: string | null
     paid?: boolean | null
+}
+
+export interface CompanySessionsQueryParams {
+    statuses?: string[]
+    departments?: string[]
+    startDate?: string
+    endDate?: string
+    search?: string
+    page?: number
+    size?: number
+}
+
+export interface CompanySessionsPagination {
+    page: number
+    size: number
+    totalItems: number
+    totalPages: number
+    hasNext: boolean
+    hasPrevious: boolean
+}
+
+export interface CompanySessionsSummary {
+    upcomingCount: number
+    completedCount: number
+    cancelledCount: number
+    avgRating: number
+    cancellationRate: number
+    totalSessions: number
+}
+
+export interface CompanyRecentCancellation {
+    sessionId: string
+    employeeName: string
+    mentorName: string
+    title?: string | null
+    status?: string | null
+    cancelledAt?: string | null
+    cancellationReason?: string | null
+    cancelledBy?: string | null
+}
+
+export interface CompanyPendingFeedbackItem {
+    reviewCycleId: string
+    sessionId: string
+    mentorName: string
+    menteeName: string
+    sessionTitle?: string | null
+    completedAt?: string | null
+    feedbackWindowExpiresAt?: string | null
+    pendingRequestCount: number
+    pendingRoles: string[]
+}
+
+export interface CompanyPendingFeedbackPayload {
+    requiredCount: number
+    items: CompanyPendingFeedbackItem[]
 }
 
 export interface CompanySessionsResponse {
@@ -68,6 +162,13 @@ export interface CompanySessionsResponse {
         companyName: string
         sessions: CompanySessionRecord[]
         count: number
+        totalCount?: number
+        displayedCount?: number
+        pagination?: CompanySessionsPagination | null
+        summary?: CompanySessionsSummary | null
+        recentCancellations?: CompanyRecentCancellation[]
+        pendingFeedback?: CompanyPendingFeedbackPayload | null
+        appliedFilters?: Record<string, any>
     } | null
 }
 
@@ -96,6 +197,14 @@ export interface CompanyRecord {
     country?: string | null
     primaryColor?: string | null
     secondaryColor?: string | null
+    industry?: string | null
+    companySizeBand?: string | null
+    timezone?: string | null
+    mentorshipObjective?: string | null
+    targetAudienceDescription?: string | null
+    programDesignPreference?: string | null
+    onboardingCompleted?: boolean | null
+    onboardingCompletedAt?: string | null
     isActive?: boolean | null
     registrationCompleted?: boolean | null
     createdAt?: string | null
@@ -120,6 +229,12 @@ export interface UpdateCompanyPayload {
     country?: string
     primaryColor?: string
     secondaryColor?: string
+    industry?: string
+    companySizeBand?: string
+    timezone?: string
+    mentorshipObjective?: string
+    targetAudienceDescription?: string
+    programDesignPreference?: string
     isActive?: boolean
 }
 
@@ -130,6 +245,17 @@ export default {
 
     updateCompany(companyId: string, payload: UpdateCompanyPayload): Promise<{ data: CompanyResponse }> {
         return axiosInstance.put(`/v1/companies/${companyId}`, payload)
+    },
+
+    getCompanyOnboarding(companyId: string): Promise<{ data: CompanyOnboardingResponse }> {
+        return axiosInstance.get(`/v1/companies/${companyId}/onboarding`)
+    },
+
+    updateCompanyOnboarding(
+        companyId: string,
+        payload: UpdateCompanyOnboardingPayload
+    ): Promise<{ data: CompanyOnboardingResponse }> {
+        return axiosInstance.put(`/v1/companies/${companyId}/onboarding`, payload)
     },
 
     getCompanyProfiles(params: ProfilesQueryParams) {
@@ -210,7 +336,16 @@ export default {
         return axiosInstance.put(`/v1/companies/${companyId}/recommended-programs`, { programIds })
     },
 
-    getCompanySessions(companyId: string): Promise<{ data: CompanySessionsResponse }> {
-        return axiosInstance.get(`/v1/companies/${companyId}/sessions`)
+    getCompanySessions(companyId: string, params?: CompanySessionsQueryParams): Promise<{ data: CompanySessionsResponse }> {
+        const requestParams: Record<string, any> = {}
+        if (params?.statuses?.length) requestParams.statuses = params.statuses.join(',')
+        if (params?.departments?.length) requestParams.departments = params.departments.join(',')
+        if (params?.startDate) requestParams.startDate = params.startDate
+        if (params?.endDate) requestParams.endDate = params.endDate
+        if (params?.search) requestParams.search = params.search
+        if (typeof params?.page === 'number') requestParams.page = params.page
+        if (typeof params?.size === 'number') requestParams.size = params.size
+
+        return axiosInstance.get(`/v1/companies/${companyId}/sessions`, { params: requestParams })
     }
 }

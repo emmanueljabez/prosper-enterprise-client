@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCompanyProgramsStore } from '@/store/modules/company-programs'
 import { useAppToast } from '@/composables/services/toastService'
@@ -7,6 +7,8 @@ import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Skeleton } from '~/components/ui/skeleton'
 import { GitBranch, RefreshCw, UserCheck, Users } from 'lucide-vue-next'
 
@@ -20,6 +22,9 @@ definePageMeta({
 const companyProgramsStore = useCompanyProgramsStore()
 const toast = useAppToast()
 const router = useRouter()
+const showSelectionDialog = ref(false)
+const activeSelectionParticipantId = ref('')
+const selectedMentorId = ref('')
 
 const assignedCount = computed(() =>
   companyProgramsStore.employeeMatches.filter(match => match.mentorAssignment).length,
@@ -27,6 +32,18 @@ const assignedCount = computed(() =>
 
 const pendingCount = computed(() =>
   Math.max(companyProgramsStore.employeeMatches.length - assignedCount.value, 0),
+)
+
+const activeSelectionMatch = computed(() =>
+  companyProgramsStore.employeeMatches.find(match => match.participantId === activeSelectionParticipantId.value) || null,
+)
+
+const activeSelectionOptions = computed(() =>
+  companyProgramsStore.employeeMatchOptionsByParticipant[activeSelectionParticipantId.value]?.options || [],
+)
+
+const activeSelectionWorkspace = computed(() =>
+  companyProgramsStore.employeeMatchOptionsByParticipant[activeSelectionParticipantId.value]?.matchWorkspace || null,
 )
 
 const participantStatusTone = (status: string) => ({
@@ -38,6 +55,25 @@ const participantStatusTone = (status: string) => ({
 
 const canBookAssignedMentor = (match: any) =>
   Boolean(match?.mentorAssignment?.mentorId) && ['ENROLLED', 'ACTIVE'].includes(match?.participantStatus)
+
+const workspaceStatusTone = (status?: string | null) => ({
+  ASSIGNED: 'secondary',
+  PENDING_EMPLOYEE_SELECTION: 'default',
+  ADMIN_REVIEW: 'secondary',
+  EXPIRED_NO_CANDIDATE: 'destructive',
+  INACTIVE: 'outline',
+}[String(status || '')] as 'default' | 'secondary' | 'outline' | 'destructive')
+
+const workspaceStatusLabel = (status?: string | null) =>
+  String(status || '')
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, letter => letter.toUpperCase())
+
+const formatDateTime = (value?: string | null) =>
+  value
+    ? new Date(value).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : 'No deadline'
 
 const openAssignedMentor = (match: any) => {
   const mentorId = match?.mentorAssignment?.mentorId
@@ -70,6 +106,32 @@ const loadMatches = async () => {
     await companyProgramsStore.loadMyCompanyProgramMatches()
   } catch (error: any) {
     toast.error(error?.response?.data?.message || error?.message || 'Failed to load your mentor matches')
+  }
+}
+
+const openMentorSelection = async (match: any) => {
+  activeSelectionParticipantId.value = match.participantId
+  selectedMentorId.value = ''
+  showSelectionDialog.value = true
+
+  try {
+    await companyProgramsStore.loadMyMatchOptions(match.participantId)
+  } catch (error: any) {
+    toast.error(error?.response?.data?.message || error?.message || 'Failed to load mentor shortlist')
+  }
+}
+
+const confirmMentorSelection = async () => {
+  if (!activeSelectionParticipantId.value || !selectedMentorId.value) {
+    toast.error('Select a mentor before continuing')
+    return
+  }
+
+  try {
+    await companyProgramsStore.selectMyMentor(activeSelectionParticipantId.value, selectedMentorId.value)
+    showSelectionDialog.value = false
+  } catch {
+    // store handles error toast
   }
 }
 
@@ -172,7 +234,15 @@ onMounted(() => {
           </div>
 
           <div v-else class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            Your employer is still assigning a mentor for this program.
+            <div class="space-y-2">
+              <p v-if="match.matchWorkspace?.status">
+                Match status: {{ workspaceStatusLabel(match.matchWorkspace.status) }}
+              </p>
+              <p v-else>Your employer is still assigning a mentor for this program.</p>
+              <p v-if="match.matchWorkspace?.selectionDeadlineAt">
+                Selection closes {{ formatDateTime(match.matchWorkspace.selectionDeadlineAt) }}.
+              </p>
+            </div>
           </div>
 
           <div v-if="match.mentorAssignment" class="space-y-2">
@@ -183,8 +253,102 @@ onMounted(() => {
               Booking is available while your program participation is active.
             </p>
           </div>
+
+          <div v-else-if="match.matchWorkspace?.canEmployeeSelect" class="space-y-2">
+            <Button class="w-full" @click="openMentorSelection(match)">
+              Choose Mentor
+            </Button>
+            <p class="text-xs text-muted-foreground">
+              Select from your recommended shortlist before the deadline.
+            </p>
+          </div>
+
+          <Badge
+            v-else-if="match.matchWorkspace?.status"
+            :variant="workspaceStatusTone(match.matchWorkspace.status)"
+          >
+            {{ workspaceStatusLabel(match.matchWorkspace.status) }}
+          </Badge>
         </CardContent>
       </Card>
     </div>
+
+    <Dialog :open="showSelectionDialog" @update:open="showSelectionDialog = $event">
+      <DialogContent class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Choose Mentor</DialogTitle>
+          <DialogDescription>
+            Select one mentor for {{ activeSelectionMatch?.programName || 'this program' }}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Alert v-if="companyProgramsStore.employeeMatchOptionsError" variant="destructive">
+          <AlertDescription>{{ companyProgramsStore.employeeMatchOptionsError }}</AlertDescription>
+        </Alert>
+
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <Badge v-if="activeSelectionWorkspace?.status" :variant="workspaceStatusTone(activeSelectionWorkspace.status)">
+              {{ workspaceStatusLabel(activeSelectionWorkspace.status) }}
+            </Badge>
+            <span class="text-xs text-muted-foreground">
+              Deadline: {{ formatDateTime(activeSelectionWorkspace?.selectionDeadlineAt) }}
+            </span>
+          </div>
+
+          <div v-if="companyProgramsStore.employeeMatchOptionsLoading" class="space-y-3">
+            <Skeleton class="h-11 w-full" />
+            <Skeleton class="h-11 w-full" />
+            <Skeleton class="h-11 w-full" />
+          </div>
+
+          <div v-else-if="!activeSelectionOptions.length" class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            No mentor options are currently available for this program.
+          </div>
+
+          <div v-else class="space-y-3">
+            <Select v-model="selectedMentorId">
+              <SelectTrigger>
+                <SelectValue placeholder="Select a mentor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="option in activeSelectionOptions"
+                  :key="option.mentorId"
+                  :value="option.mentorId"
+                >
+                  {{ option.rankOrder ? `#${option.rankOrder} ` : '' }}{{ option.mentorName }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div class="max-h-[260px] space-y-2 overflow-auto rounded-lg border p-3">
+              <div v-for="option in activeSelectionOptions" :key="`option-${option.mentorId}`" class="rounded-md border p-3 text-sm">
+                <div class="font-medium">{{ option.rankOrder ? `#${option.rankOrder} ` : '' }}{{ option.mentorName }}</div>
+                <div class="text-muted-foreground">
+                  {{ option.title || 'Mentor' }}<span v-if="option.company"> · {{ option.company }}</span>
+                </div>
+                <div class="mt-1 text-xs text-muted-foreground">
+                  Rating: {{ option.rating ?? '-' }} | Sessions: {{ option.totalSessions ?? '-' }} | Score: {{ option.recommendationScore ?? '-' }}
+                </div>
+                <div v-if="option.recommendationReason" class="mt-1 text-xs text-muted-foreground">
+                  {{ option.recommendationReason }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" @click="showSelectionDialog = false">Cancel</Button>
+          <Button
+            @click="confirmMentorSelection"
+            :disabled="!selectedMentorId || companyProgramsStore.isEmployeeMatchSelectionSaving(activeSelectionParticipantId)"
+          >
+            Confirm Mentor
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

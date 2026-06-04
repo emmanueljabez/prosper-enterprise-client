@@ -3,7 +3,6 @@ import { defineNuxtConfig } from 'nuxt/config'
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   devtools: { enabled: true },
-  
   // Development server configuration for better hot reload
   devServer: {
     port: 3000,
@@ -83,6 +82,10 @@ export default defineNuxtConfig({
         {
           rel: 'stylesheet',
           href: 'https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap'
+        },
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap'
         },
         { 
           rel: 'icon',

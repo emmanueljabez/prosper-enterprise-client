@@ -86,6 +86,7 @@ interface CreateSessionPayload {
   menteeMessage?: string | null
   companyProgramId?: string | null
   companyProgramParticipantId?: string | null
+  journeyInstanceStepId?: string | null
 }
 
 interface SessionOutcomeActionItemData {
@@ -200,6 +201,12 @@ export const useSessionsStore = defineStore('sessions', {
   },
 
   actions: {
+    isSessionsResponseSuccessful(response: any) {
+      return response?.data?.success === true
+        || response?.data?.status === 'success'
+        || Array.isArray(response?.data?.data?.sessions)
+    },
+
     // Session booking
     createSession(sessionData: CreateSessionPayload) {
       console.log("Saving session data")
@@ -243,7 +250,7 @@ export const useSessionsStore = defineStore('sessions', {
           size
         })
 
-        if (response.data.success) {
+        if (this.isSessionsResponseSuccessful(response)) {
           // For first page, replace sessions. For subsequent pages, append
           if (page === 0) {
             this.sessions = response.data.data.sessions
@@ -286,7 +293,7 @@ export const useSessionsStore = defineStore('sessions', {
           size: this.pagination.pageSize
         })
 
-        if (response.data.success) {
+        if (this.isSessionsResponseSuccessful(response)) {
           this.sessions.push(...response.data.data.sessions)
 
           this.pagination = {

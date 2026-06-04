@@ -6,100 +6,81 @@ import {
   BarChart3,
   Settings,
   CreditCard,
-  Shield,
-  FileText,
+  CalendarCheck2,
   BookOpen,
-  GitBranch
+  GitBranch,
+  Route,
 } from 'lucide-vue-next'
 
 export const corporateAdminNavigation: NavigationItem[] = [
   {
-    title: 'Overview',
+    title: 'Core',
     children: [
       {
         title: 'Dashboard',
         icon: LayoutDashboard,
         url: '/app/admin',
-        permission: null
-      }
-    ]
-  },
-
-  {
-    title: 'Program Management',
-    children: [
+        permission: null,
+      },
       {
-        title: 'Company Programs',
+        title: 'Mentees',
+        icon: Users,
+        url: '/app/admin/employees',
+        permission: 'admin:users',
+      },
+      {
+        title: 'Programs',
         icon: BookOpen,
         url: '/app/admin/programs',
-        permission: 'admin:programs'
+        permission: 'admin:programs',
       },
       {
-        title: 'Employees',
-        icon: Users,
-        url: '/app/admin/participants',
-        permission: 'admin:users'
-      },
-      {
-        title: 'Mentor Matches',
-        icon: GitBranch,
-        url: '/app/admin/matches',
-        permission: 'admin:programs'
+        title: 'Billing',
+        icon: CreditCard,
+        url: '/app/admin/billing',
+        permission: 'admin:billing',
       },
       {
         title: 'Mentors',
         icon: UserCheck,
         url: '/app/admin/mentors',
-        permission: 'admin:mentors'
+        permission: 'admin:mentors',
       },
       {
         title: 'Sessions',
-        icon: FileText,
+        icon: CalendarCheck2,
         url: '/app/admin/sessions',
-        permission: 'admin:reports'
-      }
-    ]
+        permission: 'admin:reports',
+      },
+      {
+        title: 'Journey Templates',
+        icon: Route,
+        url: '/app/admin/journey-templates',
+        permission: 'admin:programs',
+      },
+      {
+        title: 'Mentor Matching',
+        icon: GitBranch,
+        url: '/app/admin/matches',
+        permission: 'admin:programs',
+      },
+    ],
   },
-
   {
-    title: 'Insights',
+    title: 'Administration',
     children: [
       {
-        title: 'Analytics',
+        title: 'Reports',
         icon: BarChart3,
-        url: '/app/admin/analytics',
-        permission: 'admin:reports'
-      }
-    ]
-  },
-
-  {
-    title: 'Finance',
-    children: [
-      {
-        title: 'Billing',
-        icon: CreditCard,
-        url: '/app/admin/billing',
-        permission: 'admin:billing'
-      }
-    ]
-  },
-
-  {
-    title: 'Governance',
-    children: [
-      {
-        title: 'Trust & Safety',
-        icon: Shield,
-        url: '/app/admin/trust',
-        permission: 'admin:settings'
+        url: '/app/admin/reports',
+        permission: 'admin:reports',
       },
       {
         title: 'Settings',
         icon: Settings,
         url: '/app/admin/settings',
-        permission: 'admin:settings'
-      }
-    ]
-  }
-] 
+        permission: 'admin:settings',
+      },
+    ],
+  },
+]

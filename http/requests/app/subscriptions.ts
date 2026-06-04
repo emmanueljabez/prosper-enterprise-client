@@ -86,7 +86,7 @@ export interface ActiveSubscription {
 }
 
 export interface ActiveSubscriptionData {
-  subscriptionSource?: 'INDIVIDUAL' | 'CORPORATE'
+  subscriptionSource?: 'INDIVIDUAL' | 'CORPORATE' | 'PERSONAL_CREDIT'
   subscription?: ActiveSubscription | null
   companySubscription?: {
     id: string
@@ -114,6 +114,7 @@ export interface ActiveSubscriptionData {
   } | null
   remainingSessions: number
   addonSessionsRemaining?: number
+  personalCreditsRemaining?: number
   canBookSession: boolean
   nextBillingDate?: string | null
   companyId?: string | null

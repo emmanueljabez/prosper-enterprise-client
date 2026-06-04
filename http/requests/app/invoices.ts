@@ -12,6 +12,7 @@ export interface PublicInvoiceLatestPayment {
   checkoutRequestId: string | null
   gatewayTransactionId: string | null
   gatewayReference: string | null
+  mpesaAccountReference: string
   createdAt: string
   completedAt: string | null
 }
@@ -33,6 +34,7 @@ export interface PublicInvoice {
   createdAt: string
   isPayable: boolean
   paymentUrl: string
+  mpesaAccountReference: string
   latestPayment: PublicInvoiceLatestPayment | null
 }
 
@@ -65,6 +67,7 @@ export interface MpesaInvoicePaymentData {
   method: 'MPESA'
   paymentId: string
   checkoutRequestId: string
+  mpesaAccountReference: string
   status: PaymentStatus
   invoiceStatus: InvoiceStatus
 }

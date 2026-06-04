@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useSubscriptionsStore } from '~/store/modules/subscriptions'
 import { useAuthStore } from '~/store/modules/auth'
-import type { BillingInterval, SubscriptionPlan } from '~/http/requests/app/subscriptions'
+import type { SubscriptionPlan } from '~/http/requests/app/subscriptions'
 import mentorsApi from '~/http/requests/app/mentors'
 import companyApi, { type CompanyRecord, type CompanyRecommendedProgram } from '~/http/requests/app/company'
 import companySubscriptionsApi from '~/http/requests/app/companySubscriptions'
@@ -17,6 +17,7 @@ import { Separator } from '~/components/ui/separator'
 import { Badge } from '~/components/ui/badge'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Skeleton } from '~/components/ui/skeleton'
+import DepartmentsSettingsTab from '~/components/app/admin/settings/DepartmentsSettingsTab.vue'
 import {
   AlertCircle,
   Settings,
@@ -41,12 +42,12 @@ definePageMeta({
   permissions: ['admin:settings']
 })
 
-type SettingsTab = 'company' | 'branding' | 'program' | 'subscription' | 'billing'
+type SettingsTab = 'company' | 'branding' | 'program' | 'departments' | 'subscription' | 'billing'
 
 const DEFAULT_PRIMARY_COLOR = '#a03b93'
 const DEFAULT_SECONDARY_COLOR = '#d9a8d3'
 
-const { success, error: toastError, info } = useAppToast()
+const { success, error: toastError } = useAppToast()
 const route = useRoute()
 const router = useRouter()
 const subscriptionsStore = useSubscriptionsStore()
@@ -54,13 +55,13 @@ const authStore = useAuthStore()
 const {
   isLoadingBilling,
   billingError,
-  billingActionId,
   companySubscriptions,
   activeCompanySubscriptionId,
   managedCompanySubscription,
+  managedCompanyWallet,
   loadCompanyBilling,
   selectCompanySubscription,
-  renewCompanySubscription,
+  getWalletReservedSessions,
 } = useCompanySubscriptionAdmin()
 
 const resolveSettingsTab = (value?: unknown): SettingsTab => {
@@ -71,11 +72,30 @@ const resolveSettingsTab = (value?: unknown): SettingsTab => {
     case 'branding':
     case 'program':
     case 'subscription':
+    case 'departments':
     case 'billing':
       return normalized
     default:
       return 'company'
   }
+}
+
+const isBillingTabQuery = (value?: unknown) =>
+  String(Array.isArray(value) ? value[0] : value || '').trim().toLowerCase() === 'billing'
+
+const hasBillingReturnContext = () =>
+  route.query.invoice_paid === '1'
+  || route.query.invoice_cancelled === '1'
+  || route.query.context === 'company_subscription'
+
+const redirectSettingsBillingToFinance = async () => {
+  const query = { ...route.query }
+  delete query.tab
+
+  await navigateTo({
+    path: '/app/admin/billing',
+    query,
+  }, { replace: true })
 }
 
 const { activePlans: storeActivePlans, isLoading: isLoadingPlans, error: plansError } = storeToRefs(subscriptionsStore)
@@ -113,36 +133,15 @@ const isLoadingRecommendedPrograms = ref(false)
 const isSavingRecommendedPrograms = ref(false)
 const hasLoadedProgramCatalog = ref(false)
 const hasLoadedRecommendedPrograms = ref(false)
-const selectedCorporateBillingInterval = ref<BillingInterval>('MONTHLY')
-const corporateSeatCounts = ref<Record<string, number>>({})
+const corporateSessionCounts = ref<Record<string, number>>({})
 const availablePrograms = ref<CompanyRecommendedProgram[]>([])
 const selectedRecommendedProgramIds = ref<string[]>([])
 const programConfigurationError = ref<string | null>(null)
 
-const isAnnualPlanRecord = (plan: SubscriptionPlan) =>
-  Number(plan.durationMonths || 1) >= 12
-
-const supportsBillingInterval = (plan: SubscriptionPlan, billingInterval: BillingInterval) =>
-  billingInterval === 'ANNUAL'
-    ? Number(plan.yearlyCost || 0) > 0 || isAnnualPlanRecord(plan)
-    : !isAnnualPlanRecord(plan)
-
-const getPlanPrice = (plan: SubscriptionPlan, billingInterval: BillingInterval) =>
-  billingInterval === 'ANNUAL'
-    ? (Number(plan.yearlyCost || 0) > 0 ? Number(plan.yearlyCost || 0) : Number(plan.cost || 0))
-    : Number(plan.cost || 0)
-
-const hasAnnualCorporatePlans = computed(() =>
-  storeActivePlans.value.some(plan =>
-    (plan.planAudience === 'CORPORATE' || plan.planAudience === 'BOTH') && supportsBillingInterval(plan, 'ANNUAL')
-  )
-)
-
 const corporatePlans = computed(() =>
   storeActivePlans.value.filter(plan =>
-    (plan.planAudience === 'CORPORATE' || plan.planAudience === 'BOTH')
-    && supportsBillingInterval(plan, selectedCorporateBillingInterval.value)
-  )
+    plan.planAudience === 'CORPORATE' || plan.planAudience === 'BOTH',
+  ),
 )
 
 const managedCompanyPlan = computed(() =>
@@ -152,48 +151,54 @@ const managedCompanyPlan = computed(() =>
 const isPendingCorporatePlan = (plan: SubscriptionPlan) =>
   managedCompanySubscription.value?.status === 'PENDING_PAYMENT'
   && managedCompanySubscription.value?.planId === plan.id
-  && (managedCompanySubscription.value?.billingInterval || 'MONTHLY') === selectedCorporateBillingInterval.value
 
 const isCurrentCorporatePlan = (plan: SubscriptionPlan) =>
   managedCompanySubscription.value?.status === 'ACTIVE'
   && managedCompanySubscription.value?.planId === plan.id
-  && (managedCompanySubscription.value?.billingInterval || 'MONTHLY') === selectedCorporateBillingInterval.value
+
+const hasOpenInvoiceForPlan = (plan: SubscriptionPlan) =>
+  managedCompanySubscription.value?.planId === plan.id
+  && managedCompanySubscription.value?.latestInvoice?.status === 'OPEN'
+  && !!managedCompanySubscription.value?.latestInvoice?.paymentUrl
 
 const getCorporatePlanActionLabel = (plan: SubscriptionPlan) => {
+  if (hasOpenInvoiceForPlan(plan)) {
+    return 'Continue Payment'
+  }
+
   if (isCurrentCorporatePlan(plan)) {
-    return 'Current Plan'
+    return 'Buy More Sessions'
   }
 
   if (isPendingCorporatePlan(plan)) {
-    return 'Pending Payment'
+    return 'Buy Sessions'
   }
 
   if (!managedCompanySubscription.value || !managedCompanyPlan.value) {
-    return 'Choose Plan'
+    return 'Buy Sessions'
   }
 
-  const currentPlan = managedCompanyPlan.value
-  const currentInterval = managedCompanySubscription.value.billingInterval || 'MONTHLY'
+  return managedCompanyPlan.value.id === plan.id ? 'Buy More Sessions' : 'Select Offer'
+}
 
-  if (currentPlan.id === plan.id && currentInterval !== selectedCorporateBillingInterval.value) {
-    return selectedCorporateBillingInterval.value === 'ANNUAL' ? 'Switch to Annual' : 'Switch to Monthly'
+const handleCorporatePlanAction = (plan: SubscriptionPlan) => {
+  if (hasOpenInvoiceForPlan(plan)) {
+    goToPaymentUrl(managedCompanySubscription.value?.latestInvoice?.paymentUrl)
+    return
   }
 
-  if (plan.displayOrder > currentPlan.displayOrder) {
-    return 'Upgrade Plan'
-  }
-
-  if (plan.displayOrder < currentPlan.displayOrder) {
-    return 'Downgrade Plan'
-  }
-
-  return 'Change Plan'
+  purchaseCorporatePlan(plan.id, plan.name, plan.minSeats, plan.maxSeats || undefined)
 }
 
 const companyContext = computed(() => {
+  const hasCorporateAdminPermission = (authStore.loggedInUser?.roles || []).some(role =>
+    (role?.permissions || []).some(permission =>
+      ['admin:settings', 'admin:billing', 'admin:company'].includes(String(permission?.id || '').trim().toLowerCase()),
+    ),
+  )
   const hasCorporateAdminRole = (authStore.loggedInUser?.roles || []).some(role => {
     const normalizedRole = String(role?.name || '').trim().toLowerCase()
-    return ['corporate_admin', 'company_admin', 'company'].includes(normalizedRole)
+    return ['corporate_admin', 'company_admin', 'company', 'admin'].includes(normalizedRole)
   })
 
   if (typeof window !== 'undefined') {
@@ -204,13 +209,15 @@ const companyContext = computed(() => {
         const normalizedRole = String(parsed?.role || '').trim().toLowerCase()
 
         return {
-          isCorporateAdmin: hasCorporateAdminRole || ['corporate_admin', 'company_admin', 'company'].includes(normalizedRole),
+          isCorporateAdmin: hasCorporateAdminRole
+            || hasCorporateAdminPermission
+            || ['corporate_admin', 'company_admin', 'company', 'admin'].includes(normalizedRole),
           companyId: companyRecord.value?.id || parsed?.company?.id || parsed?.companyId || parsed?.company_id || authStore.loggedInUser?.companyId || '',
           companyName: companyRecord.value?.name || parsed?.company?.name || 'Your company',
         }
       } catch {
         return {
-          isCorporateAdmin: hasCorporateAdminRole,
+          isCorporateAdmin: hasCorporateAdminRole || hasCorporateAdminPermission,
           companyId: companyRecord.value?.id || authStore.loggedInUser?.companyId || '',
           companyName: companyRecord.value?.name || 'Your company',
         }
@@ -219,7 +226,7 @@ const companyContext = computed(() => {
   }
 
   return {
-    isCorporateAdmin: hasCorporateAdminRole,
+    isCorporateAdmin: hasCorporateAdminRole || hasCorporateAdminPermission,
     companyId: companyRecord.value?.id || authStore.loggedInUser?.companyId || '',
     companyName: companyRecord.value?.name || 'Your company',
   }
@@ -245,45 +252,45 @@ const toggleRecommendedProgram = (programId: string) => {
   selectedRecommendedProgramIds.value = [...selectedRecommendedProgramIds.value, programId]
 }
 
-const normalizeSeatCount = (value: number | string | undefined, minSeats = 1, maxSeats?: number) => {
+const normalizeSessionCount = (value: number | string | undefined, minSessions = 1, maxSessions?: number) => {
   const parsed = Number(value)
-  const safeMin = Math.max(1, Number(minSeats || 1))
+  const safeMin = Math.max(1, Number(minSessions || 1))
   let normalized = Number.isFinite(parsed) ? Math.trunc(parsed) : safeMin
 
   normalized = Math.max(safeMin, normalized)
 
-  if (maxSeats) {
-    normalized = Math.min(normalized, maxSeats)
+  if (maxSessions) {
+    normalized = Math.min(normalized, maxSessions)
   }
 
   return normalized
 }
 
-const getCorporateSeatCount = (planId: string, minSeats?: number, defaultSeats?: number, maxSeats?: number) => {
-  if (!corporateSeatCounts.value[planId]) {
-    corporateSeatCounts.value[planId] = normalizeSeatCount(defaultSeats || minSeats || 1, minSeats, maxSeats)
+const getCorporateSessionCount = (planId: string, minSessions?: number, defaultSessions?: number, maxSessions?: number) => {
+  if (!corporateSessionCounts.value[planId]) {
+    corporateSessionCounts.value[planId] = normalizeSessionCount(defaultSessions || minSessions || 1, minSessions, maxSessions)
   }
 
-  return corporateSeatCounts.value[planId]
+  return corporateSessionCounts.value[planId]
 }
 
-const clampCorporateSeatCount = (planId: string, minSeats?: number, defaultSeats?: number, maxSeats?: number) => {
-  corporateSeatCounts.value[planId] = normalizeSeatCount(
-    corporateSeatCounts.value[planId] ?? defaultSeats ?? minSeats ?? 1,
-    minSeats,
-    maxSeats,
+const clampCorporateSessionCount = (planId: string, minSessions?: number, defaultSessions?: number, maxSessions?: number) => {
+  corporateSessionCounts.value[planId] = normalizeSessionCount(
+    corporateSessionCounts.value[planId] ?? defaultSessions ?? minSessions ?? 1,
+    minSessions,
+    maxSessions,
   )
 }
 
-const adjustCorporateSeatCount = (
+const adjustCorporateSessionCount = (
   planId: string,
   delta: number,
-  minSeats?: number,
-  defaultSeats?: number,
-  maxSeats?: number,
+  minSessions?: number,
+  defaultSessions?: number,
+  maxSessions?: number,
 ) => {
-  const nextValue = getCorporateSeatCount(planId, minSeats, defaultSeats, maxSeats) + delta
-  corporateSeatCounts.value[planId] = normalizeSeatCount(nextValue, minSeats, maxSeats)
+  const nextValue = getCorporateSessionCount(planId, minSessions, defaultSessions, maxSessions) + delta
+  corporateSessionCounts.value[planId] = normalizeSessionCount(nextValue, minSessions, maxSessions)
 }
 
 const formatCurrency = (amount: number, currency = 'KES') => {
@@ -297,25 +304,12 @@ const formatCurrency = (amount: number, currency = 'KES') => {
   }).format(Number(amount || 0))
 }
 
-const formatBillingInterval = (billingInterval: BillingInterval) =>
-  billingInterval === 'ANNUAL' ? 'Year' : 'Month'
+const getWalletPricePerSession = (plan?: SubscriptionPlan | null) =>
+  Number(managedCompanyWallet.value?.pricePerSession || plan?.cost || 0)
 
-const getAnnualSavingsLabel = (plan: SubscriptionPlan) => {
-  const monthlyCost = Number(plan.cost || 0)
-  const yearlyCost = Number(plan.yearlyCost || 0)
-
-  if (!(monthlyCost > 0) || !(yearlyCost > 0)) {
-    return null
-  }
-
-  const annualizedMonthlyCost = monthlyCost * 12
-  if (!(annualizedMonthlyCost > yearlyCost)) {
-    return null
-  }
-
-  const savingsPercent = Math.round(((annualizedMonthlyCost - yearlyCost) / annualizedMonthlyCost) * 100)
-  return savingsPercent > 0 ? `Save ${savingsPercent}%` : null
-}
+const managedWalletReservedSessions = computed(() =>
+  getWalletReservedSessions(managedCompanyWallet.value),
+)
 
 const normalizeColor = (value?: string | null, fallback = DEFAULT_PRIMARY_COLOR) => {
   const normalized = String(value || '').trim()
@@ -556,7 +550,7 @@ const saveRecommendedPrograms = async () => {
   }
 }
 
-const purchaseCorporatePlan = async (planId: string, planName: string, minSeats?: number, maxSeats?: number) => {
+const purchaseCorporatePlan = async (planId: string, planName: string, minSessions?: number, maxSessions?: number) => {
   if (isCreatingInvoice.value) return
 
   if (!companyContext.value.isCorporateAdmin) {
@@ -569,15 +563,15 @@ const purchaseCorporatePlan = async (planId: string, planName: string, minSeats?
     return
   }
 
-  const seatCount = normalizeSeatCount(corporateSeatCounts.value[planId], minSeats, maxSeats)
-  corporateSeatCounts.value[planId] = seatCount
-  if (!seatCount || seatCount < (minSeats || 1)) {
-    toastError(`Minimum seats for this plan is ${minSeats || 1}.`)
+  const sessionCount = normalizeSessionCount(corporateSessionCounts.value[planId], minSessions, maxSessions)
+  corporateSessionCounts.value[planId] = sessionCount
+  if (!sessionCount || sessionCount < (minSessions || 1)) {
+    toastError(`Minimum sessions for this offer is ${minSessions || 1}.`)
     return
   }
 
-  if (maxSeats && seatCount > maxSeats) {
-    toastError(`Maximum seats for this plan is ${maxSeats}.`)
+  if (maxSessions && sessionCount > maxSessions) {
+    toastError(`Maximum sessions for this offer is ${maxSessions}.`)
     return
   }
 
@@ -588,10 +582,9 @@ const purchaseCorporatePlan = async (planId: string, planName: string, minSeats?
     const response = await companySubscriptionsApi.createCompanySubscription({
       companyId: companyContext.value.companyId,
       planId,
-      seatCount,
-      billingInterval: selectedCorporateBillingInterval.value,
-      redirectSuccessUrl: `${origin}/app/admin/settings?tab=billing&invoice_paid=1&context=company_subscription&plan_id=${planId}`,
-      redirectCancelUrl: `${origin}/app/admin/settings?tab=billing&invoice_cancelled=1&context=company_subscription&plan_id=${planId}`,
+      sessionCount,
+      redirectSuccessUrl: `${origin}/app/admin/billing?invoice_paid=1&context=company_subscription&plan_id=${planId}`,
+      redirectCancelUrl: `${origin}/app/admin/billing?invoice_cancelled=1&context=company_subscription&plan_id=${planId}`,
     })
 
     if (!response.success || !response.data?.paymentUrl) {
@@ -620,62 +613,12 @@ const refreshBilling = async () => {
   await loadCompanyBilling(companyContext.value.companyId)
 }
 
-const handleRenewCompanySubscription = async () => {
-  const companySubscriptionId = activeCompanySubscriptionId.value
-  if (!companySubscriptionId) {
-    toastError('No company subscription selected.')
+watch(() => route.query.tab, async value => {
+  if (isBillingTabQuery(value)) {
+    await redirectSettingsBillingToFinance()
     return
   }
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  const paymentUrl = await renewCompanySubscription(companySubscriptionId, {
-    redirectSuccessUrl: `${origin}/app/admin/settings?tab=billing&invoice_paid=1&context=company_subscription`,
-    redirectCancelUrl: `${origin}/app/admin/settings?tab=billing&invoice_cancelled=1&context=company_subscription`,
-  })
-
-  if (!paymentUrl) {
-    return
-  }
-
-  success('Renewal invoice created. Redirecting to payment...')
-  goToPaymentUrl(paymentUrl)
-}
-
-const clearBillingQueryParams = async () => {
-  const query = { ...route.query }
-  delete query.invoice_paid
-  delete query.invoice_cancelled
-  delete query.context
-  delete query.plan_id
-  await router.replace({ query })
-}
-
-const handleBillingRouteReturn = async () => {
-  const hasBillingContext =
-    route.query.invoice_paid === '1'
-    || route.query.invoice_cancelled === '1'
-    || route.query.context === 'company_subscription'
-
-  if (!hasBillingContext) {
-    return
-  }
-
-  activeTab.value = 'billing'
-
-  if (route.query.invoice_paid === '1') {
-    success('Payment completed successfully.')
-  } else if (route.query.invoice_cancelled === '1') {
-    info('Payment was cancelled.')
-  }
-
-  if (companyContext.value.companyId) {
-    await loadCompanyBilling(companyContext.value.companyId)
-  }
-
-  await clearBillingQueryParams()
-}
-
-watch(() => route.query.tab, value => {
   const resolvedTab = resolveSettingsTab(value)
   if (activeTab.value !== resolvedTab) {
     activeTab.value = resolvedTab
@@ -719,22 +662,15 @@ watch(activeTab, async value => {
 
 // Load settings on mount
 onMounted(async () => {
+  if (isBillingTabQuery(route.query.tab) || hasBillingReturnContext()) {
+    await redirectSettingsBillingToFinance()
+    return
+  }
+
   await Promise.all([
     subscriptionsStore.fetchPlans('CORPORATE'),
     loadAvailablePrograms(),
   ])
-
-  if (
-    route.query.invoice_paid === '1'
-    || route.query.invoice_cancelled === '1'
-    || route.query.context === 'company_subscription'
-  ) {
-    await handleBillingRouteReturn()
-    if (companyContext.value.companyId) {
-      await loadCompanySettings()
-    }
-    return
-  }
 
   if (companyContext.value.companyId) {
     await Promise.all([
@@ -798,6 +734,17 @@ onMounted(async () => {
             <Plug class="h-4 w-4" /> Program
           </button>
           <button
+            @click="activeTab = 'departments'"
+            :class="[
+              'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
+              activeTab === 'departments'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            ]"
+          >
+            <Users class="h-4 w-4" /> Departments
+          </button>
+          <button
             @click="activeTab = 'subscription'"
             :class="[
               'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
@@ -809,7 +756,7 @@ onMounted(async () => {
             <Receipt class="h-4 w-4" /> Plans
           </button>
           <button
-            @click="activeTab = 'billing'"
+            @click="router.push('/app/admin/billing')"
             :class="[
               'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
               activeTab === 'billing'
@@ -1084,6 +1031,14 @@ onMounted(async () => {
       </Card>
     </div>
 
+    <!-- Departments Tab -->
+    <div v-show="activeTab === 'departments'" class="space-y-6">
+      <DepartmentsSettingsTab
+        :company-id="companyContext.companyId"
+        :can-manage="companyContext.isCorporateAdmin"
+      />
+    </div>
+
     <!-- Subscription Tab -->
     <div v-show="activeTab === 'subscription'" class="space-y-6">
       <Card>
@@ -1091,35 +1046,14 @@ onMounted(async () => {
           <div>
             <CardTitle>Plans</CardTitle>
             <CardDescription>
-              Select the single active plan for {{ companyContext.companyName }}. Changes are invoiced first, then applied as an upgrade, downgrade, or billing change.
+              Purchase company-funded sessions for {{ companyContext.companyName }}. Every successful payment tops up one shared wallet that admins can allocate across employees.
             </CardDescription>
           </div>
-          <Button variant="outline" @click="activeTab = 'billing'">
-            Manage Seats &amp; Billing
+          <Button variant="outline" @click="router.push('/app/admin/billing')">
+            Manage Sessions &amp; Billing
           </Button>
         </CardHeader>
       </Card>
-
-      <div v-if="hasAnnualCorporatePlans" class="flex justify-center">
-        <div class="inline-flex rounded-full border border-[#d9a8d3] bg-white p-1 shadow-sm">
-          <button
-            type="button"
-            class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-            :class="selectedCorporateBillingInterval === 'MONTHLY' ? 'bg-[#a03b93] text-white' : 'text-slate-600'"
-            @click="selectedCorporateBillingInterval = 'MONTHLY'"
-          >
-            Monthly
-          </button>
-          <button
-            type="button"
-            class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-            :class="selectedCorporateBillingInterval === 'ANNUAL' ? 'bg-[#a03b93] text-white' : 'text-slate-600'"
-            @click="selectedCorporateBillingInterval = 'ANNUAL'"
-          >
-            Annual
-          </button>
-        </div>
-      </div>
 
       <Alert v-if="plansError" variant="destructive">
         <AlertCircle class="h-4 w-4" />
@@ -1129,7 +1063,7 @@ onMounted(async () => {
       <Alert v-if="!companyContext.isCorporateAdmin" variant="destructive">
         <AlertCircle class="h-4 w-4" />
         <AlertDescription>
-          Corporate admin access is required to purchase company subscription plans.
+          Corporate admin access is required to purchase company-funded sessions.
         </AlertDescription>
       </Alert>
 
@@ -1173,29 +1107,23 @@ onMounted(async () => {
                 </span>
               </div>
             </div>
-            <span
-              v-if="selectedCorporateBillingInterval === 'ANNUAL' && getAnnualSavingsLabel(plan)"
-              class="inline-flex rounded-full bg-[#f5e6f2] px-3 py-1 text-xs font-semibold text-[#7f2f75]"
-            >
-              {{ getAnnualSavingsLabel(plan) }}
-            </span>
           </CardHeader>
 
           <CardContent class="space-y-5">
             <div class="rounded-xl border border-[#edd3e8] bg-[#fcf5fa] p-4">
               <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[#f7e6f4]">
+              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[#f7e6f4]">
                   <CreditCard class="h-5 w-5 text-[#7f2f75]" />
                 </div>
                 <div>
                   <p class="text-2xl font-bold text-[#7f2f75]">
-                    {{ formatCurrency(getPlanPrice(plan, selectedCorporateBillingInterval), plan.currency) }}
+                    {{ formatCurrency(Number(plan.cost || 0), plan.currency) }}
                     <span class="text-sm font-normal text-muted-foreground">
-                      / seat / {{ formatBillingInterval(selectedCorporateBillingInterval) }}
+                      / session
                     </span>
                   </p>
                   <p class="text-xs text-muted-foreground">
-                    {{ plan.sessionsPerPeriod > 0 ? `${plan.sessionsPerPeriod} session${plan.sessionsPerPeriod > 1 ? 's' : ''} per seat each ${formatBillingInterval(selectedCorporateBillingInterval).toLowerCase()}` : 'Platform access included' }}
+                    One-time corporate purchase. Sessions stay valid until your company uses them.
                   </p>
                 </div>
               </div>
@@ -1203,62 +1131,63 @@ onMounted(async () => {
 
             <div class="space-y-4">
               <div class="space-y-2">
-                <Label :for="`seat-count-${plan.id}`">Seat count</Label>
+                <Label :for="`session-count-${plan.id}`">Session count</Label>
                 <div class="flex items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     class="h-10 w-10 shrink-0 border-[#e5c5df]"
-                    :disabled="!companyContext.companyId || isCreatingInvoice || getCorporateSeatCount(plan.id, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined) <= (plan.minSeats || 1)"
-                    @click="adjustCorporateSeatCount(plan.id, -1, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined)"
+                    :disabled="!companyContext.companyId || isCreatingInvoice || getCorporateSessionCount(plan.id, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined) <= (plan.minSeats || 1)"
+                    @click="adjustCorporateSessionCount(plan.id, -1, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined)"
                   >
                     <Minus class="h-4 w-4" />
                   </Button>
                   <Input
-                    :id="`seat-count-${plan.id}`"
-                    v-model.number="corporateSeatCounts[plan.id]"
+                    :id="`session-count-${plan.id}`"
+                    v-model.number="corporateSessionCounts[plan.id]"
                     type="number"
                     inputmode="numeric"
                     :min="plan.minSeats || 1"
                     :max="plan.maxSeats || undefined"
                     :disabled="!companyContext.companyId || isCreatingInvoice"
                     class="text-center"
-                    @blur="clampCorporateSeatCount(plan.id, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined)"
+                    @blur="clampCorporateSessionCount(plan.id, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined)"
                   />
                   <Button
                     type="button"
                     variant="outline"
                     class="h-10 w-10 shrink-0 border-[#e5c5df]"
-                    :disabled="!companyContext.companyId || isCreatingInvoice || (!!plan.maxSeats && getCorporateSeatCount(plan.id, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined) >= plan.maxSeats)"
-                    @click="adjustCorporateSeatCount(plan.id, 1, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined)"
+                    :disabled="!companyContext.companyId || isCreatingInvoice || (!!plan.maxSeats && getCorporateSessionCount(plan.id, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined) >= plan.maxSeats)"
+                    @click="adjustCorporateSessionCount(plan.id, 1, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined)"
                   >
                     <Plus class="h-4 w-4" />
                   </Button>
                 </div>
                 <p class="text-xs text-muted-foreground">
-                  Minimum {{ plan.minSeats || 1 }} seat<span v-if="(plan.minSeats || 1) !== 1">s</span>
-                  <span v-if="plan.maxSeats"> · Maximum {{ plan.maxSeats }} seats</span>
+                  Minimum {{ plan.minSeats || 1 }} session<span v-if="(plan.minSeats || 1) !== 1">s</span>
+                  <span v-if="plan.maxSeats"> · Maximum {{ plan.maxSeats }} sessions</span>
                 </p>
               </div>
 
               <div class="rounded-lg border border-dashed border-[#e5c5df] bg-white p-4">
                 <p class="text-xs uppercase tracking-wide text-[#7f2f75]">Estimated total</p>
                 <p class="mt-2 text-xl font-semibold text-[#7f2f75]">
-                  {{ formatCurrency((Number(getCorporateSeatCount(plan.id, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined)) || 0) * Number(getPlanPrice(plan, selectedCorporateBillingInterval)), plan.currency) }}
+                  {{ formatCurrency((Number(getCorporateSessionCount(plan.id, plan.minSeats, plan.defaultSeats, plan.maxSeats || undefined)) || 0) * Number(plan.cost || 0), plan.currency) }}
                 </p>
                 <p class="mt-2 text-xs text-muted-foreground">
-                  Default {{ plan.defaultSeats || plan.minSeats || 1 }} seats
+                  Default {{ plan.defaultSeats || plan.minSeats || 1 }} sessions
                 </p>
-                <p class="text-xs text-muted-foreground">
-                  Billed every {{ selectedCorporateBillingInterval === 'ANNUAL' ? '12 months' : `${plan.durationMonths} month${plan.durationMonths > 1 ? 's' : ''}` }}
-                </p>
+                <p class="text-xs text-muted-foreground">The shared company wallet is topped up immediately after payment.</p>
               </div>
             </div>
 
             <div class="flex flex-wrap gap-2 text-xs text-muted-foreground">
               <span class="rounded-full bg-gray-100 px-2 py-1">
                 <Building2 class="mr-1 inline h-3 w-3" />
-                Manual seat assignment
+                Company-wide wallet
+              </span>
+              <span class="rounded-full bg-gray-100 px-2 py-1">
+                Immediate employee reservation
               </span>
               <span class="rounded-full bg-gray-100 px-2 py-1">
                 Invoice-first billing
@@ -1268,8 +1197,8 @@ onMounted(async () => {
             <Button
               class="w-full"
               style="background-color: #a03b93;"
-              :disabled="isCurrentCorporatePlan(plan) || isPendingCorporatePlan(plan) || isCreatingInvoice || !companyContext.isCorporateAdmin || !companyContext.companyId"
-              @click="purchaseCorporatePlan(plan.id, plan.name, plan.minSeats, plan.maxSeats || undefined)"
+              :disabled="isCreatingInvoice || !companyContext.isCorporateAdmin || !companyContext.companyId"
+              @click="handleCorporatePlanAction(plan)"
             >
               {{
                 isCreatingInvoice
@@ -1283,9 +1212,9 @@ onMounted(async () => {
 
       <Card v-else class="border-dashed">
         <CardContent class="py-12 text-center">
-          <p class="text-lg font-semibold">No corporate plans available</p>
+          <p class="text-lg font-semibold">No corporate offers available</p>
           <p class="mt-2 text-sm text-muted-foreground">
-            Create or activate a corporate subscription plan before purchasing seats for your company.
+            Create or activate a corporate session offer before purchasing sessions for your company.
           </p>
         </CardContent>
       </Card>
@@ -1301,18 +1230,11 @@ onMounted(async () => {
       <div class="flex flex-wrap gap-2">
         <Button variant="outline" @click="activeTab = 'subscription'">
           <Receipt class="mr-2 h-4 w-4" />
-          View Corporate Plans
+          Buy More Sessions
         </Button>
         <Button variant="outline" @click="refreshBilling" :disabled="isLoadingBilling">
           <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoadingBilling }" />
           Refresh Billing
-        </Button>
-        <Button
-          v-if="managedCompanySubscription"
-          :disabled="billingActionId === `renew-${activeCompanySubscriptionId}`"
-          @click="handleRenewCompanySubscription"
-        >
-          Renew Subscription
         </Button>
         <Button
           v-if="managedCompanySubscription?.latestInvoice?.status === 'OPEN' && managedCompanySubscription.latestInvoice.paymentUrl"
@@ -1321,9 +1243,9 @@ onMounted(async () => {
         >
           Pay Open Invoice
         </Button>
-        <Button variant="outline" @click="router.push('/app/admin/users')">
+        <Button variant="outline" @click="router.push('/app/admin/employees')">
           <Users class="mr-2 h-4 w-4" />
-          Manage Employee Seats
+          Manage Employee Sessions
         </Button>
       </div>
 
@@ -1335,7 +1257,7 @@ onMounted(async () => {
         <CreditCard class="mx-auto h-12 w-12 text-muted-foreground" />
         <p class="mt-4 text-lg font-semibold">No company subscription yet</p>
         <p class="mt-2 text-sm text-muted-foreground">
-          Purchase a corporate plan to sponsor employees and manage renewal billing from this workspace.
+          Purchase company-funded sessions to create a shared wallet and allocate them across employees.
         </p>
       </div>
 
@@ -1343,14 +1265,14 @@ onMounted(async () => {
         <div class="grid gap-4 lg:grid-cols-3">
           <Card>
             <CardHeader>
-              <CardDescription>Current Plan</CardDescription>
+              <CardDescription>Current Offer</CardDescription>
               <CardTitle>{{ managedCompanySubscription?.planName || '—' }}</CardTitle>
             </CardHeader>
             <CardContent>
               <div class="text-sm text-muted-foreground">
                 {{ managedCompanySubscription?.status || '—' }}
-                <span v-if="managedCompanySubscription?.billingInterval">
-                  · {{ managedCompanySubscription.billingInterval === 'ANNUAL' ? 'Annual' : 'Monthly' }}
+                <span v-if="managedCompanyWallet">
+                  · {{ formatCurrency(getWalletPricePerSession(managedCompanyPlan), managedCompanyPlan?.currency || 'KES') }} per session
                 </span>
               </div>
             </CardContent>
@@ -1358,35 +1280,26 @@ onMounted(async () => {
 
           <Card>
             <CardHeader>
-              <CardDescription>Seat Utilization</CardDescription>
+              <CardDescription>Wallet Available</CardDescription>
               <CardTitle>
-                {{ managedCompanySubscription?.activeSeats || 0 }} / {{ managedCompanySubscription?.seatsPurchased || 0 }}
+                {{ managedCompanyWallet?.sessionsAvailable || 0 }} sessions
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div class="h-2 overflow-hidden rounded-full bg-slate-200">
-                <div
-                  class="h-full rounded-full bg-[#a03b93] transition-all"
-                  :style="{ width: `${managedCompanySubscription?.seatsPurchased ? Math.round(((managedCompanySubscription?.activeSeats || 0) / managedCompanySubscription.seatsPurchased) * 100) : 0}%` }"
-                />
-              </div>
               <p class="mt-3 text-sm text-muted-foreground">
-                {{ managedCompanySubscription?.availableSeats || 0 }} seats available
+                {{ managedCompanyWallet?.sessionsPurchased || 0 }} purchased lifetime
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardDescription>Next Billing Date</CardDescription>
-              <CardTitle>{{ formatDate(managedCompanySubscription?.currentPeriodEnd) }}</CardTitle>
+              <CardDescription>Reserved For Employees</CardDescription>
+              <CardTitle>{{ managedWalletReservedSessions }} sessions</CardTitle>
             </CardHeader>
             <CardContent>
               <p class="text-sm text-muted-foreground">
-                Latest invoice:
-                <span class="font-medium text-foreground">
-                  {{ managedCompanySubscription?.latestInvoice?.status || '—' }}
-                </span>
+                {{ managedCompanyWallet?.sessionsReturned || 0 }} sessions returned to the company wallet so far
               </p>
             </CardContent>
           </Card>
@@ -1395,7 +1308,7 @@ onMounted(async () => {
         <Card>
           <CardHeader>
             <CardTitle>Company Subscriptions</CardTitle>
-            <CardDescription>Select a subscription to manage renewals and invoices.</CardDescription>
+            <CardDescription>Select a company subscription to review wallet balances and invoice status.</CardDescription>
           </CardHeader>
           <CardContent class="space-y-3">
             <div
@@ -1407,10 +1320,8 @@ onMounted(async () => {
               <div>
                 <p class="font-medium">{{ subscription.planName }}</p>
                 <p class="text-sm text-muted-foreground">
-                  {{ subscription.companyName }} · {{ subscription.activeSeats }}/{{ subscription.seatsPurchased }} seats active
-                  <span v-if="subscription.billingInterval">
-                    · {{ subscription.billingInterval === 'ANNUAL' ? 'Annual' : 'Monthly' }}
-                  </span>
+                  {{ subscription.companyName }} · {{ subscription.wallet?.sessionsAvailable || 0 }} sessions available
+                  · {{ getWalletReservedSessions(subscription.wallet) }} reserved
                 </p>
               </div>
               <div class="flex items-center gap-2">

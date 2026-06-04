@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, nextTick, reactive } from 'vue'
+import { onMounted, ref, computed, nextTick, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMentorsStore } from '@/store/modules/mentors'
 import { useSubscriptionsStore } from '@/store/modules/subscriptions'
 import { useAuthStore } from '@/store/modules/auth'
+import { useCompanyProgramsStore } from '@/store/modules/company-programs'
 import { storeToRefs } from 'pinia'
 
 // UI
@@ -12,13 +13,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import { ArrowLeft, AlertCircle, CreditCard, Loader2, CheckCircle2, XCircle, Linkedin } from 'lucide-vue-next'
+import { ArrowLeft, AlertCircle, Clock3, CreditCard, Loader2, CheckCircle2, XCircle, Linkedin } from 'lucide-vue-next'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import MentorAvailabilityCalendar from '@/components/ui/mentors/MentorAvailabilityCalendar.vue'
+import { DatePicker } from '@/components/ui/date-picker'
 import MentorReviews from '@/components/ui/mentors/MentorReviews.vue'
 import { useAppToast } from '@/composables/services/toastService'
 import {useSessionsStore} from "~/store/modules/sessions/sessions";
@@ -36,6 +37,7 @@ const mentorsStore = useMentorsStore()
 const sessionStore = useSessionsStore()
 const subscriptionsStore = useSubscriptionsStore()
 const authStore = useAuthStore()
+const companyProgramsStore = useCompanyProgramsStore()
 const { mentors } = storeToRefs(mentorsStore)
 
 const mentor = ref<any | null>(null)
@@ -46,28 +48,6 @@ const toast = useAppToast()
 const showJourneyLoadingDialog = ref(false)
 const journeyLoadingTitle = ref('Working on your booking')
 const journeyLoadingMessage = ref('Please wait while we process your request...')
-
-// Full schedule visibility + booking dialog
-const showBookingDialog = ref(false)
-const showFullSchedule = ref(false)
-const availabilitySectionRef = ref<HTMLElement | null>(null)
-
-const scrollToFullSchedule = () => {
-  showFullSchedule.value = true
-  nextTick(() => {
-    availabilitySectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
-}
-
-const handleBookingDialogSubmit = async (booking: any) => {
-  startJourneyLoading(
-    'Submitting Booking',
-    'Checking eligibility and creating your session request...'
-  )
-  showBookingDialog.value = false
-  await nextTick()
-  await handleBookingSubmit(booking, { loadingAlreadyStarted: true })
-}
 
 // Compact date picker for sidebar — driven by real availability schedule
 const selectedDate = ref<Date | null>(null)
@@ -84,34 +64,262 @@ const DAY_NUM_TO_API_NAME: Record<number, string> = {
 // Simple booking form (used by date-chip "Book Session for [date]" button)
 const showSimpleBookingForm = ref(false)
 const bookingSlot = ref<{ start: string; end: string } | null>(null)
+const selectedBookingDate = ref('')
 const simpleBookingForm = reactive({ topic: '', platform: '', message: '' })
+const bookingSessionBalanceLoading = ref(false)
+const bookingSessionBalanceLoaded = ref(false)
 
-const openSimpleBookingForm = () => {
-  const date = selectedDate.value ?? availableDates.value[0]?.full
-  if (!date) return
+const bookingSessionBalance = computed(() => companyProgramsStore.employeeSessionBalance)
+const bookingSubscriptionContext = computed(() => subscriptionsStore.activeSubscriptionContext)
+const bookingPersonalCreditsLeft = computed(() => {
+  const context = bookingSubscriptionContext.value
+  if (!context) return 0
+  const explicitCredits = Number(context.personalCreditsRemaining || 0)
+  if (explicitCredits > 0) return explicitCredits
+  return context.subscriptionSource === 'PERSONAL_CREDIT'
+    ? Math.max(0, Number(context.remainingSessions || 0))
+    : 0
+})
+const bookingSessionsAssigned = computed(() => Math.max(0, Number(bookingSessionBalance.value?.allocatedTotal || 0)))
+const bookingSessionsUsed = computed(() => Math.max(0, Number(bookingSessionBalance.value?.consumedTotal || 0)))
+const bookingSessionsLeft = computed(() => Math.max(0, Number(bookingSessionBalance.value?.availableBalance || 0)))
+const bookingDisplayAssigned = computed(() =>
+  bookingSessionsAssigned.value > 0 ? bookingSessionsAssigned.value : bookingPersonalCreditsLeft.value
+)
+const bookingDisplayLeft = computed(() =>
+  bookingSessionsAssigned.value > 0 ? bookingSessionsLeft.value : bookingPersonalCreditsLeft.value
+)
+const bookingSessionCompanyName = computed(() => String(bookingSessionBalance.value?.companyName || '').trim())
 
-  const dayName = DAY_NUM_TO_API_NAME[date.getDay()]
-  const daySchedule = mentorAvailability.value?.schedule?.find((s: any) => s.dayOfWeek === dayName)
-  const activeSlot = daySchedule?.timeSlots?.find((t: any) => t.isActive)
-
-  let startDate: Date, endDate: Date
-  if (activeSlot) {
-    const [sh, sm] = activeSlot.startTime.split(':').map(Number)
-    const [eh, em] = activeSlot.endTime.split(':').map(Number)
-    startDate = new Date(date); startDate.setHours(sh, sm, 0, 0)
-    endDate = new Date(date);   endDate.setHours(eh, em, 0, 0)
-  } else {
-    startDate = new Date(date); startDate.setHours(12, 0, 0, 0)
-    endDate = new Date(date);   endDate.setHours(13, 0, 0, 0)
+const bookingSessionBalanceDescription = computed(() => {
+  if (bookingSessionBalanceLoading.value && !bookingSessionBalanceLoaded.value) {
+    return 'Loading your session balance...'
   }
 
-  bookingSlot.value = { start: startDate.toISOString(), end: endDate.toISOString() }
-  Object.assign(simpleBookingForm, { topic: '', platform: '', message: '' })
+  if (bookingPersonalCreditsLeft.value > 0 && bookingSessionsAssigned.value <= 0) {
+    const credits = bookingPersonalCreditsLeft.value
+    return `${credits} credited session${credits === 1 ? '' : 's'} available for rebooking.`
+  }
+
+  if (!bookingSessionBalance.value) {
+    return 'Assigned sessions are unavailable for this account.'
+  }
+
+  const assigned = bookingSessionsAssigned.value
+  const used = bookingSessionsUsed.value
+  const left = bookingSessionsLeft.value
+
+  if (assigned <= 0) {
+    return 'You have no assigned sessions yet.'
+  }
+
+  const companyLabel = bookingSessionCompanyName.value
+    ? ` via ${bookingSessionCompanyName.value}`
+    : ''
+
+  return `${left} of ${assigned} assigned session${assigned === 1 ? '' : 's'}${companyLabel} remaining (${used} used).`
+})
+
+const refreshBookingSessionBalance = async (force = false) => {
+  if (bookingSessionBalanceLoading.value) {
+    return
+  }
+
+  if (bookingSessionBalanceLoaded.value && !force) {
+    return
+  }
+
+  bookingSessionBalanceLoading.value = true
+  try {
+    const userId = resolveCurrentUserId()
+    await Promise.all([
+      companyProgramsStore.loadMySessionBalance(),
+      userId ? subscriptionsStore.fetchActiveSubscription(userId) : Promise.resolve(),
+    ])
+  } catch (error: any) {
+    console.warn('Could not load session balance for booking dialog:', error)
+  } finally {
+    bookingSessionBalanceLoading.value = false
+    bookingSessionBalanceLoaded.value = true
+  }
+}
+
+const normalizeMentorTopics = (value: unknown): string[] => {
+  if (!value) return []
+
+  const normalized: string[] = []
+
+  const pushTopic = (topicValue: unknown) => {
+    const topic = String(topicValue || '').trim()
+    if (!topic) return
+    if (!normalized.includes(topic)) {
+      normalized.push(topic)
+    }
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry: any) => {
+      if (typeof entry === 'string') {
+        pushTopic(entry)
+        return
+      }
+
+      if (entry && typeof entry === 'object') {
+        pushTopic(entry.name || entry.title || entry.topic || entry.label)
+      }
+    })
+    return normalized
+  }
+
+  if (typeof value === 'string') {
+    value
+      .split(',')
+      .map(part => part.trim())
+      .filter(Boolean)
+      .forEach(pushTopic)
+  }
+
+  return normalized
+}
+
+const mentorTopicOptions = computed(() => {
+  const mergedSources = [
+    mentor.value?.expertiseAreas,
+    mentor.value?.expertise,
+    mentor.value?.mentorSpecializations,
+    mentor.value?.interests,
+    mentor.value?.topics,
+    mentor.value?.skills,
+  ]
+
+  const topics = mergedSources.flatMap(source => normalizeMentorTopics(source))
+  return normalizeMentorTopics(topics)
+})
+
+const toDateValue = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const fromDateValue = (value: string): Date | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null
+  }
+
+  const [year, month, day] = value.split('-').map(Number)
+  const parsed = new Date(year, month - 1, day)
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+  return parsed
+}
+
+const buildBookingSlotFromDate = (date: Date) => {
+  const now = new Date()
+  const dayName = DAY_NUM_TO_API_NAME[date.getDay()]
+  const daySchedule = mentorAvailability.value?.schedule?.find((s: any) => s.dayOfWeek === dayName)
+  const activeSlots = (daySchedule?.timeSlots || [])
+    .filter((t: any) => t.isActive)
+    .map((t: any) => {
+      const [sh, sm] = t.startTime.split(':').map(Number)
+      const [eh, em] = t.endTime.split(':').map(Number)
+      const startDate = new Date(date)
+      startDate.setHours(sh, sm, 0, 0)
+      const endDate = new Date(date)
+      endDate.setHours(eh, em, 0, 0)
+      return { startDate, endDate }
+    })
+    .filter((slot: any) => slot.startDate.getTime() > now.getTime())
+    .sort((a: any, b: any) => a.startDate.getTime() - b.startDate.getTime())
+
+  if (activeSlots.length) {
+    return {
+      start: activeSlots[0].startDate.toISOString(),
+      end: activeSlots[0].endDate.toISOString(),
+    }
+  }
+
+  const startDate = new Date(date)
+  const isToday = startDate.toDateString() === now.toDateString()
+  if (isToday) {
+    const next = new Date(now.getTime() + (30 * 60 * 1000))
+    next.setSeconds(0, 0)
+    const minute = next.getMinutes()
+    if (minute === 0 || minute === 30) {
+      startDate.setHours(next.getHours(), minute, 0, 0)
+    } else if (minute < 30) {
+      startDate.setHours(next.getHours(), 30, 0, 0)
+    } else {
+      startDate.setHours(next.getHours() + 1, 0, 0, 0)
+    }
+  } else {
+    startDate.setHours(12, 0, 0, 0)
+  }
+
+  const endDate = new Date(startDate)
+  endDate.setMinutes(endDate.getMinutes() + 60)
+
+  return { start: startDate.toISOString(), end: endDate.toISOString() }
+}
+
+const applyBookingDate = (date: Date) => {
+  selectedDate.value = new Date(date)
+  selectedBookingDate.value = toDateValue(date)
+  bookingSlot.value = buildBookingSlotFromDate(date)
+}
+
+const syncBookingSlotFromSelectedDateValue = (value: string) => {
+  const parsed = fromDateValue(value)
+  if (!parsed) {
+    bookingSlot.value = null
+    return
+  }
+  selectedDate.value = new Date(parsed)
+  bookingSlot.value = buildBookingSlotFromDate(parsed)
+}
+
+watch(selectedBookingDate, syncBookingSlotFromSelectedDateValue)
+
+const isPastCalendarDate = (date: Date) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const candidate = new Date(date)
+  candidate.setHours(0, 0, 0, 0)
+  return candidate.getTime() < today.getTime()
+}
+
+const openSimpleBookingForm = () => {
+  const date = selectedDate.value ?? availableDates.value[0]?.full ?? new Date()
+
+  applyBookingDate(date)
+  Object.assign(simpleBookingForm, {
+    topic: mentorTopicOptions.value[0] || '',
+    platform: 'google-meet',
+    message: ''
+  })
+  void refreshBookingSessionBalance()
   showSimpleBookingForm.value = true
 }
 
+watch(showSimpleBookingForm, open => {
+  if (open) {
+    void refreshBookingSessionBalance(true)
+  }
+})
+
 const submitSimpleBooking = async () => {
-  if (!bookingSlot.value) return
+  if (!bookingSlot.value || new Date(bookingSlot.value.start).getTime() <= Date.now()) {
+    toast.error('Please select a future date and time for this session.')
+    return
+  }
+
+  if (mentorTopicOptions.value.length && !simpleBookingForm.topic) {
+    toast.error('Please select a session topic.')
+    return
+  }
+
   startJourneyLoading(
     'Submitting Booking',
     'Checking eligibility and creating your session request...'
@@ -253,6 +461,9 @@ const loadMentor = async () => {
           profilePhoto: mentorProfile.avatarUrl,
           profileSummary: mentorProfile.bio,
           expertiseAreas: mentorProfile.expertise || [],
+          expertise: mentorProfile.expertise || [],
+          mentorSpecializations: mentorProfile.mentorProfile?.specializations || [],
+          interests: mentorProfile.interests || [],
           averageRating: 4.5,
           totalReviews: 0,
           totalSessions: 0,
@@ -287,6 +498,9 @@ const loadMentor = async () => {
         profilePhoto: fb.profilePicUrl,
         profileSummary: fb.biography,
         expertiseAreas: (fb.topics || []).map((t: any) => t.name),
+        expertise: (fb.topics || []).map((t: any) => t.name),
+        mentorSpecializations: [],
+        interests: [],
         averageRating: 4.9,
         totalReviews: 42,
         totalSessions: 128,
@@ -367,6 +581,7 @@ const buildSessionData = (booking: any, userId: string) => {
     menteeMessage: booking.message,
     companyProgramId: normalizeOptionalString(booking?.companyProgramId) || programContext?.companyProgramId || null,
     companyProgramParticipantId: normalizeOptionalString(booking?.companyProgramParticipantId) || programContext?.companyProgramParticipantId || null,
+    journeyInstanceStepId: normalizeOptionalString(booking?.journeyInstanceStepId) || programContext?.journeyInstanceStepId || null,
   }
 }
 
@@ -399,6 +614,7 @@ const normalizePendingBooking = (value: any): any | null => {
     skillId: typeof value.skillId === 'string' ? value.skillId : DEFAULT_SESSION_SKILL_ID,
     companyProgramId: normalizeOptionalString(value.companyProgramId) || programContext?.companyProgramId || null,
     companyProgramParticipantId: normalizeOptionalString(value.companyProgramParticipantId) || programContext?.companyProgramParticipantId || null,
+    journeyInstanceStepId: normalizeOptionalString(value.journeyInstanceStepId) || programContext?.journeyInstanceStepId || null,
     companyProgramName: normalizeOptionalString(value.companyProgramName) || programContext?.companyProgramName || null,
   }
 }
@@ -416,6 +632,7 @@ const buildPendingBookingRecord = (booking: any, bookingRef?: string): PendingBo
     skillId: DEFAULT_SESSION_SKILL_ID,
     companyProgramId: normalizeOptionalString(booking?.companyProgramId) || programBookingContext.value?.companyProgramId || null,
     companyProgramParticipantId: normalizeOptionalString(booking?.companyProgramParticipantId) || programBookingContext.value?.companyProgramParticipantId || null,
+    journeyInstanceStepId: normalizeOptionalString(booking?.journeyInstanceStepId) || programBookingContext.value?.journeyInstanceStepId || null,
     companyProgramName: normalizeOptionalString(booking?.companyProgramName) || programBookingContext.value?.companyProgramName || null,
   },
   createdAt: Date.now()
@@ -552,6 +769,7 @@ const programBookingContext = computed(() => {
   return {
     companyProgramId: normalizeOptionalString(resolveSingleQueryValue(route.query.companyProgramId)),
     companyProgramParticipantId,
+    journeyInstanceStepId: normalizeOptionalString(resolveSingleQueryValue(route.query.journeyInstanceStepId)),
     companyProgramName: normalizeOptionalString(resolveSingleQueryValue(route.query.companyProgramName)),
   }
 })
@@ -609,6 +827,7 @@ const finalizeBookingWithRetry = async (bookingToRetry: any, userId: string) => 
 
       const sessionData = buildSessionData(bookingToRetry, userId)
       await sessionStore.createSession(sessionData)
+      await refreshBookingSessionBalance(true)
       return
     } catch (error: any) {
       lastError = error
@@ -749,6 +968,7 @@ const createInvoiceAndRedirect = async (context: InvoiceRedirectContext, plan?: 
         skillId: DEFAULT_SESSION_SKILL_ID,
         companyProgramId: pending.companyProgramId || null,
         companyProgramParticipantId: pending.companyProgramParticipantId || null,
+        journeyInstanceStepId: pending.journeyInstanceStepId || null,
         companyProgramName: pending.companyProgramName || null,
       }
     }
@@ -861,6 +1081,7 @@ onMounted(async () => {
 
   await loadMentor()
   await loadAvailability()
+  void refreshBookingSessionBalance()
   await handleInvoiceReturn()
 })
 
@@ -884,6 +1105,7 @@ const handleBookingSubmit = async (booking: any, options: { loadingAlreadyStarte
 
   try {
     await sessionStore.createSession(sessionData)
+    await refreshBookingSessionBalance(true)
     stopJourneyLoading()
     toast.success('Session request submitted successfully!')
   } catch (error: any) {
@@ -1051,7 +1273,7 @@ const closeRetryDialog = () => {
             <p class="profile-subtitle">{{ [mentor.title, mentor.company].filter(Boolean).join(' at ') }}</p>
           </div>
           <div class="profile-actions">
-            <Button size="sm" class="book-btn" @click="showBookingDialog = true">
+            <Button size="sm" class="book-btn" @click="openSimpleBookingForm">
               {{ programBookingContext ? 'Book Program Session' : 'Book Session' }}
             </Button>
             <Button variant="outline" size="sm" class="outline-btn">Follow</Button>
@@ -1179,7 +1401,6 @@ const closeRetryDialog = () => {
                       </button>
                     </template>
                     <span v-else class="text-xs text-muted-foreground">No upcoming slots</span>
-                    <button class="view-all-link" @click="scrollToFullSchedule">View All</button>
                   </div>
 
                   <!-- Book button -->
@@ -1189,19 +1410,6 @@ const closeRetryDialog = () => {
                 </div>
 
               </div>
-            </div>
-
-            <!-- Full-width: Availability Calendar (hidden until "View All" clicked) -->
-            <div v-if="showFullSchedule" ref="availabilitySectionRef" class="availability-section">
-              <h2 class="section-heading">Full Schedule</h2>
-              <p class="text-xs text-muted-foreground mb-4">View and book from the full availability calendar</p>
-              <MentorAvailabilityCalendar
-                :mentor-id="mentor.id"
-                :mentor-name="fullName"
-                :topics="(mentor.expertiseAreas || [])"
-                :is-loading="isBookingSession"
-                @booking-submit="handleBookingSubmit"
-              />
             </div>
           </TabsContent>
 
@@ -1223,84 +1431,126 @@ const closeRetryDialog = () => {
 
     <!-- Simple Booking Form Dialog (triggered by date-chip button) -->
     <Dialog v-model:open="showSimpleBookingForm">
-      <DialogContent class="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Book a Session</DialogTitle>
-          <DialogDescription>Request a session on {{ selectedDateLabel }}</DialogDescription>
-        </DialogHeader>
+      <DialogContent class="mentor-booking-dialog sm:max-w-[1160px] p-0 overflow-hidden">
+        <div class="mentor-booking-layout">
+          <section class="mentor-booking-left">
+            <div class="mentor-booking-left-body">
+              <p class="mentor-booking-eyebrow">MENTORSHIP SESSION</p>
+              <h2 class="mentor-booking-title">Review your session booking</h2>
 
-        <div class="space-y-4">
-          <!-- Time confirmation note -->
-          <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
-            <p class="text-xs text-blue-700">
-              The exact session time will be confirmed once the mentor accepts your booking request.
-            </p>
-          </div>
+              <div class="mentor-booking-card">
+                <div class="mentor-booking-card-header">
+                  <img
+                    v-if="mentor?.profilePhoto"
+                    :src="mentor.profilePhoto"
+                    :alt="fullName"
+                    class="mentor-booking-avatar"
+                  >
+                  <div v-else class="mentor-booking-avatar mentor-booking-avatar-fallback">
+                    {{ (fullName || 'M').charAt(0).toUpperCase() }}
+                  </div>
+                  <div>
+                    <p class="mentor-booking-name">{{ fullName }}</p>
+                    <p class="mentor-booking-role">{{ [mentor?.title, mentor?.company].filter(Boolean).join(' at ') || 'Mentor' }}</p>
+                  </div>
+                </div>
 
-          <!-- Topic -->
-          <div v-if="mentor?.expertiseAreas?.length" class="space-y-2">
-            <Label>Topic</Label>
-            <Select v-model="simpleBookingForm.topic">
-              <SelectTrigger>
-                <SelectValue placeholder="Select topic..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="area in mentor.expertiseAreas" :key="area" :value="area">
-                  {{ area }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+                <div class="mentor-booking-duration-row">
+                  <div class="mentor-booking-duration-icon">
+                    <Clock3 class="h-5 w-5 text-white" />
+                  </div>
+                  <p class="mentor-booking-duration-label"><span class="font-semibold">60</span> min Session</p>
+                </div>
+              </div>
+            </div>
 
-          <!-- Platform -->
-          <div class="space-y-2">
-            <Label>Meeting Platform</Label>
-            <Select v-model="simpleBookingForm.platform">
-              <SelectTrigger>
-                <SelectValue placeholder="Select platform..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="google-meet">Google Meet</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div class="mentor-booking-quote">
+              "{{ mentor?.favouriteQuote || 'Your growth as a leader is a journey we take together. I look forward to exploring your goals.' }}"
+            </div>
+          </section>
 
-          <!-- Message -->
-          <div class="space-y-2">
-            <Label>Message (Optional)</Label>
-            <Textarea
-              v-model="simpleBookingForm.message"
-              placeholder="Let the mentor know what you'd like to discuss..."
-              :rows="3"
-            />
-          </div>
+          <section class="mentor-booking-right">
+            <div class="mentor-booking-right-inner">
+              <div>
+                <h3 class="mentor-booking-form-title">Book a Session</h3>
+                <p class="mentor-booking-form-subtitle">Fill in the details to schedule your meeting.</p>
+              </div>
+
+              <div class="mentor-booking-balance-panel">
+                <div class="mentor-booking-balance-head">
+                  <p class="mentor-booking-balance-title">Session Allocation</p>
+                  <button
+                    type="button"
+                    class="mentor-booking-balance-refresh"
+                    :disabled="bookingSessionBalanceLoading"
+                    @click="refreshBookingSessionBalance(true)"
+                  >
+                    {{ bookingSessionBalanceLoading ? 'Refreshing…' : 'Refresh' }}
+                  </button>
+                </div>
+                <div class="mentor-booking-balance-grid">
+                  <div class="mentor-booking-balance-item">
+                    <p class="mentor-booking-balance-label">Assigned</p>
+                    <p class="mentor-booking-balance-value">{{ bookingDisplayAssigned }}</p>
+                  </div>
+                  <div class="mentor-booking-balance-item">
+                    <p class="mentor-booking-balance-label">Sessions Left</p>
+                    <p class="mentor-booking-balance-value" :class="{ 'is-empty': bookingDisplayLeft <= 0 }">
+                      {{ bookingDisplayLeft }}
+                    </p>
+                  </div>
+                </div>
+                <p class="mentor-booking-balance-meta">
+                  {{ bookingSessionBalanceDescription }}
+                </p>
+              </div>
+
+              <div class="mentor-booking-field-group">
+                <Label class="mentor-booking-field-label">Select Date</Label>
+                <div class="mentor-booking-date-picker">
+                  <DatePicker
+                    v-model="selectedBookingDate"
+                    placeholder="Select date"
+                    :calendar-disabled="isPastCalendarDate"
+                    class="mentor-booking-date-input"
+                  />
+                </div>
+              </div>
+
+              <div class="mentor-booking-field-group">
+                <Label class="mentor-booking-field-label">Session Topic</Label>
+                <Select v-model="simpleBookingForm.topic">
+                  <SelectTrigger class="mentor-booking-field-select" :disabled="!mentorTopicOptions.length">
+                    <SelectValue :placeholder="mentorTopicOptions.length ? 'Select session topic...' : 'No mentor topics available'" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="topic in mentorTopicOptions" :key="topic" :value="topic">
+                      {{ topic }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div class="mentor-booking-field-group">
+                <Label class="mentor-booking-field-label">Description &amp; Goals</Label>
+                <Textarea
+                  v-model="simpleBookingForm.message"
+                  placeholder="Briefly describe what you'd like to achieve in this session"
+                  class="mentor-booking-field-textarea"
+                />
+              </div>
+
+              <div class="mentor-booking-actions">
+                <Button class="mentor-booking-submit" :disabled="isBookingSession || !bookingSlot" @click="submitSimpleBooking">
+                  {{ isBookingSession ? 'Processing...' : 'Proceed To Pay' }}
+                </Button>
+                <Button variant="ghost" class="mentor-booking-cancel" :disabled="isBookingSession" @click="showSimpleBookingForm = false">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </section>
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" @click="showSimpleBookingForm = false" :disabled="isBookingSession">
-            Cancel
-          </Button>
-          <Button @click="submitSimpleBooking" :disabled="isBookingSession">
-            {{ isBookingSession ? 'Processing...' : 'Request Session' }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    <!-- Booking Dialog -->
-    <Dialog v-model:open="showBookingDialog">
-      <DialogContent class="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Book a Session with {{ fullName }}</DialogTitle>
-          <DialogDescription>Select a time slot that works for you</DialogDescription>
-        </DialogHeader>
-        <MentorAvailabilityCalendar
-          :mentor-id="mentor?.id"
-          :mentor-name="fullName"
-          :topics="(mentor?.expertiseAreas || [])"
-          :is-loading="isBookingSession"
-          @booking-submit="handleBookingDialogSubmit"
-        />
       </DialogContent>
     </Dialog>
 
@@ -1932,17 +2182,6 @@ const closeRetryDialog = () => {
   white-space: nowrap;
 }
 
-.view-all-link {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1a5c4e;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 0;
-  margin-left: auto;
-}
-
 .book-session-btn {
   width: 100%;
   background: #1a5c4e;
@@ -1960,11 +2199,327 @@ const closeRetryDialog = () => {
   background: #0f3d34;
 }
 
-/* ── Availability section (full width) ── */
-.availability-section {
+/* ── Mentor Booking Dialog ── */
+.mentor-booking-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 40%) minmax(0, 60%);
+  min-height: 560px;
+  font-family: 'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+.mentor-booking-left {
+  background: #fbfcfc;
+  border-right: 1px solid #e7eaee;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.mentor-booking-left-body {
+  padding: 1.75rem 1.75rem 1.25rem;
+}
+
+.mentor-booking-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0f6b45;
+  letter-spacing: 0.16em;
+  margin-bottom: 0.55rem;
+}
+
+.mentor-booking-title {
+  font-size: 2rem;
+  line-height: 1.12;
+  font-weight: 600;
+  color: #1f2430;
+  max-width: 11ch;
+  letter-spacing: -0.01em;
+  margin: 0 0 1.25rem;
+}
+
+.mentor-booking-card {
+  border: 1px solid #ebedf1;
   background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 24px;
+  border-radius: 1rem;
+  padding: 1rem;
+  max-width: 430px;
+}
+
+.mentor-booking-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.mentor-booking-avatar {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.75rem;
+  object-fit: cover;
+}
+
+.mentor-booking-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0b8a6e;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.mentor-booking-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #222a36;
+}
+
+.mentor-booking-role {
+  font-size: 0.875rem;
+  color: #687386;
+  margin-top: 0.2rem;
+}
+
+.mentor-booking-duration-row {
+  margin-top: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.mentor-booking-duration-icon {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  background: #0a8167;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mentor-booking-duration-label {
+  font-size: 0.95rem;
+  color: #2d3646;
+}
+
+.mentor-booking-quote {
+  border-top: 1px solid #e7eaee;
+  padding: 1.25rem 1.75rem 1.45rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #677286;
+}
+
+.mentor-booking-right {
+  background: white;
+}
+
+.mentor-booking-right-inner {
+  padding: 1.75rem;
+  max-width: 640px;
+}
+
+.mentor-booking-form-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: #1f2430;
+}
+
+.mentor-booking-form-subtitle {
+  margin-top: 0.3rem;
+  font-size: 0.875rem;
+  color: #687386;
+}
+
+.mentor-booking-balance-panel {
+  margin-top: 1rem;
+  border: 1px solid #d8dfeb;
+  border-radius: 0.75rem;
+  background: #f8fbff;
+  padding: 0.75rem 0.85rem;
+}
+
+.mentor-booking-balance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mentor-booking-balance-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #2e3a4d;
+  text-transform: uppercase;
+}
+
+.mentor-booking-balance-refresh {
+  border: none;
+  background: transparent;
+  color: #0a8167;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mentor-booking-balance-refresh:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.mentor-booking-balance-grid {
+  margin-top: 0.55rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.mentor-booking-balance-item {
+  border-radius: 0.6rem;
+  background: white;
+  border: 1px solid #e0e5ef;
+  padding: 0.5rem 0.6rem;
+}
+
+.mentor-booking-balance-label {
+  font-size: 0.72rem;
+  color: #728097;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.mentor-booking-balance-value {
+  margin-top: 0.2rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2430;
+  line-height: 1;
+}
+
+.mentor-booking-balance-value.is-empty {
+  color: #b64040;
+}
+
+.mentor-booking-balance-meta {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: #5c687a;
+  line-height: 1.35;
+}
+
+.mentor-booking-field-group {
+  margin-top: 1.05rem;
+}
+
+.mentor-booking-field-label {
+  display: inline-block;
+  margin-bottom: 0.45rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #2d3646;
+}
+
+.mentor-booking-field-static {
+  min-height: 2.8rem;
+  border: 1px solid #d7dce2;
+  border-radius: 0.7rem;
+  padding: 0.6rem 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.95rem;
+  color: #1f2430;
+}
+
+.mentor-booking-date-picker :deep(.mentor-booking-date-input) {
+  width: 100%;
+  min-height: 2.8rem;
+  border-color: #d7dce2;
+  border-radius: 0.7rem;
+  font-size: 0.95rem;
+  color: #1f2430;
+  padding-left: 0.75rem;
+  font-family: inherit;
+}
+
+.mentor-booking-field-select {
+  min-height: 2.8rem;
+  border-color: #d7dce2;
+  border-radius: 0.7rem;
+  font-size: 0.95rem;
+  color: #1f2430;
+  padding-left: 0.75rem;
+  font-family: inherit;
+}
+
+.mentor-booking-field-textarea {
+  min-height: 8rem;
+  border-color: #d7dce2;
+  border-radius: 0.7rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  padding: 0.75rem 0.85rem;
+  font-family: inherit;
+  resize: none;
+}
+
+.mentor-booking-actions {
+  margin-top: 1.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mentor-booking-submit {
+  min-width: 11.5rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  background: #0a8167;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.mentor-booking-submit:hover {
+  background: #086f58;
+}
+
+.mentor-booking-cancel {
+  color: #222a35;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+@media (max-width: 1100px) {
+  .mentor-booking-layout {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .mentor-booking-left {
+    border-right: 0;
+    border-bottom: 1px solid #e7eaee;
+  }
+
+  .mentor-booking-title {
+    max-width: 100%;
+    margin-bottom: 1.4rem;
+  }
+
+  .mentor-booking-name {
+    font-size: 1.25rem;
+  }
+
+  .mentor-booking-quote {
+    padding-top: 1.2rem;
+  }
+
+  .mentor-booking-balance-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
