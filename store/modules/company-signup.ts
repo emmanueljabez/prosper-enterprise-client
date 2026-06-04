@@ -76,11 +76,7 @@ export const useCompanySignupStore = defineStore('company-signup', () => {
     isLoading.value = true
     error.value = null
     try {
-      const response = await companySignupApi.createIntent({
-        ...payload,
-        planId: pendingSelection.value?.planId || null,
-        sessionCount: pendingSelection.value?.sessionCount || null,
-      })
+      const response = await companySignupApi.createIntent(payload)
 
       intentToken.value = response.data?.token || null
       intent.value = response.data || null
@@ -127,6 +123,11 @@ export const useCompanySignupStore = defineStore('company-signup', () => {
     }
   }
 
+  const clearPurchaseState = () => {
+    clearPendingSelection()
+    clearIntent()
+  }
+
   return {
     pendingSelection,
     intentToken,
@@ -140,5 +141,6 @@ export const useCompanySignupStore = defineStore('company-signup', () => {
     createIntent,
     completeIntent,
     clearIntent,
+    clearPurchaseState,
   }
 })

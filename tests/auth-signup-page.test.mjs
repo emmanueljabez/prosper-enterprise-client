@@ -16,6 +16,8 @@ assert.match(signupSource, /Enter your first and last name\./, 'Signup should va
 assert.match(signupSource, /Password must be at least 8 characters\./, 'Signup should validate password strength.')
 assert.doesNotMatch(signupSource, /applyAuthenticatedSession/, 'Signup should not create an authenticated app session.')
 assert.doesNotMatch(signupSource, /\/app\/admin\/activate/, 'Signup should not send users directly to activation.')
+assert.doesNotMatch(signupSource, /hydratePendingSelection|hydrateIntentToken/, 'Signup should not hydrate pre-login purchase state.')
+assert.doesNotMatch(signupSource, /buy sessions to activate/i, 'Signup should not tell companies they must buy sessions before logging in.')
 assert.match(signupSource, /\/auth\/email-verification/, 'Signup should send users to the email verification holding page.')
 assert.match(emailVerificationSource, /AuthSplitShell/, 'Email verification page should use the shared auth shell.')
 assert.match(emailVerificationSource, /Check your email/, 'Email verification page should orient users after signup.')

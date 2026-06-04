@@ -33,21 +33,15 @@ export const employeeNavigation: NavigationItem[] = [
         permission: 'mentors:view'
       },
       {
-        title: 'My Journey',
-        icon: Target,
-        url: '/app/employee/journey',
-        permission: 'sessions:view'
-      },
-      {
         title: 'Mentor Matches',
         icon: GitBranch,
         url: '/app/employee/matches',
         permission: 'mentors:view'
       },
       {
-        title: 'My Mentor',
+        title: 'Mentors',
         icon: Users,
-        url: '/app/employee/mentor',
+        url: '/app/mentors',
         permission: 'mentors:view'
       },
       {

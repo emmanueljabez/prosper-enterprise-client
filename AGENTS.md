@@ -6,6 +6,8 @@ This repository is the frontend for ProsperMentor. It currently contains the mar
 
 This file exists to keep frontend extensions aligned with that product direction.
 
+Backend repository path: `/Users/macbookpro/IdeaProjects/ProsperMentor`.
+
 ## Tech Stack
 
 - Nuxt 3
@@ -176,3 +178,17 @@ Frontend implications:
 - after 3 shared sessions, support a separate mentorship fit score flow
 
 Avoid spending phase-1 effort on a generic survey-builder style UI unless the backend workflow explicitly requires it.
+
+## E2E Testing
+
+For E2E testing, use: `https://enterprise.prospermentor.com/auth/login`
+
+Corporate Admin credentials:
+
+- email: `emmanuel@pcash.africa`
+- password: `incorrect`
+
+Employee credentials:
+
+- email: `jayb2oteno@gmail.com`
+- password: `Inc0rr3ct@12!`

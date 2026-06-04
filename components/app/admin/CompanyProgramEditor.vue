@@ -4,12 +4,14 @@ import { useCompanyProgramsStore } from '@/store/modules/company-programs'
 import type {
   CompanyProgramRecord,
   CreateCompanyProgramPayload,
+  JourneyTemplateUpdateScope,
   JourneyTemplateRecord,
   ProsperCatalogProgramRecord,
   UpdateCompanyProgramPayload,
 } from '@/http/requests/app/companyPrograms'
 import { useAppToast } from '@/composables/services/toastService'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import { Input } from '~/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Textarea } from '~/components/ui/textarea'
@@ -20,7 +22,9 @@ type CatalogStageForm = {
   journeyStageName: string
 }
 
-type ProgramFormModel = CreateCompanyProgramPayload & UpdateCompanyProgramPayload
+type ProgramFormModel = CreateCompanyProgramPayload & UpdateCompanyProgramPayload & {
+  journeyTemplateUpdateScope?: JourneyTemplateUpdateScope | null
+}
 
 const props = withDefaults(defineProps<{
   mode?: 'create' | 'edit'
@@ -53,6 +57,10 @@ const programForm = reactive<ProgramFormModel>({
   objective: '',
   targetAudienceDescription: '',
   matchingMode: 'ADMIN_ASSIGN',
+  employeeSelectionWindowHours: 48,
+  employeeSelectionShortlistSize: 5,
+  requiresMentorForSessionSteps: true,
+  journeyTemplateUpdateScope: 'FUTURE_ENROLLMENTS_ONLY',
   maxParticipants: null,
   startsAt: '',
   endsAt: '',
@@ -70,6 +78,10 @@ const resetForm = () => {
   programForm.objective = ''
   programForm.targetAudienceDescription = ''
   programForm.matchingMode = 'ADMIN_ASSIGN'
+  programForm.employeeSelectionWindowHours = 48
+  programForm.employeeSelectionShortlistSize = 5
+  programForm.requiresMentorForSessionSteps = true
+  programForm.journeyTemplateUpdateScope = 'FUTURE_ENROLLMENTS_ONLY'
   programForm.maxParticipants = null
   programForm.startsAt = ''
   programForm.endsAt = ''
@@ -87,6 +99,10 @@ const populateForm = (program?: CompanyProgramRecord | null) => {
   programForm.objective = program.objective || ''
   programForm.targetAudienceDescription = program.targetAudienceDescription || ''
   programForm.matchingMode = program.matchingMode || 'ADMIN_ASSIGN'
+  programForm.employeeSelectionWindowHours = program.employeeSelectionWindowHours ?? 48
+  programForm.employeeSelectionShortlistSize = program.employeeSelectionShortlistSize ?? 5
+  programForm.requiresMentorForSessionSteps = program.requiresMentorForSessionSteps !== false
+  programForm.journeyTemplateUpdateScope = 'FUTURE_ENROLLMENTS_ONLY'
   programForm.maxParticipants = program.maxParticipants ?? null
   programForm.startsAt = program.startsAt ? new Date(program.startsAt).toISOString().slice(0, 16) : ''
   programForm.endsAt = program.endsAt ? new Date(program.endsAt).toISOString().slice(0, 16) : ''
@@ -122,6 +138,12 @@ const selectedCatalogPrograms = computed(() =>
 
 const selectedJourneyTemplate = computed(() =>
   props.journeyTemplates.find(template => template.id === programJourneyTemplateSelection.value) || null,
+)
+
+const journeyTemplateChanged = computed(() =>
+  props.mode === 'edit'
+  && !!props.program
+  && (props.program?.journeyTemplateId || 'NONE') !== (programJourneyTemplateSelection.value || 'NONE'),
 )
 
 const addCatalogStage = () => {
@@ -178,6 +200,16 @@ const submitForm = () => {
     ...programForm,
     catalogStages: catalogStagePayload,
     journeyTemplateId: programJourneyTemplateSelection.value !== 'NONE' ? programJourneyTemplateSelection.value : null,
+    journeyTemplateUpdateScope: journeyTemplateChanged.value
+      ? (programForm.journeyTemplateUpdateScope || 'FUTURE_ENROLLMENTS_ONLY')
+      : null,
+    employeeSelectionWindowHours: programForm.employeeSelectionWindowHours
+      ? Number(programForm.employeeSelectionWindowHours)
+      : null,
+    employeeSelectionShortlistSize: programForm.employeeSelectionShortlistSize
+      ? Number(programForm.employeeSelectionShortlistSize)
+      : null,
+    requiresMentorForSessionSteps: programForm.requiresMentorForSessionSteps !== false,
     maxParticipants: programForm.maxParticipants ? Number(programForm.maxParticipants) : null,
     startsAt: programForm.startsAt || null,
     endsAt: programForm.endsAt || null,
@@ -308,6 +340,28 @@ const openJourneyTemplates = () => {
       </div>
 
       <div class="grid gap-2">
+        <label class="text-sm font-medium">Selection window (hours)</label>
+        <Input
+          v-model="programForm.employeeSelectionWindowHours"
+          type="number"
+          min="1"
+          max="168"
+          placeholder="48"
+        />
+      </div>
+
+      <div class="grid gap-2">
+        <label class="text-sm font-medium">Shortlist size</label>
+        <Input
+          v-model="programForm.employeeSelectionShortlistSize"
+          type="number"
+          min="1"
+          max="20"
+          placeholder="5"
+        />
+      </div>
+
+      <div class="grid gap-2">
         <div class="flex items-center justify-between gap-3">
           <label class="text-sm font-medium">Journey template</label>
           <Button type="button" variant="ghost" size="sm" @click="openJourneyTemplates">
@@ -337,6 +391,21 @@ const openJourneyTemplates = () => {
       </div>
     </div>
 
+    <div class="rounded-lg border p-4">
+      <div class="flex items-start gap-3">
+        <Checkbox
+          :checked="programForm.requiresMentorForSessionSteps !== false"
+          @update:checked="value => programForm.requiresMentorForSessionSteps = value === true"
+        />
+        <div>
+          <div class="text-sm font-medium">Block session milestones until mentor assignment</div>
+          <p class="text-xs text-muted-foreground">
+            When enabled, journey SESSION milestones remain blocked until this participant has an assigned mentor.
+          </p>
+        </div>
+      </div>
+    </div>
+
     <div
       v-if="selectedJourneyTemplate"
       class="rounded-lg border bg-muted/20 p-4 text-sm"
@@ -346,6 +415,25 @@ const openJourneyTemplates = () => {
       <div class="mt-3 text-xs text-muted-foreground">
         {{ selectedJourneyTemplate.stepCount || 0 }} milestones
       </div>
+    </div>
+
+    <div
+      v-if="journeyTemplateChanged && props.mode === 'edit'"
+      class="grid gap-2 rounded-lg border bg-muted/20 p-4"
+    >
+      <label class="text-sm font-medium">Template update scope</label>
+      <Select v-model="programForm.journeyTemplateUpdateScope">
+        <SelectTrigger>
+          <SelectValue placeholder="Choose how to apply this template change" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="FUTURE_ENROLLMENTS_ONLY">Future enrollments only</SelectItem>
+          <SelectItem value="MIGRATE_NOT_STARTED_PARTICIPANTS">Also migrate not-started participants</SelectItem>
+        </SelectContent>
+      </Select>
+      <p class="text-xs text-muted-foreground">
+        Participants with completed milestones are retained on their current template to preserve history.
+      </p>
     </div>
 
     <div class="grid gap-4 md:grid-cols-2">

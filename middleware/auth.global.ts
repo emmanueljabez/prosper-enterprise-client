@@ -1,18 +1,18 @@
 import { defineNuxtRouteMiddleware, navigateTo } from 'nuxt/app'
 import { useAuthStore } from '@/store/modules/auth'
-import { useCompanyActivationStore } from '@/store/modules/company-activation'
 import { useCompanyOnboardingStore } from '@/store/modules/company-onboarding'
 import { AuthChecker } from '@/utils/authChecker'
 import { RoleManager } from '@/utils/roleManager'
 
 const PUBLIC_PATH_PREFIX = '/auth/'
+const PUBLIC_PAYMENT_PREFIX = '/payment/'
 const PUBLIC_PATHS = new Set(['/', '/landing', '/pricing'])
 
 console.log('Auth global middleware loaded')
 
 export default defineNuxtRouteMiddleware(async (to, from) => {
   // Skip public routes (including OAuth callbacks)
-  if (to.path.startsWith(PUBLIC_PATH_PREFIX) || PUBLIC_PATHS.has(to.path)) {
+  if (to.path.startsWith(PUBLIC_PATH_PREFIX) || to.path.startsWith(PUBLIC_PAYMENT_PREFIX) || PUBLIC_PATHS.has(to.path)) {
     return
   }
 
@@ -28,7 +28,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   }
 
   if (to.path.startsWith('/app/admin')) {
-    const activationStore = useCompanyActivationStore()
     const onboardingStore = useCompanyOnboardingStore()
     const companyId = authStore.loggedInUser?.companyId || ''
     const isCompanyAdmin = RoleManager.isCorporateAdmin(authStore.loggedInUser)
@@ -43,11 +42,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
       if (to.path === '/app/admin/onboarding') {
         return
-      }
-
-      await activationStore.loadActivationState(companyId)
-      if (activationStore.requiresActivation && to.path !== '/app/admin/activate') {
-        return navigateTo('/app/admin/activate')
       }
     }
   }

@@ -2,11 +2,15 @@ import api from '@/http/axios'
 
 export type CompanyProgramStatus = 'DRAFT' | 'LIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'ARCHIVED'
 export type CompanyProgramMatchingMode = 'ADMIN_ASSIGN' | 'EMPLOYEE_SELECT' | 'SYSTEM_ASSIGN'
+export type JourneyTemplateUpdateScope = 'FUTURE_ENROLLMENTS_ONLY' | 'MIGRATE_NOT_STARTED_PARTICIPANTS'
 export type CompanyProgramParticipantStatus = 'ENROLLED' | 'ACTIVE' | 'COMPLETED' | 'WITHDRAWN'
+export type MatchWorkspaceStatus = 'ADMIN_REVIEW' | 'PENDING_EMPLOYEE_SELECTION' | 'ASSIGNED' | 'EXPIRED_NO_CANDIDATE' | 'INACTIVE'
+export type MatchWorkspaceResolverType = 'EMPLOYEE' | 'ADMIN' | 'SYSTEM'
 export type JourneyActionItemOwnerType = 'MENTEE' | 'MENTOR' | 'SHARED'
 export type JourneyStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'CANCELLED'
 export type JourneyStepType = 'SESSION' | 'CHECK_IN' | 'ACTION_ITEM' | 'SURVEY' | 'REFLECTION'
 export type JourneyStepStatus = 'PENDING' | 'READY' | 'COMPLETED' | 'SKIPPED' | 'BLOCKED'
+export type JourneyStepActionType = 'BOOK_SESSION' | 'BUY_SESSION' | 'COMPLETE_STEP' | 'VIEW_MATCHES' | 'VIEW_SESSIONS' | 'WAIT'
 export type JourneyDependencyType = 'FINISH_TO_START' | 'OPTIONAL_GATE'
 export type ParticipantConsentType = 'PROGRAM_PARTICIPATION' | 'AGGREGATED_ANALYTICS' | 'EMPLOYER_PROGRESS_VISIBILITY'
 export type ParticipantConsentStatus = 'GRANTED' | 'REVOKED'
@@ -41,6 +45,7 @@ export interface JourneyTemplateRecord {
   name: string
   programType?: string | null
   description?: string | null
+  coverImageUrl?: string | null
   defaultDurationWeeks?: number | null
   templateVersion?: number | null
   active?: boolean | null
@@ -112,6 +117,9 @@ export interface CompanyProgramRecord {
   targetAudienceDescription?: string | null
   status: CompanyProgramStatus
   matchingMode: CompanyProgramMatchingMode
+  employeeSelectionWindowHours?: number | null
+  employeeSelectionShortlistSize?: number | null
+  requiresMentorForSessionSteps?: boolean | null
   visibilityPolicyCode?: string | null
   maxParticipants?: number | null
   startsAt?: string | null
@@ -173,6 +181,7 @@ export interface CompanyProgramParticipantRecord {
   status: CompanyProgramParticipantStatus
   consentSummary?: ParticipantConsentSummaryRecord | null
   mentorAssignment?: MentorAssignmentSummaryRecord | null
+  matchWorkspace?: MatchWorkspaceSummaryRecord | null
   enrolledAt?: string | null
   enrolledByUserId?: string | null
   version?: number | null
@@ -182,6 +191,7 @@ export interface CompanyProgramParticipantRecord {
 
 export interface MentorAssignmentSummaryRecord {
   assignmentId: string
+  journeyInstanceStepId?: string | null
   mentorId: string
   mentorName: string
   mentorEmail?: string | null
@@ -194,6 +204,17 @@ export interface MentorAssignmentSummaryRecord {
   specializations?: string[] | null
   isAvailable?: boolean | null
   assignedAt?: string | null
+}
+
+export interface MatchWorkspaceSummaryRecord {
+  status: MatchWorkspaceStatus
+  selectionDeadlineAt?: string | null
+  shortlistGeneratedAt?: string | null
+  resolvedAt?: string | null
+  resolvedBy?: MatchWorkspaceResolverType | null
+  shortlistCount?: number | null
+  canEmployeeSelect?: boolean | null
+  selectionWindowExpired?: boolean | null
 }
 
 export interface CompanyProgramMentorCandidateRecord {
@@ -209,6 +230,9 @@ export interface CompanyProgramMentorCandidateRecord {
   specializations?: string[] | null
   isAvailable?: boolean | null
   source?: 'PROGRAM_POOL' | 'GLOBAL_POOL' | string | null
+  rankOrder?: number | null
+  recommendationScore?: number | string | null
+  recommendationReason?: string | null
 }
 
 export interface CompanyProgramParticipantsResponse {
@@ -288,6 +312,7 @@ export interface EmployeeCompanyProgramMatchRecord {
   startsAt?: string | null
   endsAt?: string | null
   mentorAssignment?: MentorAssignmentSummaryRecord | null
+  matchWorkspace?: MatchWorkspaceSummaryRecord | null
 }
 
 export interface MyCompanyProgramMatchesResponse {
@@ -297,6 +322,34 @@ export interface MyCompanyProgramMatchesResponse {
     matches: EmployeeCompanyProgramMatchRecord[]
     count: number
   } | null
+}
+
+export interface EmployeeMentorSelectionOptionsRecord {
+  participantId: string
+  companyProgramId: string
+  companyProgramName?: string | null
+  matchingMode: CompanyProgramMatchingMode
+  matchWorkspace?: MatchWorkspaceSummaryRecord | null
+  options: CompanyProgramMentorCandidateRecord[]
+  count: number
+}
+
+export interface EmployeeMentorSelectionOptionsResponse {
+  success: boolean
+  message: string
+  data: EmployeeMentorSelectionOptionsRecord | null
+}
+
+export interface ParticipantMatchWorkspaceUpdateRecord {
+  participantId: string
+  matchWorkspace?: MatchWorkspaceSummaryRecord | null
+  mentorAssignment?: MentorAssignmentSummaryRecord | null
+}
+
+export interface ParticipantMatchWorkspaceUpdateResponse {
+  success: boolean
+  message: string
+  data: ParticipantMatchWorkspaceUpdateRecord | null
 }
 
 export interface CompanyProgramJourneySessionRecord {
@@ -322,6 +375,21 @@ export interface CompanyProgramJourneyActionItemRecord {
   canBeCompletedByEmployee: boolean
 }
 
+export interface CompanyProgramJourneyStepActionRecord {
+  actionType: JourneyStepActionType
+  label?: string | null
+  description?: string | null
+  enabled?: boolean | null
+  disabledReason?: string | null
+  targetRoute?: string | null
+  journeyInstanceStepId?: string | null
+  mentorId?: string | null
+  companyProgramId?: string | null
+  companyProgramParticipantId?: string | null
+  availableSessionBalance?: number | null
+  assignedSessionTotal?: number | null
+}
+
 export interface CompanyProgramJourneyStepRecord {
   journeyInstanceStepId: string
   journeyStepId: string
@@ -337,6 +405,8 @@ export interface CompanyProgramJourneyStepRecord {
   skippedReason?: string | null
   blockedReason?: string | null
   canBeCompletedByEmployee: boolean
+  mentorAssignment?: MentorAssignmentSummaryRecord | null
+  primaryAction?: CompanyProgramJourneyStepActionRecord | null
 }
 
 export interface EmployeeCompanyProgramJourneyRecord {
@@ -457,6 +527,8 @@ export interface CompanyProgramsQueryParams {
   search?: string
   status?: CompanyProgramStatus | null
   liveOnly?: boolean
+  startDate?: string
+  endDate?: string
 }
 
 export interface CompanyProgramParticipantsQueryParams {
@@ -465,6 +537,8 @@ export interface CompanyProgramParticipantsQueryParams {
   size?: number
   search?: string
   status?: CompanyProgramParticipantStatus | null
+  startDate?: string
+  endDate?: string
 }
 
 export interface CreateCompanyProgramPayload {
@@ -479,6 +553,9 @@ export interface CreateCompanyProgramPayload {
   objective?: string | null
   targetAudienceDescription?: string | null
   matchingMode?: CompanyProgramMatchingMode
+  employeeSelectionWindowHours?: number | null
+  employeeSelectionShortlistSize?: number | null
+  requiresMentorForSessionSteps?: boolean | null
   visibilityPolicyCode?: string | null
   maxParticipants?: number | null
   startsAt?: string | null
@@ -497,6 +574,10 @@ export interface UpdateCompanyProgramPayload {
   objective?: string | null
   targetAudienceDescription?: string | null
   matchingMode?: CompanyProgramMatchingMode
+  employeeSelectionWindowHours?: number | null
+  employeeSelectionShortlistSize?: number | null
+  requiresMentorForSessionSteps?: boolean | null
+  journeyTemplateUpdateScope?: JourneyTemplateUpdateScope | null
   visibilityPolicyCode?: string | null
   maxParticipants?: number | null
   startsAt?: string | null
@@ -507,6 +588,7 @@ export interface JourneyTemplateUpsertPayload {
   name: string
   programType?: string | null
   description?: string | null
+  coverImageUrl?: string | null
   defaultDurationWeeks?: number | null
   active?: boolean | null
   steps: Array<{
@@ -531,6 +613,7 @@ export interface EnrollCompanyProgramParticipantsPayload {
 
 export interface AssignCompanyProgramMentorPayload {
   mentorId: string
+  journeyInstanceStepId?: string | null
 }
 
 export interface ProsperCatalogProgramsResponse {
@@ -658,6 +741,37 @@ export default {
 
   async getMyCompanyProgramMatches(): Promise<MyCompanyProgramMatchesResponse> {
     const { data } = await api.get('/v1/me/company-program-matches')
+    return data
+  },
+
+  async getMyCompanyProgramMatchOptions(participantId: string): Promise<EmployeeMentorSelectionOptionsResponse> {
+    const { data } = await api.get(`/v1/me/company-program-matches/${participantId}/options`)
+    return data
+  },
+
+  async selectMyCompanyProgramMentor(
+    participantId: string,
+    payload: AssignCompanyProgramMentorPayload,
+  ): Promise<MentorAssignmentResponse> {
+    const { data } = await api.post(`/v1/me/company-program-matches/${participantId}/select`, payload)
+    return data
+  },
+
+  async selectMyMarketplaceMentor(
+    participantId: string,
+    payload: AssignCompanyProgramMentorPayload,
+  ): Promise<MentorAssignmentResponse> {
+    const { data } = await api.post(`/v1/me/company-program-matches/${participantId}/select-open`, payload)
+    return data
+  },
+
+  async refreshParticipantMatchWorkspace(participantId: string): Promise<ParticipantMatchWorkspaceUpdateResponse> {
+    const { data } = await api.post(`/v1/company-program-participants/${participantId}/match-workspace/refresh`)
+    return data
+  },
+
+  async autoAssignParticipantMentor(participantId: string): Promise<ParticipantMatchWorkspaceUpdateResponse> {
+    const { data } = await api.post(`/v1/company-program-participants/${participantId}/match-workspace/auto-assign`)
     return data
   },
 

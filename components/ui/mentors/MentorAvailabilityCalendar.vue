@@ -200,67 +200,131 @@
 
     <!-- Booking Form Modal -->
     <Dialog v-model:open="showBookingForm">
-      <DialogContent class="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Book a Session</DialogTitle>
-          <DialogDescription>
-            Request a mentoring session on {{ formatSlotDate(selectedSlot) }}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent class="booking-session-dialog sm:max-w-[1160px] p-0 overflow-hidden">
+        <div v-if="selectedSlot" class="booking-session-layout">
+          <section class="booking-session-left">
+            <div class="booking-session-left-body">
+              <p class="booking-session-eyebrow">MENTORSHIP SESSION</p>
+              <h2 class="booking-session-title">Review your session booking</h2>
 
-        <div v-if="selectedSlot" class="space-y-4">
-          <!-- Time confirmation note -->
-          <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
-            <p class="text-xs text-blue-700">
-              The exact session time will be confirmed once the mentor accepts your booking request.
-            </p>
-          </div>
-          <!-- Topic -->
-          <div class="space-y-2" v-if="props.topics && props.topics.length">
-            <Label>Topic</Label>
-            <Select v-model="bookingForm.topic">
-              <SelectTrigger>
-                <SelectValue placeholder="Select topic..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="t in props.topics" :key="t" :value="t">{{ t }}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <div class="booking-mentor-card">
+                <div class="booking-mentor-header">
+                  <img
+                    v-if="props.mentorAvatar"
+                    :src="props.mentorAvatar"
+                    :alt="props.mentorName"
+                    class="booking-mentor-avatar"
+                  >
+                  <div v-else class="booking-mentor-avatar booking-mentor-avatar-fallback">
+                    {{ mentorInitials }}
+                  </div>
+                  <div>
+                    <p class="booking-mentor-name">{{ props.mentorName }}</p>
+                    <p class="booking-mentor-role">{{ props.mentorTitle || 'Mentor' }}</p>
+                  </div>
+                </div>
 
-          <!-- Platform -->
-          <div class="space-y-2">
-            <Label>Meeting Platform</Label>
-            <Select v-model="bookingForm.platform">
-              <SelectTrigger>
-                <SelectValue placeholder="Select platform..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="google-meet">Google Meet</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+                <div class="booking-duration-row">
+                  <div class="booking-duration-icon-wrap">
+                    <Clock class="h-5 w-5 text-white" />
+                  </div>
+                  <p class="booking-duration-label"><span class="font-semibold">{{ selectedSlotDurationMinutes }}</span> min Session</p>
+                </div>
+              </div>
+            </div>
 
-          <!-- Message -->
-          <div class="space-y-2">
-            <Label>Message (Optional)</Label>
-            <Textarea
-              v-model="bookingForm.message"
-              placeholder="Let the mentor know what you'd like to discuss..."
-              rows="3"
-            />
-          </div>
+            <div class="booking-session-quote">
+              "{{ props.mentorQuote || 'Your growth as a leader is a journey we take together. I look forward to exploring your goals.' }}"
+            </div>
+          </section>
+
+          <section class="booking-session-right">
+            <div class="booking-session-right-inner">
+              <div>
+                <h3 class="booking-form-title">Book a Session</h3>
+                <p class="booking-form-subtitle">Fill in the details to schedule your meeting.</p>
+              </div>
+
+              <div class="booking-balance-panel">
+                <div class="booking-balance-head">
+                  <p class="booking-balance-title">Session Allocation</p>
+                  <button
+                    type="button"
+                    class="booking-balance-refresh"
+                    :disabled="bookingSessionBalanceLoading"
+                    @click="refreshBookingSessionBalance(true)"
+                  >
+                    {{ bookingSessionBalanceLoading ? 'Refreshing…' : 'Refresh' }}
+                  </button>
+                </div>
+                <div class="booking-balance-grid">
+                  <div class="booking-balance-item">
+                    <p class="booking-balance-label">Assigned</p>
+                    <p class="booking-balance-value">{{ bookingSessionsAssigned }}</p>
+                  </div>
+                  <div class="booking-balance-item">
+                    <p class="booking-balance-label">Sessions Left</p>
+                    <p class="booking-balance-value" :class="{ 'is-empty': bookingSessionsLeft <= 0 }">
+                      {{ bookingSessionsLeft }}
+                    </p>
+                  </div>
+                </div>
+                <p class="booking-balance-meta">{{ bookingSessionBalanceDescription }}</p>
+              </div>
+
+              <div class="booking-field-group">
+                <Label class="booking-field-label">Select Date</Label>
+                <div class="booking-field-static">
+                  <Calendar class="h-5 w-5 text-[#0a8167]" />
+                  <span>{{ selectedSlotDateLabel }}</span>
+                </div>
+              </div>
+
+              <div class="booking-field-group">
+                <Label class="booking-field-label">Session Topic</Label>
+                <Select v-if="props.topics && props.topics.length" v-model="bookingForm.topic">
+                  <SelectTrigger class="booking-field-select">
+                    <SelectValue placeholder="Select session topic..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="t in props.topics" :key="t" :value="t">{{ t }}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div v-else class="booking-field-static">
+                  <span>General Mentorship Session</span>
+                </div>
+              </div>
+
+              <div class="booking-field-group">
+                <Label class="booking-field-label">Description &amp; Goals</Label>
+                <Textarea
+                  v-model="bookingForm.message"
+                  placeholder="Briefly describe what you'd like to achieve in this session"
+                  class="booking-field-textarea"
+                />
+              </div>
+
+              <div class="booking-actions">
+                <Button
+                  class="booking-submit-btn"
+                  :disabled="props.isLoading || isSubmittingBooking"
+                  @click="submitBooking"
+                >
+                  <span v-if="props.isLoading || isSubmittingBooking" class="inline-block animate-spin mr-2">⏳</span>
+                  {{ props.isLoading || isSubmittingBooking ? 'Processing...' : 'Proceed To Pay' }}
+                </Button>
+                <Button
+                  variant="ghost"
+                  class="booking-cancel-btn"
+                  :disabled="props.isLoading || isSubmittingBooking"
+                  @click="showBookingForm = false"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </section>
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" @click="showBookingForm = false" :disabled="props.isLoading || isSubmittingBooking">
-            Cancel
-          </Button>
-          <Button @click="submitBooking" :disabled="props.isLoading || isSubmittingBooking">
-            <span v-if="props.isLoading || isSubmittingBooking" class="inline-block animate-spin mr-2">⏳</span>
-            {{ props.isLoading || isSubmittingBooking ? 'Processing...' : 'Request Session' }}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
 
@@ -334,10 +398,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useMentorsStore } from '@/store/modules/mentors'
+import { useCompanyProgramsStore } from '@/store/modules/company-programs'
 
 interface Props {
   mentorId: string
   mentorName?: string
+  mentorAvatar?: string | null
+  mentorTitle?: string | null
+  mentorQuote?: string | null
   defaultTimezone?: string
   allowBooking?: boolean
   topics?: string[]
@@ -352,6 +420,9 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   mentorName: 'Mentor',
+  mentorAvatar: null,
+  mentorTitle: null,
+  mentorQuote: null,
   defaultTimezone: 'Africa/Nairobi',
   allowBooking: true,
   topics: () => [],
@@ -362,6 +433,7 @@ const emit = defineEmits<Emits>()
 
 // Store
 const mentorsStore = useMentorsStore()
+const companyProgramsStore = useCompanyProgramsStore()
 
 // State
 const viewMode = ref<'week' | 'month'>('month')
@@ -373,6 +445,8 @@ const selectedSlot = ref<any>(null)
 const selectedSession = ref<any>(null)
 const isSubmittingBooking = ref(false)
 const isLoadingAvailability = ref(false)
+const bookingSessionBalanceLoading = ref(false)
+const bookingSessionBalanceLoaded = ref(false)
 
 // Availability data from API
 const weeklyAvailabilityData = ref<any>(null)
@@ -395,12 +469,71 @@ const sessions = ref([
 // Booking form
 const bookingForm = reactive({
   topic: '',
-  platform: '',
+  platform: 'google-meet',
   message: ''
 })
 
+const bookingSessionBalance = computed(() => companyProgramsStore.employeeSessionBalance)
+const bookingSessionsAssigned = computed(() => Math.max(0, Number(bookingSessionBalance.value?.allocatedTotal || 0)))
+const bookingSessionsUsed = computed(() => Math.max(0, Number(bookingSessionBalance.value?.consumedTotal || 0)))
+const bookingSessionsLeft = computed(() => Math.max(0, Number(bookingSessionBalance.value?.availableBalance || 0)))
+const bookingSessionCompanyName = computed(() => String(bookingSessionBalance.value?.companyName || '').trim())
+const bookingSessionBalanceDescription = computed(() => {
+  if (bookingSessionBalanceLoading.value && !bookingSessionBalanceLoaded.value) {
+    return 'Loading your assigned session allocation...'
+  }
+
+  if (!bookingSessionBalance.value) {
+    return 'Assigned sessions are unavailable for this account.'
+  }
+
+  const assigned = bookingSessionsAssigned.value
+  const used = bookingSessionsUsed.value
+  const left = bookingSessionsLeft.value
+
+  if (assigned <= 0) {
+    return 'You have no assigned sessions yet.'
+  }
+
+  const companyLabel = bookingSessionCompanyName.value
+    ? ` via ${bookingSessionCompanyName.value}`
+    : ''
+
+  return `${left} of ${assigned} assigned session${assigned === 1 ? '' : 's'}${companyLabel} remaining (${used} used).`
+})
+
+const refreshBookingSessionBalance = async (force = false) => {
+  if (bookingSessionBalanceLoading.value) {
+    return
+  }
+
+  if (bookingSessionBalanceLoaded.value && !force) {
+    return
+  }
+
+  bookingSessionBalanceLoading.value = true
+  try {
+    await companyProgramsStore.loadMySessionBalance()
+  } catch (error: any) {
+    console.warn('Could not load employee session balance for booking dialog:', error)
+  } finally {
+    bookingSessionBalanceLoading.value = false
+    bookingSessionBalanceLoaded.value = true
+  }
+}
+
 // Computed properties
 const timezone = computed(() => selectedTimezone.value)
+const mentorInitials = computed(() => {
+  const name = String(props.mentorName || '').trim()
+  if (!name) return 'M'
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part.charAt(0).toUpperCase())
+    .join('')
+})
 const timezoneLabel = computed(() => {
   // Only Nairobi is supported in UI now
   return 'Africa/Nairobi'
@@ -420,6 +553,16 @@ const formatSlotDate = (slot: any) => {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
   })
 }
+const selectedSlotDateLabel = computed(() => formatSlotDate(selectedSlot.value))
+const selectedSlotDurationMinutes = computed(() => {
+  if (!selectedSlot.value) return 60
+  if (Number(selectedSlot.value.duration) > 0) return Number(selectedSlot.value.duration)
+
+  const start = new Date(selectedSlot.value.startTime).getTime()
+  const end = new Date(selectedSlot.value.endTime).getTime()
+  if (!start || !end || end <= start) return 60
+  return Math.round((end - start) / (1000 * 60))
+})
 
 const weekDays = computed(() => {
   const start = getWeekStart(selectedDate.value)
@@ -666,6 +809,7 @@ const selectDate = (date: Date) => {
     endTime: new Date(slot.endTime).toISOString()
   }
   selectedSlot.value = formattedSlot
+  prepareBookingForm()
   showBookingForm.value = true
   emit('slot-select', formattedSlot)
 }
@@ -854,6 +998,7 @@ const handleSlotClick = (slot: any) => {
     }
 
     selectedSlot.value = formattedSlot
+    prepareBookingForm()
     showBookingForm.value = true
     emit('slot-select', formattedSlot)
   }
@@ -894,7 +1039,7 @@ const submitBooking = async () => {
       requestedStart: selectedSlot.value.startTime, // Already in ISO 8601 format
       requestedEnd: selectedSlot.value.endTime, // Already in ISO 8601 format
       topic: bookingForm.topic || undefined,
-      platform: bookingForm.platform,
+      platform: bookingForm.platform || 'google-meet',
       message: bookingForm.message
     }
 
@@ -914,6 +1059,13 @@ const submitBooking = async () => {
   }
 }
 
+const prepareBookingForm = () => {
+  bookingForm.platform = 'google-meet'
+  if (!bookingForm.topic && props.topics && props.topics.length) {
+    bookingForm.topic = props.topics[0]
+  }
+}
+
 // Watch for when parent stops loading to close dialog on success
 watch(() => props.isLoading, (newLoading, oldLoading) => {
   // If loading changed from true to false and dialog is still open
@@ -924,14 +1076,331 @@ watch(() => props.isLoading, (newLoading, oldLoading) => {
     // Reset form
     Object.assign(bookingForm, {
       topic: '',
-      platform: '',
+      platform: 'google-meet',
       message: ''
     })
+  }
+})
+
+watch(() => showBookingForm.value, (isOpen) => {
+  if (isOpen) {
+    prepareBookingForm()
+    void refreshBookingSessionBalance(true)
   }
 })
 
 // Load data on mount
 onMounted(async () => {
   await loadMentorAvailability()
+  void refreshBookingSessionBalance()
 })
-</script> 
+</script>
+
+<style scoped>
+.booking-session-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 42%) minmax(0, 58%);
+  min-height: 620px;
+}
+
+.booking-session-left {
+  background: #fbfcfc;
+  border-right: 1px solid #e7eaee;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.booking-session-left-body {
+  padding: 2.25rem 2.25rem 1.5rem;
+}
+
+.booking-session-eyebrow {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f6b45;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.7rem;
+}
+
+.booking-session-title {
+  font-size: clamp(1.9rem, 2.7vw, 3.05rem);
+  line-height: 1.08;
+  font-weight: 700;
+  color: #191d24;
+  max-width: 12ch;
+  margin: 0 0 2rem;
+}
+
+.booking-mentor-card {
+  border: 1px solid #ebedf1;
+  background: white;
+  border-radius: 1.25rem;
+  padding: 1.35rem 1.25rem;
+  max-width: 430px;
+}
+
+.booking-mentor-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.booking-mentor-avatar {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 0.9rem;
+  object-fit: cover;
+}
+
+.booking-mentor-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0b8a6e;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.booking-mentor-name {
+  font-size: 1.65rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #191d24;
+}
+
+.booking-mentor-role {
+  font-size: 1.05rem;
+  color: #5f6775;
+  margin-top: 0.2rem;
+}
+
+.booking-duration-row {
+  margin-top: 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.booking-duration-icon-wrap {
+  width: 2.65rem;
+  height: 2.65rem;
+  border-radius: 999px;
+  background: #0a8167;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.booking-duration-label {
+  font-size: 1.15rem;
+  color: #1f2530;
+}
+
+.booking-session-quote {
+  border-top: 1px solid #e7eaee;
+  padding: 1.7rem 2.25rem 1.95rem;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  color: #1f2530;
+}
+
+.booking-session-right {
+  background: white;
+}
+
+.booking-session-right-inner {
+  padding: 2.15rem 2.25rem 2rem;
+  max-width: 670px;
+}
+
+.booking-form-title {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #13171d;
+}
+
+.booking-form-subtitle {
+  margin-top: 0.5rem;
+  font-size: 1.2rem;
+  color: #3f4653;
+}
+
+.booking-balance-panel {
+  margin-top: 1rem;
+  border: 1px solid #d8dfeb;
+  border-radius: 0.85rem;
+  background: #f8fbff;
+  padding: 0.95rem 1.05rem;
+}
+
+.booking-balance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.booking-balance-title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #2e3a4d;
+  text-transform: uppercase;
+}
+
+.booking-balance-refresh {
+  border: none;
+  background: transparent;
+  color: #0a8167;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.booking-balance-refresh:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.booking-balance-grid {
+  margin-top: 0.7rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.booking-balance-item {
+  border-radius: 0.7rem;
+  background: white;
+  border: 1px solid #e0e5ef;
+  padding: 0.65rem 0.7rem;
+}
+
+.booking-balance-label {
+  font-size: 0.78rem;
+  color: #728097;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.booking-balance-value {
+  margin-top: 0.25rem;
+  font-size: 1.32rem;
+  font-weight: 700;
+  color: #1f2430;
+  line-height: 1;
+}
+
+.booking-balance-value.is-empty {
+  color: #b64040;
+}
+
+.booking-balance-meta {
+  margin-top: 0.65rem;
+  font-size: 0.88rem;
+  color: #5c687a;
+  line-height: 1.35;
+}
+
+.booking-field-group {
+  margin-top: 1.4rem;
+}
+
+.booking-field-label {
+  display: inline-block;
+  margin-bottom: 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #212833;
+}
+
+.booking-field-static {
+  min-height: 4.15rem;
+  border: 1px solid #d7dce2;
+  border-radius: 0.95rem;
+  padding: 0.88rem 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.28rem;
+  color: #191d24;
+}
+
+.booking-field-select {
+  min-height: 4.15rem;
+  border-color: #d7dce2;
+  border-radius: 0.95rem;
+  font-size: 1.28rem;
+  color: #191d24;
+  padding-left: 1rem;
+}
+
+.booking-field-textarea {
+  min-height: 11.5rem;
+  border-color: #d7dce2;
+  border-radius: 0.95rem;
+  font-size: 1.2rem;
+  line-height: 1.45;
+  padding: 1rem 1.05rem;
+  resize: none;
+}
+
+.booking-actions {
+  margin-top: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.booking-submit-btn {
+  min-width: 15.5rem;
+  height: 3.45rem;
+  border-radius: 999px;
+  background: #0a8167;
+  color: white;
+  font-size: 1.08rem;
+  font-weight: 600;
+}
+
+.booking-submit-btn:hover {
+  background: #086f58;
+}
+
+.booking-cancel-btn {
+  color: #222a35;
+  font-size: 1.12rem;
+  font-weight: 500;
+}
+
+@media (max-width: 1100px) {
+  .booking-session-layout {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .booking-session-left {
+    border-right: 0;
+    border-bottom: 1px solid #e7eaee;
+  }
+
+  .booking-session-title {
+    max-width: 100%;
+    margin-bottom: 1.4rem;
+  }
+
+  .booking-mentor-name {
+    font-size: 1.25rem;
+  }
+
+  .booking-session-quote {
+    padding-top: 1.2rem;
+  }
+
+  .booking-balance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

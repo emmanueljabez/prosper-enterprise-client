@@ -1,34 +1,43 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
-import dashboardApi from '@/http/requests/app/dashboard'
-import companyApi from '@/http/requests/app/company'
-import companySubscriptionsApi, {
-  type CompanySubscriptionSummary,
-  type CompanySubscriptionMember,
-} from '@/http/requests/app/companySubscriptions'
+import dashboardApi, { type DashboardDateFilterParams } from '@/http/requests/app/dashboard'
+import companyProgramsApi, {
+  type CompanyProgramParticipantRecord,
+  type CompanyProgramRecord,
+} from '@/http/requests/app/companyPrograms'
+import reviewAlertsApi, {
+  type ReviewAlertSummaryRecord,
+} from '@/http/requests/app/reviewAlerts'
+import pulsesApi, {
+  type CompanyParticipantPulseSummaryRecord,
+} from '@/http/requests/app/pulses'
 import { useAppToast } from '@/composables/services/toastService'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-import StatsCard from '@/components/ui/dashboard/StatsCard.vue'
 import ActivityFeed from '@/components/ui/dashboard/ActivityFeed.vue'
+import KpiSummaryCard from '@/components/ui/dashboard/KpiSummaryCard.vue'
+import LineChart from '@/components/ui/chart-line/LineChart.vue'
+import BarChart from '@/components/ui/chart-bar/BarChart.vue'
+import DonutChart from '@/components/ui/chart-donut/DonutChart.vue'
+import { VisSankey, VisSingleContainer } from '@unovis/vue'
 
 import {
+  ArrowRight,
   AlertTriangle,
   BarChart3,
   BookOpen,
   Calendar,
   CheckCircle,
   Clock,
-  FileText,
   RefreshCw,
   Shield,
   Star,
@@ -36,7 +45,6 @@ import {
   UserCheck,
   UserPlus,
   Users,
-  Wallet,
   XCircle,
 } from 'lucide-vue-next'
 
@@ -57,10 +65,6 @@ type DashboardProfile = {
   createdAt?: string | null
   location?: string | null
   industry?: string | null
-  company?: {
-    id?: string | null
-    name?: string | null
-  } | null
 }
 
 type EmployeeAggregate = {
@@ -102,13 +106,25 @@ type MentorLeaderboardRow = {
 type ActivityResponse = {
   id: string
   type: string
-  title: string
-  description: string
-  timestamp: string
+  title?: string | null
+  description?: string | null
+  timestamp?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+  occurredAt?: string | null
+  eventAt?: string | null
+  date?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  occurred_at?: string | null
+  event_at?: string | null
   priority?: 'high' | 'medium' | 'low'
 }
 
-type ActivityItem = ActivityResponse & {
+type ActivityItem = Omit<ActivityResponse, 'timestamp' | 'title' | 'description'> & {
+  title: string
+  description: string
+  timestamp: string
   icon: any
   color: string
 }
@@ -186,6 +202,67 @@ type CompanyDashboardResponse = {
   statusBreakdown?: Array<Omit<StatusBreakdownRow, 'color'>> | null
 }
 
+type DashboardKpi = {
+  id: string
+  title: string
+  value: string
+  subtitle: string
+  progress: number
+  tone: 'brand' | 'success' | 'warning' | 'danger'
+  deltaText: string
+  deltaTone: 'up' | 'down' | 'neutral'
+  healthTone: 'healthy' | 'watch' | 'risk'
+  sparkline: number[]
+  icon: any
+}
+
+type FunnelNode = {
+  id: string
+  stage: string
+  color: string
+}
+
+type FunnelLink = {
+  source: string
+  target: string
+  value: number
+  color: string
+}
+
+type FunnelGraph = {
+  nodes: FunnelNode[]
+  links: FunnelLink[]
+}
+
+type ProgramInsightsSummary = {
+  programs: CompanyProgramRecord[]
+  participantsByProgramId: Record<string, CompanyProgramParticipantRecord[]>
+  failedPrograms: number
+}
+
+type DashboardDatePreset = 'last_7_days' | 'last_30_days' | 'last_90_days' | 'custom'
+
+type DashboardDatePresetOption = {
+  value: DashboardDatePreset
+  label: string
+  days?: number
+}
+
+type DashboardAppliedDateRange = {
+  preset: DashboardDatePreset
+  startDate: string
+  endDate: string
+}
+
+const BRAND_PRIMARY = '#9a4884'
+const DEFAULT_DASHBOARD_DATE_PRESET: DashboardDatePreset = 'last_30_days'
+const DASHBOARD_DATE_PRESET_OPTIONS: DashboardDatePresetOption[] = [
+  { value: 'last_7_days', label: 'Last 7 days', days: 7 },
+  { value: 'last_30_days', label: 'Last 30 days', days: 30 },
+  { value: 'last_90_days', label: 'Last 90 days', days: 90 },
+  { value: 'custom', label: 'Custom range' },
+]
+
 const DEFAULT_LOAD_SUMMARY: SessionLoadSummary = {
   requestedEmployees: 0,
   loadedEmployees: 0,
@@ -225,6 +302,12 @@ const DEFAULT_STATS: CompanyDashboardStats = {
   invitationAcceptanceRate: 0,
 }
 
+const DEFAULT_PROGRAM_INSIGHTS: ProgramInsightsSummary = {
+  programs: [],
+  participantsByProgramId: {},
+  failedPrograms: 0,
+}
+
 const activityIconMap: Record<string, any> = {
   employee_registered: Users,
   invite_accepted: CheckCircle,
@@ -254,39 +337,35 @@ const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const toast = useAppToast()
-const resolveAdminTab = (value?: unknown) => {
-  const normalized = String(Array.isArray(value) ? value[0] : value || '').trim().toLowerCase()
-  return ['overview', 'employees', 'analytics'].includes(normalized) ? normalized : 'overview'
-}
 
 const isLoading = ref(false)
 const loadMessage = ref('')
 const error = ref<string | null>(null)
-const activeTab = ref(resolveAdminTab(route.query.tab))
+const insightsError = ref<string | null>(null)
 const storedCompanyName = ref('Your company')
 const dashboardData = ref<CompanyDashboardResponse | null>(null)
-const isLoadingBilling = ref(false)
-const billingError = ref<string | null>(null)
-const companySubscriptions = ref<CompanySubscriptionSummary[]>([])
-const selectedCompanySubscriptionId = ref('')
-const companySubscriptionMembers = ref<CompanySubscriptionMember[]>([])
-const companyProfiles = ref<DashboardProfile[]>([])
-const billingActionId = ref('')
+const reviewSummary = ref<ReviewAlertSummaryRecord | null>(null)
+const pulseSummary = ref<CompanyParticipantPulseSummaryRecord | null>(null)
+const programInsights = ref<ProgramInsightsSummary>({ ...DEFAULT_PROGRAM_INSIGHTS })
+const programInsightsError = ref<string | null>(null)
+const selectedDatePreset = ref<DashboardDatePreset>(DEFAULT_DASHBOARD_DATE_PRESET)
+const selectedStartDate = ref('')
+const selectedEndDate = ref('')
+const appliedDateRange = ref<DashboardAppliedDateRange>({
+  preset: DEFAULT_DASHBOARD_DATE_PRESET,
+  startDate: '',
+  endDate: '',
+})
 
 const formatNumber = (value: number | string) =>
   new Intl.NumberFormat('en-KE').format(Number(value || 0))
-
-const formatCurrency = (value: number | string) =>
-  new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0))
 
 const roundTo = (value: number, digits = 1) => {
   const factor = 10 ** digits
   return Math.round((Number(value) || 0) * factor) / factor
 }
+
+const clampPercent = (value: number) => Math.max(0, Math.min(100, Math.round(Number(value) || 0)))
 
 const formatHours = (value: number) => {
   const rounded = roundTo(value, 1)
@@ -297,6 +376,32 @@ const toDate = (value?: string | null) => {
   if (!value) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
+}
+
+const toEpochMs = (value?: string | null) => {
+  if (!value) return 0
+  const time = new Date(value).getTime()
+  return Number.isNaN(time) ? 0 : time
+}
+
+const resolveActivityTimestamp = (activity: ActivityResponse, fallback?: string | null) => {
+  const candidates = [
+    activity.timestamp,
+    activity.createdAt,
+    activity.updatedAt,
+    activity.occurredAt,
+    activity.eventAt,
+    activity.date,
+    activity.created_at,
+    activity.updated_at,
+    activity.occurred_at,
+    activity.event_at,
+  ]
+
+  const firstValid = candidates.find(value => toEpochMs(value) > 0)
+  if (firstValid) return firstValid as string
+  if (toEpochMs(fallback) > 0) return fallback as string
+  return new Date().toISOString()
 }
 
 const formatDate = (value?: string | null) => {
@@ -322,6 +427,128 @@ const formatDateTime = (value?: string | null) => {
     minute: '2-digit',
   })
 }
+
+const formatDateOnly = (value?: string | null) => {
+  if (!value) return '—'
+  const date = toDate(`${value}T00:00:00`)
+  if (!date) return '—'
+
+  return date.toLocaleDateString('en-KE', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+const toIsoDateOnly = (value: Date) => {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const buildPresetDateRange = (preset: DashboardDatePreset): DashboardAppliedDateRange => {
+  const today = new Date()
+  const selectedPreset = DASHBOARD_DATE_PRESET_OPTIONS.find(option => option.value === preset)
+
+  if (selectedPreset?.days) {
+    const endDate = new Date(today)
+    const startDate = new Date(today)
+    startDate.setDate(today.getDate() - (selectedPreset.days - 1))
+
+    return {
+      preset,
+      startDate: toIsoDateOnly(startDate),
+      endDate: toIsoDateOnly(endDate),
+    }
+  }
+
+  const todayDate = toIsoDateOnly(today)
+  return {
+    preset: 'custom',
+    startDate: todayDate,
+    endDate: todayDate,
+  }
+}
+
+const syncDateInputsFromPreset = (preset: DashboardDatePreset) => {
+  if (preset === 'custom') {
+    selectedDatePreset.value = preset
+    if (!selectedStartDate.value || !selectedEndDate.value) {
+      const today = toIsoDateOnly(new Date())
+      selectedStartDate.value = today
+      selectedEndDate.value = today
+    }
+    return
+  }
+
+  const range = buildPresetDateRange(preset)
+  selectedDatePreset.value = range.preset
+  selectedStartDate.value = range.startDate
+  selectedEndDate.value = range.endDate
+}
+
+const initializeDashboardDateRange = () => {
+  const range = buildPresetDateRange(DEFAULT_DASHBOARD_DATE_PRESET)
+  selectedDatePreset.value = range.preset
+  selectedStartDate.value = range.startDate
+  selectedEndDate.value = range.endDate
+  appliedDateRange.value = { ...range }
+}
+
+const normalizeDateQueryValue = (value: unknown): string => {
+  if (typeof value !== 'string') return ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return ''
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? '' : value
+}
+
+const initializeDashboardDateRangeFromRoute = () => {
+  const defaults = buildPresetDateRange(DEFAULT_DASHBOARD_DATE_PRESET)
+  const queryPreset = typeof route.query.preset === 'string' ? route.query.preset : defaults.preset
+  const parsedPreset = ['last_7_days', 'last_30_days', 'last_90_days', 'custom'].includes(queryPreset)
+    ? (queryPreset as DashboardDatePreset)
+    : defaults.preset
+
+  const startDate = normalizeDateQueryValue(route.query.startDate) || defaults.startDate
+  const endDate = normalizeDateQueryValue(route.query.endDate) || defaults.endDate
+
+  if (startDate > endDate) {
+    initializeDashboardDateRange()
+    return
+  }
+
+  const presetRange = parsedPreset === 'custom' ? null : buildPresetDateRange(parsedPreset)
+  const preset = (
+    presetRange
+    && (
+      presetRange.startDate !== startDate
+      || presetRange.endDate !== endDate
+    )
+  )
+    ? 'custom'
+    : parsedPreset
+
+  selectedDatePreset.value = preset
+  selectedStartDate.value = startDate
+  selectedEndDate.value = endDate
+  appliedDateRange.value = {
+    preset,
+    startDate,
+    endDate,
+  }
+}
+
+const dashboardDateFilterParams = computed<DashboardDateFilterParams>(() => ({
+  ...(appliedDateRange.value.preset !== 'custom' ? { period: appliedDateRange.value.preset } : {}),
+  startDate: appliedDateRange.value.startDate,
+  endDate: appliedDateRange.value.endDate,
+}))
+
+const selectedDateRangeLabel = computed(() => {
+  if (!appliedDateRange.value.startDate || !appliedDateRange.value.endDate) return 'Date range unavailable'
+  return `${formatDateOnly(appliedDateRange.value.startDate)} to ${formatDateOnly(appliedDateRange.value.endDate)}`
+})
 
 const pluralize = (count: number, singular: string, plural = `${singular}s`) =>
   count === 1 ? singular : plural
@@ -360,65 +587,13 @@ const getProfileMeta = (profile: DashboardProfile) => {
   return profile.industry || profile.location || profile.email || 'Employee profile'
 }
 
-const getComparisonMeta = (current: number, previous: number, periodDays: number, suffix = '') => {
-  const diff = roundTo(current - previous, 1)
-
-  if (diff === 0) {
-    return {
-      change: `No change vs prev ${periodDays}d`,
-      trend: 'neutral' as const,
-    }
-  }
-
-  const sign = diff > 0 ? '+' : ''
-  const displayValue = Number.isInteger(diff) ? formatNumber(diff) : diff.toFixed(1)
-
-  return {
-    change: `${sign}${displayValue}${suffix} vs prev ${periodDays}d`,
-    trend: diff > 0 ? ('up' as const) : ('down' as const),
-  }
-}
-
 const stats = computed<CompanyDashboardStats>(() => ({
   ...DEFAULT_STATS,
   ...(dashboardData.value?.stats || {}),
 }))
 
-const periodDays = computed(() => stats.value.periodDays || 30)
-const companyName = computed(() => dashboardData.value?.company?.name || storedCompanyName.value)
 const lastRefreshedAt = computed(() => dashboardData.value?.snapshotAt || null)
 const hasLoadedData = computed(() => dashboardData.value !== null)
-const primaryCompanySubscription = computed(() =>
-  companySubscriptions.value.find(subscription => subscription.status === 'ACTIVE') ||
-  companySubscriptions.value[0] ||
-  null,
-)
-const managedCompanySubscription = computed(() =>
-  companySubscriptions.value.find(subscription => subscription.id === activeCompanySubscriptionId.value) ||
-  primaryCompanySubscription.value,
-)
-const managedCompanyWallet = computed(() => managedCompanySubscription.value?.wallet || null)
-const activeCompanySubscriptionId = computed(() =>
-  selectedCompanySubscriptionId.value || primaryCompanySubscription.value?.id || '',
-)
-const getWalletReservedSessions = (wallet = managedCompanyWallet.value) =>
-  Math.max(0, Number(wallet?.sessionsAllocated || 0) - Number(wallet?.sessionsReturned || 0))
-const memberMapByProfileId = computed(() => {
-  const map = new Map<string, CompanySubscriptionMember>()
-  companySubscriptionMembers.value.forEach(member => {
-    if (member.status === 'ACTIVE') {
-      map.set(member.profileId, member)
-    }
-  })
-  return map
-})
-const companyProfileRows = computed(() => {
-  const dashboardProfiles = recentRegistrations.value
-  if (!companyProfiles.value.length) {
-    return dashboardProfiles
-  }
-  return companyProfiles.value
-})
 
 const sessionLoadSummary = computed<SessionLoadSummary>(() => ({
   ...DEFAULT_LOAD_SUMMARY,
@@ -430,7 +605,7 @@ const employeeAggregates = computed<EmployeeAggregate[]>(() =>
 )
 
 const topEmployees = computed(() =>
-  employeeAggregates.value.filter(employee => employee.sessions > 0).slice(0, 6),
+  employeeAggregates.value.filter(employee => employee.sessions > 0).slice(0, 5),
 )
 
 const recentRegistrations = computed<DashboardProfile[]>(() =>
@@ -456,131 +631,221 @@ const statusBreakdown = computed<StatusBreakdownRow[]>(() =>
   })),
 )
 
-const recentActivity = computed<ActivityItem[]>(() =>
-  (dashboardData.value?.recentActivity || []).map(activity => ({
-    ...activity,
-    icon: activityIconMap[activity.type] || Calendar,
-    color: activityColorMap[activity.type] || 'text-blue-600',
-  })),
-)
+const recentActivity = computed<ActivityItem[]>(() => {
+  const fallbackTimestamp = dashboardData.value?.snapshotAt || null
 
+  return (dashboardData.value?.recentActivity || [])
+    .map(activity => ({
+      ...activity,
+      title: activity.title || 'Activity update',
+      description: activity.description || 'Company activity recorded.',
+      timestamp: resolveActivityTimestamp(activity, fallbackTimestamp),
+      icon: activityIconMap[activity.type] || Calendar,
+      color: activityColorMap[activity.type] || 'text-blue-600',
+    }))
+    .sort((left, right) => toEpochMs(right.timestamp) - toEpochMs(left.timestamp))
+})
+
+const registeredEmployeesCount = computed(() => stats.value.registeredEmployees)
+const participatingEmployeesCount = computed(() => stats.value.participatingEmployees)
 const totalSessionsCount = computed(() => stats.value.totalSessions)
 const completedSessionsCount = computed(() => stats.value.completedSessions)
 const upcomingSessionsCount = computed(() => stats.value.upcomingSessions)
 const pendingSessionsCount = computed(() => stats.value.pendingSessions)
 const cancelledSessionsCount = computed(() => stats.value.cancelledSessions)
-const paidSessionsCount = computed(() => stats.value.paidSessionsCount)
 const unpaidSessionsCount = computed(() => stats.value.unpaidSessionsCount)
 const totalHours = computed(() => roundTo(stats.value.totalHours, 1))
 const averageRating = computed(() => roundTo(stats.value.averageRating, 1))
 const completionRate = computed(() => stats.value.completionRate)
-const feedbackCoverage = computed(() => stats.value.feedbackCoverage)
 const whitelistTotal = computed(() => stats.value.whitelistTotal)
 const verifiedEmployeesCount = computed(() => stats.value.verifiedEmployees)
-const registeredEmployeesCount = computed(() => stats.value.registeredEmployees)
 const invitesSentCount = computed(() => stats.value.invitesSentCount)
 const acceptedInvitesCount = computed(() => stats.value.acceptedInvitesCount)
 const pendingInvitationSendCount = computed(() => stats.value.pendingInvitationSendCount)
-const awaitingAcceptanceCount = computed(() => stats.value.awaitingAcceptanceCount)
 const invitationAcceptanceRate = computed(() => stats.value.invitationAcceptanceRate)
 const verificationRate = computed(() => stats.value.verificationRate)
-const walletAvailableSessions = computed(() => Number(managedCompanyWallet.value?.sessionsAvailable || 0))
-const walletPurchasedSessions = computed(() => Number(managedCompanyWallet.value?.sessionsPurchased || 0))
-const walletReservedSessions = computed(() => getWalletReservedSessions())
-const walletPricePerSession = computed(() => Number(managedCompanyWallet.value?.pricePerSession || 0))
-const hasCompanyWallet = computed(() => Boolean(managedCompanyWallet.value))
-const walletActionLabel = computed(() => (hasCompanyWallet.value ? 'Manage Billing' : 'Buy Sessions'))
-
-const overviewStats = computed(() => {
-  const activeEmployeeDelta = getComparisonMeta(
-    stats.value.activeEmployeesCurrentPeriod,
-    stats.value.activeEmployeesPreviousPeriod,
-    periodDays.value,
-  )
-
-  const sessionDelta = getComparisonMeta(
-    stats.value.sessionsCurrentPeriod,
-    stats.value.sessionsPreviousPeriod,
-    periodDays.value,
-  )
-
-  const hoursDelta = getComparisonMeta(
-    stats.value.hoursCurrentPeriod,
-    stats.value.hoursPreviousPeriod,
-    periodDays.value,
-    'h',
-  )
-
-  return [
-    {
-      title: 'Registered Employees',
-      value: formatNumber(stats.value.registeredEmployees),
-      change: stats.value.newEmployeesLastPeriod > 0
-        ? `+${formatNumber(stats.value.newEmployeesLastPeriod)} new in ${periodDays.value}d`
-        : `No new employees in ${periodDays.value}d`,
-      trend: stats.value.newEmployeesLastPeriod > 0 ? ('up' as const) : ('neutral' as const),
-      icon: Users,
-      color: 'blue' as const,
-      description: 'Employees with company profiles',
-    },
-    {
-      title: 'Participating Employees',
-      value: formatNumber(stats.value.participatingEmployees),
-      change: activeEmployeeDelta.change,
-      trend: activeEmployeeDelta.trend,
-      icon: UserCheck,
-      color: 'green' as const,
-      description: `${stats.value.participationRate}% participation overall`,
-    },
-    {
-      title: `Sessions (Last ${periodDays.value} Days)`,
-      value: formatNumber(stats.value.sessionsCurrentPeriod),
-      change: sessionDelta.change,
-      trend: sessionDelta.trend,
-      icon: Calendar,
-      color: 'orange' as const,
-      description: `Session activity in the trailing ${periodDays.value} days`,
-    },
-    {
-      title: `Hours Delivered (Last ${periodDays.value} Days)`,
-      value: formatHours(stats.value.hoursCurrentPeriod),
-      change: hoursDelta.change,
-      trend: hoursDelta.trend,
-      icon: Clock,
-      color: 'blue' as const,
-      description: `Total mentoring time delivered in the trailing ${periodDays.value} days`,
-    },
-  ]
+const onboardingProgressRate = computed(() => {
+  if (whitelistTotal.value > 0) {
+    return clampPercent((verifiedEmployeesCount.value / whitelistTotal.value) * 100)
+  }
+  return verificationRate.value
+})
+const trackedPrograms = computed(() => programInsights.value.programs)
+const programParticipants = computed<CompanyProgramParticipantRecord[]>(() =>
+  Object.values(programInsights.value.participantsByProgramId).flat(),
+)
+const programParticipantsTotal = computed(() => programParticipants.value.length)
+const inFlightParticipantCount = computed(() =>
+  programParticipants.value.filter(participant => ['ENROLLED', 'ACTIVE'].includes(participant.status)).length,
+)
+const activeOrCompletedParticipantCount = computed(() =>
+  programParticipants.value.filter(participant => ['ACTIVE', 'COMPLETED'].includes(participant.status)).length,
+)
+const completedParticipantCount = computed(() =>
+  programParticipants.value.filter(participant => participant.status === 'COMPLETED').length,
+)
+const withdrawnParticipantCount = computed(() =>
+  programParticipants.value.filter(participant => participant.status === 'WITHDRAWN').length,
+)
+const assignedInFlightParticipantCount = computed(() =>
+  programParticipants.value.filter(participant =>
+    ['ENROLLED', 'ACTIVE'].includes(participant.status) && Boolean(participant.mentorAssignment?.mentorId),
+  ).length,
+)
+const mentorCoverageRate = computed(() => {
+  if (!inFlightParticipantCount.value) return 0
+  return clampPercent((assignedInFlightParticipantCount.value / inFlightParticipantCount.value) * 100)
+})
+const participantRetentionRate = computed(() => {
+  if (!programParticipantsTotal.value) return 0
+  return clampPercent(((programParticipantsTotal.value - withdrawnParticipantCount.value) / programParticipantsTotal.value) * 100)
+})
+const totalConfiguredSeats = computed(() =>
+  trackedPrograms.value.reduce((total, program) => total + Math.max(0, Number(program.maxParticipants || 0)), 0),
+)
+const occupiedConfiguredSeats = computed(() =>
+  programParticipants.value.filter(participant => ['ENROLLED', 'ACTIVE'].includes(participant.status)).length,
+)
+const capacityUtilizationRate = computed(() => {
+  if (!totalConfiguredSeats.value) return 0
+  return clampPercent((occupiedConfiguredSeats.value / totalConfiguredSeats.value) * 100)
+})
+const openRiskAlerts = computed(() => reviewSummary.value?.openAlerts || 0)
+const highSeverityRiskAlerts = computed(() => reviewSummary.value?.highSeverityAlerts || 0)
+const rematchCandidates = computed(() => reviewSummary.value?.rematchRecommendedAlerts || 0)
+const riskSignalTotal = computed(() =>
+  (reviewSummary.value?.lowMentorScoreAlerts || 0)
+  + (reviewSummary.value?.lowMenteeScoreAlerts || 0)
+  + (reviewSummary.value?.lowFitAlerts || 0),
+)
+const reviewCompletionRate = computed(() => {
+  const total = reviewSummary.value?.totalReviewCycles || 0
+  const revealed = reviewSummary.value?.revealedReviewCycles || 0
+  if (!total) return 0
+  return clampPercent((revealed / total) * 100)
 })
 
-const employeeTabStats = computed(() => [
+const pendingPulses = computed(() => Number(pulseSummary.value?.pendingPulses || 0))
+
+const toTrendPercentSeries = (values: number[]) => {
+  if (!values.length) return []
+  const max = Math.max(...values, 1)
+  return values.map(value => clampPercent((value / max) * 100))
+}
+
+const toRatePercentSeries = (values: number[]) => values.map(value => clampPercent(value))
+
+const buildFlatSeries = (value: number, points = 6) => Array.from({ length: points }, () => clampPercent(value))
+
+const buildDeltaBadge = (current: number, previous: number, suffix = '') => {
+  const diff = roundTo(current - previous, 1)
+  const normalizedValue = Number.isInteger(diff) ? formatNumber(diff) : diff.toFixed(1)
+  if (diff > 0) return { text: `+${normalizedValue}${suffix}`, tone: 'up' as const }
+  if (diff < 0) return { text: `${normalizedValue}${suffix}`, tone: 'down' as const }
+  return { text: `0${suffix}`, tone: 'neutral' as const }
+}
+
+const inferHealthTone = (value: number): 'healthy' | 'watch' | 'risk' => {
+  if (value >= 75) return 'healthy'
+  if (value >= 45) return 'watch'
+  return 'risk'
+}
+
+const sessionSparkline = computed(() =>
+  toTrendPercentSeries(monthlyTrends.value.map(trend => trend.sessions)),
+)
+
+const completionSparkline = computed(() =>
+  toRatePercentSeries(
+    monthlyTrends.value.map(trend =>
+      trend.sessions ? (trend.completed / trend.sessions) * 100 : 0,
+    ),
+  ),
+)
+
+const throughputDelta = computed(() =>
+  buildDeltaBadge(stats.value.sessionsCurrentPeriod, stats.value.sessionsPreviousPeriod),
+)
+
+const mentorCoverageDelta = computed(() => {
+  const unassigned = Math.max(0, inFlightParticipantCount.value - assignedInFlightParticipantCount.value)
+  return {
+    text: unassigned > 0 ? `${formatNumber(unassigned)} unassigned` : 'fully assigned',
+    tone: unassigned > 0 ? ('down' as const) : ('up' as const),
+  }
+})
+
+const retentionDelta = computed(() => {
+  const withdrawn = withdrawnParticipantCount.value
+  return {
+    text: withdrawn > 0 ? `${formatNumber(withdrawn)} withdrawn` : '0 withdrawn',
+    tone: withdrawn > 0 ? ('down' as const) : ('up' as const),
+  }
+})
+
+const capacityDelta = computed(() => {
+  if (!totalConfiguredSeats.value) {
+    return { text: 'set seat limits', tone: 'neutral' as const }
+  }
+  const remaining = Math.max(0, totalConfiguredSeats.value - occupiedConfiguredSeats.value)
+  return {
+    text: `${formatNumber(remaining)} seats open`,
+    tone: remaining === 0 ? ('neutral' as const) : ('up' as const),
+  }
+})
+
+const topKpis = computed<DashboardKpi[]>(() => [
   {
-    title: 'Verified Employees',
-    value: formatNumber(stats.value.verifiedEmployees),
-    icon: Shield,
-    color: 'green' as const,
-    description: `${stats.value.verificationRate}% of registered employees`,
+    id: 'capacity',
+    title: 'Capacity Utilization',
+    value: `${capacityUtilizationRate.value}%`,
+    subtitle: `${formatNumber(occupiedConfiguredSeats.value)} active employees across ${formatNumber(totalConfiguredSeats.value)} program seats`,
+    progress: capacityUtilizationRate.value,
+    tone: 'brand',
+    deltaText: capacityDelta.value.text,
+    deltaTone: capacityDelta.value.tone,
+    healthTone: inferHealthTone(capacityUtilizationRate.value),
+    sparkline: sessionSparkline.value.length ? sessionSparkline.value : buildFlatSeries(capacityUtilizationRate.value),
+    icon: Users,
   },
   {
-    title: 'Invites Sent',
-    value: formatNumber(stats.value.invitesSentCount),
-    icon: UserPlus,
-    color: 'blue' as const,
-    description: `${formatNumber(stats.value.pendingInvitationSendCount)} still unsent`,
+    id: 'mentor-coverage',
+    title: 'Mentor Coverage',
+    value: `${mentorCoverageRate.value}%`,
+    subtitle: `${formatNumber(assignedInFlightParticipantCount.value)} assigned of ${formatNumber(inFlightParticipantCount.value)} active employees`,
+    progress: mentorCoverageRate.value,
+    tone: 'success',
+    deltaText: mentorCoverageDelta.value.text,
+    deltaTone: mentorCoverageDelta.value.tone,
+    healthTone: inferHealthTone(mentorCoverageRate.value),
+    sparkline: completionSparkline.value.length ? completionSparkline.value : buildFlatSeries(mentorCoverageRate.value),
+    icon: UserCheck,
   },
   {
-    title: 'Accepted Invites',
-    value: formatNumber(stats.value.acceptedInvitesCount),
+    id: 'retention',
+    title: 'Participant Retention',
+    value: `${participantRetentionRate.value}%`,
+    subtitle: `${formatNumber(programParticipantsTotal.value - withdrawnParticipantCount.value)} retained of ${formatNumber(programParticipantsTotal.value)} enrolled`,
+    progress: participantRetentionRate.value,
+    tone: 'brand',
+    deltaText: retentionDelta.value.text,
+    deltaTone: retentionDelta.value.tone,
+    healthTone: inferHealthTone(participantRetentionRate.value),
+    sparkline: sessionSparkline.value.length ? sessionSparkline.value : buildFlatSeries(participantRetentionRate.value),
+    icon: Star,
+  },
+  {
+    id: 'session-completion',
+    title: 'Session Completion',
+    value: `${completionRate.value}%`,
+    subtitle: `${formatNumber(completedSessionsCount.value)} completed · ${formatNumber(cancelledSessionsCount.value)} cancelled`,
+    progress: clampPercent(completionRate.value),
+    tone: 'success',
+    deltaText: throughputDelta.value.text,
+    deltaTone: throughputDelta.value.tone,
+    healthTone: inferHealthTone(completionRate.value),
+    sparkline: completionSparkline.value.length ? completionSparkline.value : buildFlatSeries(completionRate.value),
     icon: CheckCircle,
-    color: 'orange' as const,
-    description: `${stats.value.invitationAcceptanceRate}% acceptance rate`,
-  },
-  {
-    title: 'Awaiting Acceptance',
-    value: formatNumber(stats.value.awaitingAcceptanceCount),
-    icon: AlertTriangle,
-    color: 'orange' as const,
-    description: 'Invited users who have not completed signup',
   },
 ])
 
@@ -591,9 +856,18 @@ const dashboardAlerts = computed<DashboardAlert[]>(() => {
     alerts.push({
       id: 'session-load-gap',
       title: 'Partial session coverage',
-      message: `Session data failed for ${formatNumber(sessionLoadSummary.value.failedEmployees)} ${pluralize(sessionLoadSummary.value.failedEmployees, 'employee')}. Counts below may be understated until those requests succeed.`,
+      message: `Session data failed for ${formatNumber(sessionLoadSummary.value.failedEmployees)} ${pluralize(sessionLoadSummary.value.failedEmployees, 'employee')}. Counts may be understated until those requests succeed.`,
       icon: AlertTriangle,
       variant: 'destructive',
+    })
+  }
+
+  if (openRiskAlerts.value > 0) {
+    alerts.push({
+      id: 'open-risk-alerts',
+      title: 'Risk queue needs intervention',
+      message: `${formatNumber(openRiskAlerts.value)} review alerts are open, including ${formatNumber(highSeverityRiskAlerts.value)} high-severity signals.`,
+      icon: Shield,
     })
   }
 
@@ -611,194 +885,368 @@ const dashboardAlerts = computed<DashboardAlert[]>(() => {
       id: 'unpaid-sessions',
       title: 'Unpaid booked sessions',
       message: `${formatNumber(unpaidSessionsCount.value)} ${pluralize(unpaidSessionsCount.value, 'session')} ${unpaidSessionsCount.value === 1 ? 'has' : 'have'} a price but are not marked as paid.`,
-      icon: FileText,
+      icon: AlertTriangle,
+    })
+  }
+
+  if (programInsights.value.failedPrograms > 0) {
+    alerts.push({
+      id: 'participant-coverage-gap',
+      title: 'Program insights partially loaded',
+      message: `Participant metrics failed to load for ${formatNumber(programInsights.value.failedPrograms)} ${pluralize(programInsights.value.failedPrograms, 'program')}. Coverage-based KPIs may be understated.`,
+      icon: AlertTriangle,
     })
   }
 
   return alerts
 })
 
-const goToPaymentUrl = (url?: string | null) => {
-  if (!url) return
-  window.location.assign(url)
+const sessionTrendChartData = computed(() =>
+  monthlyTrends.value.map(trend => ({
+    month: trend.label,
+    sessions: trend.sessions,
+    completed: trend.completed,
+    hours: roundTo(trend.hours, 1),
+  })),
+)
+
+const statusDonutData = computed(() =>
+  statusBreakdown.value
+    .filter(status => status.count > 0)
+    .map(status => ({
+      label: status.label,
+      value: status.count,
+    })),
+)
+
+const inviteStageFunnelGraph = computed<FunnelGraph>(() => {
+  const whitelistRaw = Math.max(whitelistTotal.value, invitesSentCount.value + pendingInvitationSendCount.value)
+  const invitedRaw = invitesSentCount.value
+  const acceptedRaw = acceptedInvitesCount.value
+  const verifiedRaw = verifiedEmployeesCount.value
+  const activeRaw = stats.value.participatingEmployees
+
+  const whitelist = Math.max(whitelistRaw, 0)
+  const invited = Math.max(0, Math.min(invitedRaw, whitelist))
+  const accepted = Math.max(0, Math.min(acceptedRaw, invited))
+  const verified = Math.max(0, Math.min(verifiedRaw, accepted))
+  const active = Math.max(0, Math.min(activeRaw, verified))
+
+  const nodes: FunnelNode[] = [
+    { id: 'whitelist', stage: 'Whitelist', color: '#e8bddf' },
+    { id: 'invited', stage: 'Invited', color: '#cf8fbe' },
+    { id: 'accepted', stage: 'Accepted', color: '#b968a8' },
+    { id: 'verified', stage: 'Verified', color: '#9a4884' },
+    { id: 'active', stage: 'Active', color: '#2f8f83' },
+    { id: 'drop_pre_invite', stage: 'Not Invited', color: '#f2dce8' },
+    { id: 'drop_pre_accept', stage: 'Did Not Accept', color: '#f3e6ef' },
+    { id: 'drop_pre_verify', stage: 'Not Verified', color: '#f6edf3' },
+    { id: 'drop_pre_active', stage: 'Not Active', color: '#f8f2f6' },
+  ]
+
+  const links: FunnelLink[] = [
+    { source: 'whitelist', target: 'invited', value: invited, color: '#9a4884' },
+    { source: 'whitelist', target: 'drop_pre_invite', value: Math.max(0, whitelist - invited), color: '#e9c7de' },
+    { source: 'invited', target: 'accepted', value: accepted, color: '#9a4884' },
+    { source: 'invited', target: 'drop_pre_accept', value: Math.max(0, invited - accepted), color: '#ecd4e5' },
+    { source: 'accepted', target: 'verified', value: verified, color: '#9a4884' },
+    { source: 'accepted', target: 'drop_pre_verify', value: Math.max(0, accepted - verified), color: '#f0e1eb' },
+    { source: 'verified', target: 'active', value: active, color: '#2f8f83' },
+    { source: 'verified', target: 'drop_pre_active', value: Math.max(0, verified - active), color: '#f4ebf1' },
+  ].filter(link => link.value > 0)
+
+  return { nodes, links }
+})
+
+const participantStageFunnelGraph = computed<FunnelGraph>(() => {
+  const enrolled = Math.max(programParticipantsTotal.value, 0)
+  const active = Math.max(0, Math.min(activeOrCompletedParticipantCount.value, enrolled))
+  const completed = Math.max(0, Math.min(completedParticipantCount.value, active))
+
+  const nodes: FunnelNode[] = [
+    { id: 'enrolled', stage: 'Enrolled', color: '#e8bddf' },
+    { id: 'active', stage: 'Active', color: '#b968a8' },
+    { id: 'completed', stage: 'Completed', color: '#2f8f83' },
+    { id: 'not_active', stage: 'Not Active', color: '#f3e6ef' },
+    { id: 'not_completed', stage: 'Not Completed', color: '#f6edf3' },
+  ]
+
+  const links: FunnelLink[] = [
+    { source: 'enrolled', target: 'active', value: active, color: '#9a4884' },
+    { source: 'enrolled', target: 'not_active', value: Math.max(0, enrolled - active), color: '#e9c7de' },
+    { source: 'active', target: 'completed', value: completed, color: '#2f8f83' },
+    { source: 'active', target: 'not_completed', value: Math.max(0, active - completed), color: '#edd7e7' },
+  ].filter(link => link.value > 0)
+
+  return { nodes, links }
+})
+
+const usesInviteFunnel = computed(() => inviteStageFunnelGraph.value.links.some(link => link.value > 0))
+const employeeFunnelGraph = computed<FunnelGraph>(() =>
+  usesInviteFunnel.value ? inviteStageFunnelGraph.value : participantStageFunnelGraph.value,
+)
+const employeeFunnelDescription = computed(() =>
+  usesInviteFunnel.value
+    ? 'From whitelist through activation, with visibility on where progress drops.'
+    : 'From enrollment through active mentoring and completion, highlighting operational drop-off.',
+)
+const employeeFunnelCards = computed(() =>
+  usesInviteFunnel.value
+    ? [
+      { label: 'Invite acceptance', value: `${invitationAcceptanceRate.value}%` },
+      { label: 'Verification rate', value: `${verificationRate.value}%` },
+    ]
+    : [
+      { label: 'Active employees', value: formatNumber(inFlightParticipantCount.value) },
+      { label: 'Completed employees', value: formatNumber(completedParticipantCount.value) },
+    ],
+)
+const hasEmployeeFunnelData = computed(() => employeeFunnelGraph.value.links.some(link => link.value > 0))
+const employeeFunnelNodeValueMap = computed<Record<string, number>>(() => {
+  const map: Record<string, number> = {}
+
+  employeeFunnelGraph.value.links.forEach(link => {
+    map[link.source] = Math.max(map[link.source] || 0, link.value)
+    map[link.target] = Math.max(map[link.target] || 0, link.value)
+  })
+
+  return map
+})
+
+const getFunnelNodeLabel = (node: FunnelNode) => node.stage
+const getFunnelNodeSubLabel = (node: FunnelNode) => formatNumber(employeeFunnelNodeValueMap.value[node.id] || 0)
+const getFunnelNodeColor = (node: FunnelNode) => node.color
+const getFunnelLinkColor = (link: FunnelLink) => link.color
+const getFunnelLinkValue = (link: FunnelLink) => link.value
+
+const topicChartData = computed(() =>
+  topTopics.value.slice(0, 6).map(topic => ({
+    topic: topic.label,
+    bookings: topic.sessions,
+    completed: topic.completed,
+  })),
+)
+
+const riskSignalChartData = computed(() => {
+  const data = [
+    { label: 'Low mentor score', value: reviewSummary.value?.lowMentorScoreAlerts || 0 },
+    { label: 'Low mentee score', value: reviewSummary.value?.lowMenteeScoreAlerts || 0 },
+    { label: 'Low fit score', value: reviewSummary.value?.lowFitAlerts || 0 },
+    { label: 'Do not continue', value: reviewSummary.value?.doNotContinueAlerts || 0 },
+  ]
+
+  return data.filter(item => item.value > 0)
+})
+
+const sessionTrendColors = [BRAND_PRIMARY, '#1d4ed8', '#059669']
+const statusDonutColors = ['#16a34a', '#2563eb', '#f97316', '#ef4444']
+const topicColors = [BRAND_PRIMARY, '#2f8f83']
+const riskSignalColors = ['#ef4444', '#f97316', '#db2777', '#7f1d1d']
+
+const chartAxisFormatter = (tick: number | Date) => formatNumber(Number(tick) || 0)
+
+const loadInsightsSummary = async (resolvedCompanyId: string, dateFilter: DashboardDateFilterParams) => {
+  const dateRangeParams = {
+    startDate: dateFilter.startDate,
+    endDate: dateFilter.endDate,
+  }
+
+  const [reviewResult, pulseResult] = await Promise.allSettled([
+    reviewAlertsApi.getReviewAlertSummary(resolvedCompanyId, null, dateRangeParams),
+    pulsesApi.getCompanyPulseSummary(resolvedCompanyId, dateRangeParams),
+  ])
+
+  const partialErrors: string[] = []
+
+  if (reviewResult.status === 'fulfilled' && reviewResult.value?.success) {
+    reviewSummary.value = reviewResult.value.data || null
+  } else {
+    reviewSummary.value = null
+    partialErrors.push('review analytics')
+  }
+
+  if (pulseResult.status === 'fulfilled' && pulseResult.value?.success) {
+    pulseSummary.value = pulseResult.value.data || null
+  } else {
+    pulseSummary.value = null
+    partialErrors.push('pulse insights')
+  }
+
+  insightsError.value = partialErrors.length
+    ? `Some insights are temporarily unavailable: ${partialErrors.join(' and ')}.`
+    : null
 }
 
-const loadCompanyWalletSummary = async (resolvedCompanyId: string) => {
-  if (!resolvedCompanyId) {
-    billingError.value = 'Company ID not found. Log in again and retry.'
-    companySubscriptions.value = []
-    return
-  }
+const loadAllCompanyPrograms = async (resolvedCompanyId: string, dateFilter: DashboardDateFilterParams) => {
+  const programs: CompanyProgramRecord[] = []
+  const size = 50
+  let page = 0
+  let hasNext = true
+  let safety = 0
 
-  try {
-    const subscriptionsResponse = await companySubscriptionsApi.getCompanySubscriptions(resolvedCompanyId)
-
-    if (!subscriptionsResponse.success) {
-      throw new Error(subscriptionsResponse.message || 'Failed to load company wallet summary.')
-    }
-
-    companySubscriptions.value = subscriptionsResponse.data || []
-
-    if (!selectedCompanySubscriptionId.value && companySubscriptions.value.length) {
-      selectedCompanySubscriptionId.value =
-        companySubscriptions.value.find(subscription => subscription.status === 'ACTIVE')?.id
-        || companySubscriptions.value[0].id
-    }
-
-    billingError.value = null
-  } catch (walletError: any) {
-    console.error('Failed to load company wallet summary:', walletError)
-    billingError.value =
-      walletError?.response?.data?.message ||
-      walletError?.message ||
-      'Failed to load company wallet summary.'
-    companySubscriptions.value = []
-  }
-}
-
-const loadBillingData = async () => {
-  const resolvedCompanyId = companyId.value
-  if (!resolvedCompanyId) {
-    billingError.value = 'Company ID not found. Log in again and retry.'
-    return
-  }
-
-  isLoadingBilling.value = true
-  billingError.value = null
-
-  try {
-    const [subscriptionsResponse, profilesResponse] = await Promise.all([
-      companySubscriptionsApi.getCompanySubscriptions(resolvedCompanyId),
-      companyApi.getCompanyProfiles({
-        companyId: resolvedCompanyId,
-        page: 0,
-        size: 100,
-        search: '',
-      }),
-    ])
-
-    if (!subscriptionsResponse.success) {
-      throw new Error(subscriptionsResponse.message || 'Failed to load company subscriptions.')
-    }
-
-    companySubscriptions.value = subscriptionsResponse.data || []
-
-    if (!selectedCompanySubscriptionId.value && companySubscriptions.value.length) {
-      selectedCompanySubscriptionId.value = companySubscriptions.value[0].id
-    }
-
-    const profilesPayload = profilesResponse?.data
-    if (!profilesPayload?.success) {
-      throw new Error(profilesPayload?.message || 'Failed to load company profiles.')
-    }
-    const profilePage = profilesPayload?.data
-    companyProfiles.value = Array.isArray(profilePage?.content) ? profilePage.content : []
-  } catch (loadError: any) {
-    console.error('Failed to load company billing:', loadError)
-    billingError.value =
-      loadError?.response?.data?.message ||
-      loadError?.message ||
-      'Failed to load company billing data.'
-  } finally {
-    isLoadingBilling.value = false
-  }
-}
-
-const loadCompanySubscriptionMembers = async (companySubscriptionId: string) => {
-  if (!companySubscriptionId) {
-    companySubscriptionMembers.value = []
-    return
-  }
-
-  try {
-    const response = await companySubscriptionsApi.getMembers(companySubscriptionId)
-    if (!response.success) {
-      throw new Error(response.message || 'Failed to load seat assignments.')
-    }
-    companySubscriptionMembers.value = response.data || []
-  } catch (memberError: any) {
-    console.error('Failed to load company subscription members:', memberError)
-    billingError.value =
-      memberError?.response?.data?.message ||
-      memberError?.message ||
-      'Failed to load seat assignments.'
-  }
-}
-
-const assignSeat = async (profileId: string) => {
-  const companySubscriptionId = activeCompanySubscriptionId.value
-  if (!companySubscriptionId) {
-    toast.error('No company subscription selected.')
-    return
-  }
-
-  billingActionId.value = `assign-${profileId}`
-  try {
-    const response = await companySubscriptionsApi.assignSeat(companySubscriptionId, profileId)
-    if (!response.success) {
-      throw new Error(response.message || 'Failed to assign seat.')
-    }
-    toast.success('Seat assigned successfully.')
-    await Promise.all([loadBillingData(), loadCompanySubscriptionMembers(companySubscriptionId)])
-  } catch (assignError: any) {
-    toast.error(assignError?.response?.data?.message || assignError?.message || 'Failed to assign seat.')
-  } finally {
-    billingActionId.value = ''
-  }
-}
-
-const revokeSeat = async (profileId: string) => {
-  const companySubscriptionId = activeCompanySubscriptionId.value
-  if (!companySubscriptionId) {
-    toast.error('No company subscription selected.')
-    return
-  }
-
-  billingActionId.value = `revoke-${profileId}`
-  try {
-    const response = await companySubscriptionsApi.revokeSeat(companySubscriptionId, profileId)
-    if (!response.success) {
-      throw new Error(response.message || 'Failed to revoke seat.')
-    }
-    toast.success('Seat revoked successfully.')
-    await Promise.all([loadBillingData(), loadCompanySubscriptionMembers(companySubscriptionId)])
-  } catch (revokeError: any) {
-    toast.error(revokeError?.response?.data?.message || revokeError?.message || 'Failed to revoke seat.')
-  } finally {
-    billingActionId.value = ''
-  }
-}
-
-const renewCompanySubscription = async () => {
-  const companySubscriptionId = activeCompanySubscriptionId.value
-  if (!companySubscriptionId) {
-    toast.error('No company subscription selected.')
-    return
-  }
-
-  billingActionId.value = `renew-${companySubscriptionId}`
-  try {
-    const origin = typeof window !== 'undefined' ? window.location.origin : ''
-    const response = await companySubscriptionsApi.renew(companySubscriptionId, {
-      redirectSuccessUrl: `${origin}/app/admin/settings?tab=billing&invoice_paid=1&context=company_subscription`,
-      redirectCancelUrl: `${origin}/app/admin/settings?tab=billing&invoice_cancelled=1&context=company_subscription`,
+  while (hasNext && safety < 50) {
+    const response = await companyProgramsApi.getCompanyPrograms({
+      companyId: resolvedCompanyId,
+      page,
+      size,
+      status: null,
+      liveOnly: false,
+      ...(dateFilter.startDate ? { startDate: dateFilter.startDate } : {}),
+      ...(dateFilter.endDate ? { endDate: dateFilter.endDate } : {}),
     })
 
-    if (!response.success || !response.data?.paymentUrl) {
-      throw new Error(response.message || 'Failed to create renewal invoice.')
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Failed to load company program portfolio.')
     }
 
-    toast.success('Renewal invoice created. Redirecting to payment...')
-    goToPaymentUrl(response.data.paymentUrl)
-  } catch (renewError: any) {
-    toast.error(renewError?.response?.data?.message || renewError?.message || 'Failed to create renewal invoice.')
-  } finally {
-    billingActionId.value = ''
+    programs.push(...(response.data.programs || []))
+    hasNext = Boolean(response.data.hasNext)
+    page = Number(response.data.currentPage || page) + 1
+    safety += 1
+  }
+
+  return programs
+}
+
+const loadProgramParticipants = async (companyProgramId: string, dateFilter: DashboardDateFilterParams) => {
+  const participants: CompanyProgramParticipantRecord[] = []
+  const size = 100
+  let page = 0
+  let hasNext = true
+  let safety = 0
+
+  while (hasNext && safety < 50) {
+    const response = await companyProgramsApi.getCompanyProgramParticipants({
+      companyProgramId,
+      page,
+      size,
+      status: null,
+      search: '',
+      ...(dateFilter.startDate ? { startDate: dateFilter.startDate } : {}),
+      ...(dateFilter.endDate ? { endDate: dateFilter.endDate } : {}),
+    })
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Failed to load program employees.')
+    }
+
+    participants.push(...(response.data.participants || []))
+    hasNext = Boolean(response.data.hasNext)
+    page = Number(response.data.currentPage || page) + 1
+    safety += 1
+  }
+
+  return participants
+}
+
+const loadProgramInsights = async (resolvedCompanyId: string, dateFilter: DashboardDateFilterParams) => {
+  if (!resolvedCompanyId) {
+    programInsights.value = { ...DEFAULT_PROGRAM_INSIGHTS }
+    programInsightsError.value = 'Company ID not found. Log in again and retry.'
+    return
+  }
+
+  try {
+    const programs = await loadAllCompanyPrograms(resolvedCompanyId, dateFilter)
+    const participantsByProgramId: Record<string, CompanyProgramParticipantRecord[]> = {}
+    let failedPrograms = 0
+    const chunkSize = 4
+
+    for (let index = 0; index < programs.length; index += chunkSize) {
+      const chunk = programs.slice(index, index + chunkSize)
+      const chunkResults = await Promise.allSettled(
+        chunk.map(async program => ({
+          programId: program.id,
+          participants: await loadProgramParticipants(program.id, dateFilter),
+        })),
+      )
+
+      chunkResults.forEach(result => {
+        if (result.status === 'fulfilled') {
+          participantsByProgramId[result.value.programId] = result.value.participants
+          return
+        }
+
+        failedPrograms += 1
+      })
+    }
+
+    programInsights.value = {
+      programs,
+      participantsByProgramId,
+      failedPrograms,
+    }
+    programInsightsError.value = failedPrograms > 0
+      ? `Participant data is missing for ${formatNumber(failedPrograms)} ${pluralize(failedPrograms, 'program')}.`
+      : null
+  } catch (programError: any) {
+    console.error('Failed to load program insights:', programError)
+    programInsights.value = { ...DEFAULT_PROGRAM_INSIGHTS }
+    programInsightsError.value =
+      programError?.response?.data?.message ||
+      programError?.message ||
+      'Failed to load company program insights.'
   }
 }
 
-const openBillingWorkspace = async () => {
-  await router.push('/app/admin/settings?tab=billing')
+const openEmployeesWorkspace = async () => {
+  await router.push('/app/admin/employees')
+}
+
+const openSessionsWorkspace = async () => {
+  await router.push('/app/admin/sessions')
+}
+
+const openActivityWorkspace = async () => {
+  await router.push({
+    path: '/app/admin/activity',
+    query: {
+      startDate: appliedDateRange.value.startDate,
+      endDate: appliedDateRange.value.endDate,
+      preset: appliedDateRange.value.preset,
+    },
+  })
+}
+
+const applyDateFilter = async () => {
+  if (!selectedStartDate.value || !selectedEndDate.value) {
+    toast.error('Select both start and end dates.')
+    return
+  }
+
+  if (selectedStartDate.value > selectedEndDate.value) {
+    toast.error('Start date cannot be after end date.')
+    return
+  }
+
+  const presetRange = selectedDatePreset.value === 'custom'
+    ? null
+    : buildPresetDateRange(selectedDatePreset.value)
+  const useCustomRange = Boolean(
+    presetRange
+    && (
+      presetRange.startDate !== selectedStartDate.value
+      || presetRange.endDate !== selectedEndDate.value
+    ),
+  )
+
+  appliedDateRange.value = {
+    preset: useCustomRange ? 'custom' : selectedDatePreset.value,
+    startDate: selectedStartDate.value,
+    endDate: selectedEndDate.value,
+  }
+
+  if (useCustomRange) {
+    selectedDatePreset.value = 'custom'
+  }
+
+  await refreshDashboard()
+}
+
+const onDatePresetChange = (value: string) => {
+  if (!value) return
+  const preset = value as DashboardDatePreset
+  syncDateInputsFromPreset(preset)
 }
 
 const refreshDashboard = async () => {
@@ -810,15 +1258,18 @@ const refreshDashboard = async () => {
 
   isLoading.value = true
   error.value = null
-  loadMessage.value = 'Loading company dashboard...'
+  loadMessage.value = `Loading company dashboard for ${selectedDateRangeLabel.value}...`
 
   try {
-    const [dashboardResult] = await Promise.all([
-      dashboardApi.getCompanyDashboard(resolvedCompanyId),
-      loadCompanyWalletSummary(resolvedCompanyId),
+    const dateFilter = dashboardDateFilterParams.value
+    const dashboardResult = await dashboardApi.getCompanyDashboard(resolvedCompanyId, dateFilter)
+
+    await Promise.all([
+      loadInsightsSummary(resolvedCompanyId, dateFilter),
+      loadProgramInsights(resolvedCompanyId, dateFilter),
     ])
-    const response = dashboardResult
-    const payload = response?.data
+
+    const payload = dashboardResult?.data
 
     if (!payload?.success) {
       throw new Error(payload?.message || 'Failed to load live dashboard data.')
@@ -844,39 +1295,6 @@ const refreshDashboard = async () => {
   }
 }
 
-watch(activeCompanySubscriptionId, async (value) => {
-  if (value) {
-    await loadCompanySubscriptionMembers(value)
-  } else {
-    companySubscriptionMembers.value = []
-  }
-})
-
-watch(() => route.query.tab, (value) => {
-  const resolvedTab = resolveAdminTab(value)
-  if (activeTab.value !== resolvedTab) {
-    activeTab.value = resolvedTab
-  }
-})
-
-watch(activeTab, async (value) => {
-  const resolvedTab = resolveAdminTab(value)
-  const currentTab = resolveAdminTab(route.query.tab)
-
-  if (resolvedTab === currentTab) {
-    return
-  }
-
-  const query = { ...route.query }
-  if (resolvedTab === 'overview') {
-    delete query.tab
-  } else {
-    query.tab = resolvedTab
-  }
-
-  await router.replace({ query })
-})
-
 onMounted(() => {
   if (
     route.query.tab === 'billing'
@@ -885,93 +1303,83 @@ onMounted(() => {
     || route.query.invoice_cancelled === '1'
   ) {
     router.replace({
-      path: '/app/admin/settings',
-      query: {
-        ...route.query,
-        tab: 'billing',
-      },
+      path: '/app/admin/billing',
+      query: route.query,
     })
     return
   }
 
   const storedProfile = getStoredProfile()
   storedCompanyName.value = storedProfile?.company?.name || storedCompanyName.value
+  initializeDashboardDateRangeFromRoute()
   refreshDashboard()
 })
 </script>
 
 <template>
-  <div class="container mx-auto px-4 py-6 space-y-6">
-    <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-      <div class="space-y-4">
-        <div class="space-y-1">
-          <h1 class="text-3xl font-bold tracking-tight">Corporate Admin Dashboard</h1>
-          <p class="text-muted-foreground">
-            Live mentorship reporting for {{ companyName }} based on current employee, invite, and session data.
-          </p>
-          <p v-if="lastRefreshedAt" class="text-xs text-muted-foreground">
-            Last refreshed {{ formatDateTime(lastRefreshedAt) }}
-          </p>
-        </div>
+  <div class="corporate-admin-dashboard container mx-auto space-y-5 px-4 py-5">
+    <div class="space-y-3">
+      <div class="space-y-1">
+        <h1 class="text-xl font-semibold tracking-[-0.01em] text-[#1f2430] md:text-2xl">Corporate Admin Dashboard</h1>
+        <p class="text-sm text-[#687386]">
+          A unified dashboard for program delivery, employee journey health, and intervention priorities.
+        </p>
+        <p v-if="lastRefreshedAt" class="text-xs text-[#8b95a4]">
+          Last refreshed {{ formatDateTime(lastRefreshedAt) }}
+        </p>
+      </div>
 
-        <div class="flex flex-wrap gap-2">
-          <Button @click="refreshDashboard" :disabled="isLoading">
+      <div class="dashboard-filter-shell">
+        <div class="flex flex-wrap items-end gap-2.5">
+          <div class="w-full min-w-[170px] sm:w-auto">
+            <p class="mb-1 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8f5f82]">Range</p>
+            <Select :model-value="selectedDatePreset" @update:model-value="onDatePresetChange">
+              <SelectTrigger class="h-9 border-[#d8dce4] bg-white text-[#1f2430]">
+                <SelectValue placeholder="Select range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="option in DASHBOARD_DATE_PRESET_OPTIONS"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div class="min-w-[150px]">
+            <p class="mb-1 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8f5f82]">From</p>
+            <DatePicker
+              v-model="selectedStartDate"
+              placeholder="Select start date"
+              class="h-9 border-[#d8dce4] bg-white text-[#1f2430]"
+            />
+          </div>
+
+          <div class="min-w-[150px]">
+            <p class="mb-1 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8f5f82]">To</p>
+            <DatePicker
+              v-model="selectedEndDate"
+              placeholder="Select end date"
+              class="h-9 border-[#d8dce4] bg-white text-[#1f2430]"
+            />
+          </div>
+
+          <Button class="h-9 rounded-md bg-[#9a4884] px-4 text-white hover:bg-[#7f3a6d]" @click="applyDateFilter" :disabled="isLoading">
+            Apply Filter
+          </Button>
+
+          <Button variant="outline" class="h-9 rounded-md border-[#d8dce4] bg-white px-3 text-[#4f5968] hover:bg-[#f8f7fb]" @click="refreshDashboard" :disabled="isLoading">
             <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoading }" />
             Refresh
           </Button>
         </div>
+        <p class="mt-2 text-xs text-[#7b4b6d]">
+          Showing {{ selectedDateRangeLabel }}
+        </p>
       </div>
-
-      <Card class="xl:justify-self-end">
-        <CardHeader class="space-y-2 p-4 pb-2">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <CardTitle class="flex items-center gap-1.5 text-sm">
-                <Wallet class="h-3.5 w-3.5" />
-                Session Wallet
-              </CardTitle>
-            </div>
-            <Badge v-if="managedCompanySubscription" variant="secondary" class="max-w-[120px] truncate px-2 py-0 text-[11px]">
-              {{ managedCompanySubscription.planName || 'Enterprise Standard' }}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent class="space-y-3 p-4 pt-0">
-          <Alert v-if="billingError" variant="destructive">
-            <AlertTriangle class="h-4 w-4" />
-            <AlertDescription>{{ billingError }}</AlertDescription>
-          </Alert>
-
-          <template v-else-if="hasCompanyWallet">
-            <div class="flex items-end justify-between gap-3 rounded-xl border bg-muted/30 px-3 py-2.5">
-              <div>
-                <p class="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Available</p>
-                <p class="mt-1 text-2xl font-semibold leading-none">{{ formatNumber(walletAvailableSessions) }}</p>
-                <p class="mt-1 text-xs text-muted-foreground">
-                  {{ formatNumber(walletReservedSessions) }} reserved
-                  <span class="mx-1">•</span>
-                  {{ formatNumber(walletPurchasedSessions) }} purchased
-                </p>
-              </div>
-              <div class="text-right">
-                <p class="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Price</p>
-                <p class="mt-1 text-base font-semibold">{{ formatCurrency(walletPricePerSession) }}</p>
-                <p class="mt-0.5 text-[11px] text-muted-foreground">per session</p>
-              </div>
-            </div>
-          </template>
-
-          <div v-else class="rounded-xl border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
-            No active company session wallet yet. Buy sessions to unlock company-funded booking.
-          </div>
-
-          <div class="flex justify-end border-t pt-2">
-            <Button size="sm" @click="openBillingWorkspace">
-              {{ walletActionLabel }}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
 
     <Alert v-if="isLoading">
@@ -984,6 +1392,16 @@ onMounted(() => {
     <Alert v-if="error" variant="destructive">
       <AlertTriangle class="h-4 w-4" />
       <AlertDescription>{{ error }}</AlertDescription>
+    </Alert>
+
+    <Alert v-if="insightsError" variant="default">
+      <AlertTriangle class="h-4 w-4" />
+      <AlertDescription>{{ insightsError }}</AlertDescription>
+    </Alert>
+
+    <Alert v-if="programInsightsError" variant="default">
+      <AlertTriangle class="h-4 w-4" />
+      <AlertDescription>{{ programInsightsError }}</AlertDescription>
     </Alert>
 
     <div class="space-y-3">
@@ -1001,507 +1419,536 @@ onMounted(() => {
     </div>
 
     <div v-if="isLoading && !hasLoadedData" class="space-y-6">
-      <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Skeleton v-for="index in 4" :key="index" class="h-32 w-full" />
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Skeleton v-for="index in 6" :key="`kpi-${index}`" class="h-36 w-full" />
       </div>
-      <div class="grid gap-6 lg:grid-cols-2">
-        <Skeleton class="h-80 w-full" />
-        <Skeleton class="h-80 w-full" />
+      <div class="grid gap-6 xl:grid-cols-2">
+        <Skeleton class="h-[360px] w-full" />
+        <Skeleton class="h-[360px] w-full" />
       </div>
     </div>
 
-    <Tabs v-else v-model="activeTab" class="space-y-6">
-      <TabsList class="grid w-full grid-cols-3">
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="employees">Employee Management</TabsTrigger>
-        <TabsTrigger value="analytics">Analytics</TabsTrigger>
-      </TabsList>
+    <template v-else>
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiSummaryCard
+          v-for="kpi in topKpis"
+          :key="kpi.id"
+          :title="kpi.title"
+          :value="kpi.value"
+          :subtitle="kpi.subtitle"
+          :progress="kpi.progress"
+          :icon="kpi.icon"
+          :tone="kpi.tone"
+          :delta-text="kpi.deltaText"
+          :delta-tone="kpi.deltaTone"
+          :health-tone="kpi.healthTone"
+          :sparkline="kpi.sparkline"
+        />
+      </div>
 
-      <TabsContent value="overview" class="space-y-6">
-        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatsCard
-            v-for="stat in overviewStats"
-            :key="stat.title"
-            :title="stat.title"
-            :value="stat.value"
-            :change="stat.change"
-            :trend="stat.trend"
-            :icon="stat.icon"
-            :color="stat.color"
-            :description="stat.description"
-          />
-        </div>
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card class="dashboard-card">
+          <CardContent class="dashboard-card__content p-4">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-[#7c8595]">Registered</p>
+              <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4deee] text-[#9a4884]">
+                <Users class="h-4 w-4" />
+              </span>
+            </div>
+            <p class="mt-3 text-2xl font-semibold text-[#1f2430]">{{ formatNumber(registeredEmployeesCount) }}</p>
+            <p class="mt-1 text-xs text-[#7c8595]">Employees listed in company workspace</p>
+          </CardContent>
+        </Card>
 
-        <div class="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle class="flex items-center gap-2">
-                <TrendingUp class="h-5 w-5" />
-                Session Health
-              </CardTitle>
-              <CardDescription>
-                Current program throughput and session quality.
-              </CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-5">
-              <div class="grid gap-4 sm:grid-cols-2">
-                <div class="rounded-lg border p-4">
-                  <p class="text-sm text-muted-foreground">Completed Sessions</p>
-                  <p class="mt-2 text-2xl font-semibold">{{ formatNumber(completedSessionsCount) }}</p>
-                </div>
-                <div class="rounded-lg border p-4">
-                  <p class="text-sm text-muted-foreground">Upcoming Sessions</p>
-                  <p class="mt-2 text-2xl font-semibold">{{ formatNumber(upcomingSessionsCount) }}</p>
-                </div>
-                <div class="rounded-lg border p-4">
-                  <p class="text-sm text-muted-foreground">Average Rating</p>
-                  <p class="mt-2 flex items-center gap-2 text-2xl font-semibold">
-                    <Star class="h-5 w-5 text-yellow-500" />
-                    {{ averageRating ? averageRating.toFixed(1) : '—' }}
-                  </p>
-                </div>
-                <div class="rounded-lg border p-4">
-                  <p class="text-sm text-muted-foreground">Total Hours Delivered</p>
-                  <p class="mt-2 text-2xl font-semibold">{{ formatHours(totalHours) }}h</p>
-                </div>
-              </div>
+        <Card class="dashboard-card">
+          <CardContent class="dashboard-card__content p-4">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-[#7c8595]">Participating</p>
+              <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#ebf6ee] text-[#2f8f83]">
+                <UserCheck class="h-4 w-4" />
+              </span>
+            </div>
+            <p class="mt-3 text-2xl font-semibold text-[#1f2430]">{{ formatNumber(participatingEmployeesCount) }}</p>
+            <p class="mt-1 text-xs text-[#7c8595]">Employees active in mentoring programs</p>
+          </CardContent>
+        </Card>
 
-              <div class="space-y-4">
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between text-sm">
-                    <span class="font-medium">Completion Rate</span>
-                    <span class="text-muted-foreground">{{ completionRate }}%</span>
-                  </div>
-                  <Progress :value="completionRate" class="h-2" />
-                </div>
+        <Card class="dashboard-card">
+          <CardContent class="dashboard-card__content p-4">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-[#7c8595]">Sessions</p>
+              <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4deee] text-[#9a4884]">
+                <Calendar class="h-4 w-4" />
+              </span>
+            </div>
+            <p class="mt-3 text-2xl font-semibold text-[#1f2430]">{{ formatNumber(totalSessionsCount) }}</p>
+            <p class="mt-1 text-xs text-[#7c8595]">Total booked sessions in selected period</p>
+          </CardContent>
+        </Card>
 
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between text-sm">
-                    <span class="font-medium">Feedback Coverage</span>
-                    <span class="text-muted-foreground">{{ feedbackCoverage }}%</span>
-                  </div>
-                  <Progress :value="feedbackCoverage" class="h-2" />
-                </div>
+        <Card class="dashboard-card">
+          <CardContent class="dashboard-card__content p-4">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-[#7c8595]">Hours</p>
+              <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4deee] text-[#9a4884]">
+                <Clock class="h-4 w-4" />
+              </span>
+            </div>
+            <p class="mt-3 text-2xl font-semibold text-[#1f2430]">{{ formatHours(totalHours) }}</p>
+            <p class="mt-1 text-xs text-[#7c8595]">Mentoring hours delivered</p>
+          </CardContent>
+        </Card>
+      </div>
 
-                <div class="grid gap-3 sm:grid-cols-3 text-sm">
-                  <div class="rounded-lg bg-muted/40 p-3">
-                    <p class="text-muted-foreground">Pending</p>
-                    <p class="mt-1 font-medium">{{ formatNumber(pendingSessionsCount) }}</p>
-                  </div>
-                  <div class="rounded-lg bg-muted/40 p-3">
-                    <p class="text-muted-foreground">Cancelled</p>
-                    <p class="mt-1 font-medium">{{ formatNumber(cancelledSessionsCount) }}</p>
-                  </div>
-                  <div class="rounded-lg bg-muted/40 p-3">
-                    <p class="text-muted-foreground">Paid Sessions</p>
-                    <p class="mt-1 font-medium">{{ formatNumber(paidSessionsCount) }}</p>
-                  </div>
-                </div>
-              </div>
-
-              <p class="text-xs text-muted-foreground">
-                Dashboard coverage includes {{ formatNumber(sessionLoadSummary.loadedEmployees) }} of
-                {{ formatNumber(sessionLoadSummary.requestedEmployees) }} employees.
-                <span v-if="sessionLoadSummary.failedEmployees > 0">
-                  {{ formatNumber(sessionLoadSummary.failedEmployees) }} failed.
-                </span>
+      <div class="grid gap-5 xl:grid-cols-2">
+        <Card class="dashboard-card">
+          <CardHeader class="dashboard-card__header">
+            <div class="flex items-center justify-between gap-3">
+              <CardTitle class="dashboard-section-title">Session Health</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 px-2 text-xs font-semibold text-[#9a4884] hover:bg-[#f6eaf3] hover:text-[#7f3a6d]"
+                @click="openSessionsWorkspace"
+              >
+                View Details
+                <ArrowRight class="ml-1 h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent class="dashboard-card__content grid gap-3 sm:grid-cols-2">
+            <div class="rounded-lg border border-[#ece6ee] bg-[#f9f8fb] p-4">
+              <p class="text-sm text-[#6f7888]">Completed</p>
+              <p class="mt-2 text-3xl font-semibold text-[#9a4884]">{{ formatNumber(completedSessionsCount) }}</p>
+            </div>
+            <div class="rounded-lg border border-[#ece6ee] bg-[#f9f8fb] p-4">
+              <p class="text-sm text-[#6f7888]">Upcoming</p>
+              <p class="mt-2 text-3xl font-semibold text-[#2d3646]">{{ formatNumber(upcomingSessionsCount) }}</p>
+            </div>
+            <div class="rounded-lg border border-[#ece6ee] bg-[#f9f8fb] p-4">
+              <p class="text-sm text-[#6f7888]">Avg Rating</p>
+              <p class="mt-2 text-3xl font-semibold text-[#2d3646]">
+                {{ averageRating ? averageRating.toFixed(1) : '—' }}
+                <span class="text-lg font-medium text-[#4f8c3f]">/5.0</span>
               </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle class="flex items-center gap-2">
-                <Shield class="h-5 w-5" />
-                Employee Onboarding
-              </CardTitle>
-              <CardDescription>
-                Registration funnel from invitation to active company profile.
-              </CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-5">
-              <div class="grid gap-4 sm:grid-cols-2">
-                <div class="rounded-lg border p-4">
-                  <p class="text-sm text-muted-foreground">Whitelist Entries</p>
-                  <p class="mt-2 text-2xl font-semibold">{{ formatNumber(whitelistTotal) }}</p>
-                </div>
-                <div class="rounded-lg border p-4">
-                  <p class="text-sm text-muted-foreground">Verified Employees</p>
-                  <p class="mt-2 text-2xl font-semibold">{{ formatNumber(verifiedEmployeesCount) }}</p>
-                </div>
-                <div class="rounded-lg border p-4">
-                  <p class="text-sm text-muted-foreground">Invites Sent</p>
-                  <p class="mt-2 text-2xl font-semibold">{{ formatNumber(invitesSentCount) }}</p>
-                </div>
-                <div class="rounded-lg border p-4">
-                  <p class="text-sm text-muted-foreground">Accepted Invites</p>
-                  <p class="mt-2 text-2xl font-semibold">{{ formatNumber(acceptedInvitesCount) }}</p>
-                </div>
-              </div>
-
-              <div class="space-y-4">
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between text-sm">
-                    <span class="font-medium">Invite Acceptance</span>
-                    <span class="text-muted-foreground">{{ invitationAcceptanceRate }}%</span>
-                  </div>
-                  <Progress :value="invitationAcceptanceRate" class="h-2" />
-                </div>
-
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between text-sm">
-                    <span class="font-medium">Verification Rate</span>
-                    <span class="text-muted-foreground">{{ verificationRate }}%</span>
-                  </div>
-                  <Progress :value="verificationRate" class="h-2" />
-                </div>
-              </div>
-
-              <div class="grid gap-3 sm:grid-cols-2 text-sm">
-                <div class="rounded-lg bg-muted/40 p-3">
-                  <p class="text-muted-foreground">Unsent Invites</p>
-                  <p class="mt-1 font-medium">{{ formatNumber(pendingInvitationSendCount) }}</p>
-                </div>
-                <div class="rounded-lg bg-muted/40 p-3">
-                  <p class="text-muted-foreground">Awaiting Acceptance</p>
-                  <p class="mt-1 font-medium">{{ formatNumber(awaitingAcceptanceCount) }}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div class="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle class="flex items-center gap-2">
-                <UserCheck class="h-5 w-5" />
-                Most Active Employees
-              </CardTitle>
-              <CardDescription>
-                Employees with the highest mentorship engagement so far.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div v-if="topEmployees.length" class="space-y-3">
-                <div
-                  v-for="employee in topEmployees"
-                  :key="employee.id"
-                  class="rounded-lg border p-4"
-                >
-                  <div class="flex items-start justify-between gap-4">
-                    <div class="space-y-1">
-                      <p class="font-medium">{{ employee.name }}</p>
-                      <p class="text-sm text-muted-foreground">{{ employee.meta }}</p>
-                    </div>
-                    <Badge variant="secondary">{{ employee.sessions }} sessions</Badge>
-                  </div>
-                  <div class="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                    <span>{{ formatHours(employee.hours) }}h delivered</span>
-                    <span>{{ employee.completed }} completed</span>
-                    <span>{{ employee.upcoming }} upcoming</span>
-                    <span v-if="employee.averageRating">Rated {{ employee.averageRating.toFixed(1) }}/5</span>
-                    <span v-if="employee.lastSessionAt">Last session {{ formatDate(employee.lastSessionAt) }}</span>
-                  </div>
-                </div>
-              </div>
-              <p v-else class="text-sm text-muted-foreground">No employee session activity yet.</p>
-            </CardContent>
-          </Card>
-
-          <ActivityFeed
-            :activities="recentActivity"
-            title="Recent Activity"
-            :max-items="6"
-            :show-view-all="false"
-          />
-        </div>
-      </TabsContent>
-
-      <TabsContent value="employees" class="space-y-6">
-        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatsCard
-            v-for="stat in employeeTabStats"
-            :key="stat.title"
-            :title="stat.title"
-            :value="stat.value"
-            :icon="stat.icon"
-            :color="stat.color"
-            :description="stat.description"
-          />
-        </div>
-
-        <div class="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle class="flex items-center gap-2">
-                <Users class="h-5 w-5" />
-                Recent Employee Registrations
-              </CardTitle>
-              <CardDescription>
-                Most recently created employee profiles in the company workspace.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div v-if="recentRegistrations.length" class="space-y-3">
-                <div
-                  v-for="profile in recentRegistrations"
-                  :key="profile.id"
-                  class="flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div class="space-y-1">
-                    <p class="font-medium">{{ getProfileDisplayName(profile) }}</p>
-                    <p class="text-sm text-muted-foreground">{{ getProfileMeta(profile) }}</p>
-                  </div>
-                  <div class="text-right">
-                    <Badge :variant="profile.isVerified ? 'secondary' : 'outline'">
-                      {{ profile.isVerified ? 'Verified' : 'Pending' }}
-                    </Badge>
-                    <p class="mt-2 text-xs text-muted-foreground">{{ formatDate(profile.createdAt) }}</p>
-                  </div>
-                </div>
-              </div>
-              <p v-else class="text-sm text-muted-foreground">No employee profiles found.</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle class="flex items-center gap-2">
-                <UserPlus class="h-5 w-5" />
-                Invitation Funnel
-              </CardTitle>
-              <CardDescription>
-                Where employees are dropping out between whitelist and activation.
-              </CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-4">
-              <div class="space-y-2">
-                <div class="flex items-center justify-between text-sm">
-                  <span class="font-medium">Unsent whitelist entries</span>
-                  <span class="text-muted-foreground">{{ formatNumber(pendingInvitationSendCount) }}</span>
-                </div>
-                <Progress
-                  :value="whitelistTotal ? Math.round((pendingInvitationSendCount / whitelistTotal) * 100) : 0"
-                  class="h-2"
-                />
-              </div>
-
-              <div class="space-y-2">
-                <div class="flex items-center justify-between text-sm">
-                  <span class="font-medium">Invited but not accepted</span>
-                  <span class="text-muted-foreground">{{ formatNumber(awaitingAcceptanceCount) }}</span>
-                </div>
-                <Progress
-                  :value="whitelistTotal ? Math.round((awaitingAcceptanceCount / whitelistTotal) * 100) : 0"
-                  class="h-2"
-                />
-              </div>
-
-              <div class="space-y-2">
-                <div class="flex items-center justify-between text-sm">
-                  <span class="font-medium">Accepted invites</span>
-                  <span class="text-muted-foreground">{{ formatNumber(acceptedInvitesCount) }}</span>
-                </div>
-                <Progress
-                  :value="whitelistTotal ? Math.round((acceptedInvitesCount / whitelistTotal) * 100) : 0"
-                  class="h-2"
-                />
-              </div>
-
-              <div class="space-y-2">
-                <div class="flex items-center justify-between text-sm">
-                  <span class="font-medium">Verified employee profiles</span>
-                  <span class="text-muted-foreground">{{ formatNumber(verifiedEmployeesCount) }}</span>
-                </div>
-                <Progress
-                  :value="registeredEmployeesCount ? Math.round((verifiedEmployeesCount / registeredEmployeesCount) * 100) : 0"
-                  class="h-2"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle class="flex items-center gap-2">
-              <UserCheck class="h-5 w-5" />
-              Participation Leaderboard
-            </CardTitle>
-            <CardDescription>
-              Employees ranked by total session engagement.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div v-if="employeeAggregates.length" class="space-y-3">
-              <div
-                v-for="employee in employeeAggregates.slice(0, 10)"
-                :key="employee.id"
-                class="rounded-lg border p-4"
-              >
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p class="font-medium">{{ employee.name }}</p>
-                    <p class="text-sm text-muted-foreground">{{ employee.meta }}</p>
-                  </div>
-                  <div class="flex flex-wrap gap-2 text-xs">
-                    <Badge variant="secondary">{{ employee.sessions }} sessions</Badge>
-                    <Badge variant="outline">{{ employee.completed }} completed</Badge>
-                    <Badge variant="outline">{{ formatHours(employee.hours) }}h</Badge>
-                    <Badge v-if="employee.averageRating" variant="outline">
-                      {{ employee.averageRating.toFixed(1) }}/5
-                    </Badge>
-                  </div>
-                </div>
-              </div>
             </div>
-            <p v-else class="text-sm text-muted-foreground">No employee participation data available yet.</p>
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="analytics" class="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle class="flex items-center gap-2">
-              <TrendingUp class="h-5 w-5" />
-              Monthly Session Trends
-            </CardTitle>
-            <CardDescription>
-              The last six months of company session volume, completions, and delivered hours.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div v-if="monthlyTrends.some(trend => trend.sessions > 0)" class="space-y-4">
-              <div
-                v-for="trend in monthlyTrends"
-                :key="trend.label"
-                class="rounded-lg border p-4"
-              >
-                <div class="flex items-center justify-between gap-4">
-                  <div>
-                    <p class="font-medium">{{ trend.label }}</p>
-                    <p class="text-sm text-muted-foreground">{{ trend.completed }} completed</p>
-                  </div>
-                  <div class="flex gap-6 text-sm">
-                    <div class="text-right">
-                      <p class="font-medium">{{ trend.sessions }}</p>
-                      <p class="text-muted-foreground">Sessions</p>
-                    </div>
-                    <div class="text-right">
-                      <p class="font-medium">{{ formatHours(trend.hours) }}h</p>
-                      <p class="text-muted-foreground">Hours</p>
-                    </div>
-                  </div>
-                </div>
-                <Progress :value="trend.width" class="mt-3 h-2" />
-              </div>
+            <div class="rounded-lg border border-[#ece6ee] bg-[#f9f8fb] p-4">
+              <p class="text-sm text-[#6f7888]">Total Hours</p>
+              <p class="mt-2 text-3xl font-semibold text-[#2d3646]">{{ formatHours(totalHours) }}h</p>
             </div>
-            <p v-else class="text-sm text-muted-foreground">No monthly session trend data yet.</p>
           </CardContent>
         </Card>
 
-        <div class="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle class="flex items-center gap-2">
-                <BookOpen class="h-5 w-5" />
-                Top Topics
-              </CardTitle>
-              <CardDescription>
-                Topics employees are booking most often across all sessions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div v-if="topTopics.length" class="space-y-3">
-                <div
-                  v-for="topic in topTopics"
-                  :key="topic.label"
-                  class="rounded-lg border p-4"
-                >
-                  <div class="flex items-center justify-between gap-4">
-                    <div>
-                      <p class="font-medium">{{ topic.label }}</p>
-                      <p class="text-sm text-muted-foreground">{{ topic.completed }} completed sessions</p>
-                    </div>
-                    <div class="text-right text-sm">
-                      <p class="font-medium">{{ topic.sessions }} bookings</p>
-                      <p class="text-muted-foreground">{{ formatHours(topic.hours) }}h</p>
-                    </div>
-                  </div>
-                </div>
+        <Card class="dashboard-card">
+          <CardHeader class="dashboard-card__header">
+            <div class="flex items-center justify-between gap-3">
+              <CardTitle class="dashboard-section-title">Employee Onboarding</CardTitle>
+              <span class="inline-flex items-center gap-2 text-xs font-medium text-[#6f7888]">
+                <span class="h-2.5 w-2.5 rounded-full bg-[#9a4884]" />
+                Real-time status
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent class="dashboard-card__content space-y-4">
+            <div class="flex items-center justify-between rounded-lg border border-[#ece6ee] bg-[#f9f8fb] p-3">
+              <div class="flex items-center gap-2">
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4deee] text-[#9a4884]">
+                  <UserPlus class="h-4 w-4" />
+                </span>
+                <span class="text-sm font-medium text-[#2d3646]">Whitelist</span>
               </div>
-              <p v-else class="text-sm text-muted-foreground">No topic breakdown is available yet.</p>
-            </CardContent>
-          </Card>
+              <p class="text-3xl font-semibold text-[#2d3646]">{{ formatNumber(whitelistTotal) }}</p>
+            </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle class="flex items-center gap-2">
-                <Star class="h-5 w-5" />
-                Mentor Leaderboard
-              </CardTitle>
-              <CardDescription>
-                Mentors delivering the most employee sessions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div v-if="mentorLeaderboard.length" class="space-y-3">
-                <div
-                  v-for="mentor in mentorLeaderboard"
-                  :key="mentor.id"
-                  class="rounded-lg border p-4"
-                >
-                  <div class="flex items-start justify-between gap-4">
-                    <div class="space-y-1">
-                      <p class="font-medium">{{ mentor.name }}</p>
-                      <p class="text-sm text-muted-foreground">{{ mentor.completed }} completed sessions</p>
-                    </div>
-                    <div class="text-right text-sm">
-                      <p class="font-medium">{{ mentor.sessions }} sessions</p>
-                      <p class="text-muted-foreground">
-                        {{ mentor.averageRating ? `${mentor.averageRating.toFixed(1)}/5` : 'No ratings yet' }}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+            <div class="h-2 overflow-hidden rounded-full bg-[#efe5ee]">
+              <div
+                class="h-full rounded-full bg-[#9a4884] transition-all duration-300"
+                :style="{ width: `${onboardingProgressRate}%` }"
+              />
+            </div>
+
+            <div class="flex items-center justify-between rounded-lg border border-[#ece6ee] bg-[#f9f8fb] p-3">
+              <div class="flex items-center gap-2">
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#ebf6ee] text-[#3d7f2b]">
+                  <UserCheck class="h-4 w-4" />
+                </span>
+                <span class="text-sm font-medium text-[#2d3646]">Verified</span>
               </div>
-              <p v-else class="text-sm text-muted-foreground">No mentor analytics available yet.</p>
-            </CardContent>
-          </Card>
-        </div>
+              <p class="text-3xl font-semibold text-[#2d3646]">{{ formatNumber(verifiedEmployeesCount) }}</p>
+            </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle class="flex items-center gap-2">
-              <BarChart3 class="h-5 w-5" />
-              Session Distribution
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="rounded-lg border border-[#e8d4e0] bg-white p-4">
+                <p class="text-sm text-[#6f7888]">Invites Sent</p>
+                <p class="mt-1 text-3xl font-semibold text-[#2d3646]">{{ formatNumber(invitesSentCount) }}</p>
+              </div>
+              <div class="rounded-lg border border-[#e8d4e0] bg-white p-4">
+                <p class="text-sm text-[#6f7888]">Accepted Invites</p>
+                <p class="mt-1 text-3xl font-semibold text-[#2d3646]">{{ formatNumber(acceptedInvitesCount) }}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div class="grid gap-5 xl:grid-cols-[1.4fr_0.6fr]">
+        <Card class="dashboard-card">
+          <CardHeader class="dashboard-card__header">
+            <CardTitle class="dashboard-section-title">
+              <TrendingUp class="h-5 w-5 text-[#9a4884]" />
+              Delivery Trends
             </CardTitle>
-            <CardDescription>
-              Current status mix across all company sessions.
+            <CardDescription class="dashboard-section-description">
+              Monthly movement of booked sessions, completed sessions, and mentoring hours.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div v-if="totalSessionsCount" class="space-y-4">
+          <CardContent class="dashboard-card__content">
+            <LineChart
+              :data="sessionTrendChartData"
+              :categories="['sessions', 'completed']"
+              index="month"
+              :colors="sessionTrendColors"
+              :y-formatter="chartAxisFormatter"
+              :show-grid-line="true"
+              class="h-[320px] admin-chart"
+            />
+          </CardContent>
+        </Card>
+
+        <Card class="dashboard-card">
+          <CardHeader class="dashboard-card__header">
+            <CardTitle class="dashboard-section-title">
+              <BarChart3 class="h-5 w-5 text-[#9a4884]" />
+              Session Mix
+            </CardTitle>
+            <CardDescription class="dashboard-section-description">
+              Distribution of session statuses across the full company portfolio.
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="dashboard-card__content space-y-4">
+            <DonutChart
+              :data="statusDonutData"
+              category="value"
+              index="label"
+              :colors="statusDonutColors"
+              :value-formatter="(tick: number) => formatNumber(tick)"
+              class="h-[260px] admin-chart"
+            />
+
+            <div class="space-y-2">
               <div
                 v-for="status in statusBreakdown"
                 :key="status.key"
-                class="space-y-2"
+                class="flex items-center justify-between rounded-lg border border-[#ece6ee] bg-[#f8f7fa] px-3 py-2 text-sm"
               >
-                <div class="flex items-center justify-between text-sm">
-                  <span class="font-medium">{{ status.label }}</span>
-                  <span class="text-muted-foreground">
-                    {{ formatNumber(status.count) }} ({{ status.percentage }}%)
-                  </span>
+                <div class="flex items-center gap-2">
+                  <span class="h-2.5 w-2.5 rounded-full" :class="status.color" />
+                  <span>{{ status.label }}</span>
                 </div>
-                <Progress :value="status.percentage" class="h-2" />
+                <span class="text-muted-foreground">{{ formatNumber(status.count) }} · {{ status.percentage }}%</span>
               </div>
             </div>
-            <p v-else class="text-sm text-muted-foreground">No session distribution to report yet.</p>
           </CardContent>
         </Card>
-      </TabsContent>
-    </Tabs>
+      </div>
+
+      <div class="grid gap-5 xl:grid-cols-2">
+        <Card class="dashboard-card">
+          <CardHeader class="dashboard-card__header">
+            <CardTitle class="dashboard-section-title">
+              <UserPlus class="h-5 w-5 text-[#9a4884]" />
+              Employee Funnel
+            </CardTitle>
+            <CardDescription class="dashboard-section-description">{{ employeeFunnelDescription }}</CardDescription>
+          </CardHeader>
+          <CardContent class="dashboard-card__content space-y-5">
+            <div v-if="hasEmployeeFunnelData" class="h-[310px] rounded-xl border border-[#e8dde8] bg-[#fcf8fb] p-2 admin-chart">
+              <VisSingleContainer :data="employeeFunnelGraph" :style="{ height: '100%' }">
+                <VisSankey
+                  :data="employeeFunnelGraph"
+                  :duration="450"
+                  :label="getFunnelNodeLabel"
+                  :sub-label="getFunnelNodeSubLabel"
+                  :node-color="getFunnelNodeColor"
+                  :link-color="getFunnelLinkColor"
+                  :link-value="getFunnelLinkValue"
+                  :node-width="16"
+                  :node-padding="14"
+                  :node-align="'left'"
+                  :label-font-size="12"
+                  :sub-label-font-size="11"
+                  :show-single-node="false"
+                />
+              </VisSingleContainer>
+            </div>
+            <div v-else class="rounded-xl border border-dashed border-[#decce0] bg-[#faf7fb] p-5 text-sm text-[#707b8b]">
+              Funnel will appear once invite or participant progression data starts flowing.
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div
+                v-for="card in employeeFunnelCards"
+                :key="card.label"
+                class="rounded-lg border border-[#ece6ee] bg-[#f9f8fb] p-3 text-sm"
+              >
+                <p class="text-muted-foreground">{{ card.label }}</p>
+                <p class="mt-1 text-lg font-semibold">{{ card.value }}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card class="dashboard-card">
+          <CardHeader class="dashboard-card__header">
+            <CardTitle class="dashboard-section-title">
+              <BookOpen class="h-5 w-5 text-[#9a4884]" />
+              Top Topics
+            </CardTitle>
+            <CardDescription class="dashboard-section-description">
+              Most-booked learning areas, with completion depth per topic.
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="dashboard-card__content">
+            <BarChart
+              :data="topicChartData"
+              type="grouped"
+              :categories="['bookings', 'completed']"
+              index="topic"
+              :colors="topicColors"
+              :show-grid-line="true"
+              :y-formatter="chartAxisFormatter"
+              class="h-[300px] admin-chart"
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div class="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card class="dashboard-card">
+          <CardHeader class="dashboard-card__header">
+            <CardTitle class="dashboard-section-title">
+              <Shield class="h-5 w-5 text-[#9a4884]" />
+              Risk & Feedback Signals
+            </CardTitle>
+            <CardDescription class="dashboard-section-description">
+              Blind-review outcomes and intervention demand from the two-way WhatsApp-first rating loop.
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="dashboard-card__content space-y-5">
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="dashboard-stat-chip rounded-lg border p-4">
+                <p class="text-sm text-muted-foreground">Open alerts</p>
+                <p class="mt-1 text-2xl font-semibold">{{ formatNumber(openRiskAlerts) }}</p>
+                <p class="text-xs text-muted-foreground">{{ formatNumber(highSeverityRiskAlerts) }} high severity</p>
+              </div>
+              <div class="dashboard-stat-chip rounded-lg border p-4">
+                <p class="text-sm text-muted-foreground">Rematch candidates</p>
+                <p class="mt-1 text-2xl font-semibold">{{ formatNumber(rematchCandidates) }}</p>
+                <p class="text-xs text-muted-foreground">{{ formatNumber(riskSignalTotal) }} low-score signals</p>
+              </div>
+            </div>
+
+            <div v-if="riskSignalChartData.length" class="space-y-4">
+              <DonutChart
+                :data="riskSignalChartData"
+                category="value"
+                index="label"
+                :colors="riskSignalColors"
+                :value-formatter="(tick: number) => formatNumber(tick)"
+                class="h-[230px] admin-chart"
+              />
+            </div>
+            <p v-else class="text-sm text-muted-foreground">No risk signals captured yet.</p>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="rounded-lg border border-[#ece6ee] bg-[#f9f8fb] p-3 text-sm">
+                <p class="text-muted-foreground">Review completion</p>
+                <p class="mt-1 text-lg font-semibold">{{ reviewCompletionRate }}%</p>
+              </div>
+              <div class="rounded-lg border border-[#ece6ee] bg-[#f9f8fb] p-3 text-sm">
+                <p class="text-muted-foreground">Pending pulses</p>
+                <p class="mt-1 text-lg font-semibold">{{ formatNumber(pendingPulses) }}</p>
+              </div>
+            </div>
+
+            <div class="flex gap-2">
+              <Button variant="outline" class="border-[#d6dbe4] text-[#4f5968] hover:bg-[#f8f7fb]" @click="openEmployeesWorkspace">Open Employees</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <ActivityFeed
+          :activities="recentActivity"
+          title="Recent Activity"
+          :max-items="5"
+          :show-view-all="true"
+          @view-all="openActivityWorkspace"
+        />
+      </div>
+
+      <div class="grid gap-5 xl:grid-cols-2">
+        <Card class="dashboard-card">
+          <CardHeader class="dashboard-card__header">
+            <CardTitle class="dashboard-section-title">
+              <UserCheck class="h-5 w-5 text-[#9a4884]" />
+              Most Active Employees
+            </CardTitle>
+            <CardDescription class="dashboard-section-description">
+              Employees driving session throughput and momentum.
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="dashboard-card__content">
+            <div v-if="topEmployees.length" class="space-y-3">
+              <div
+                v-for="employee in topEmployees"
+                :key="employee.id"
+                class="rounded-lg border border-[#e9e4eb] bg-[#fcfcfe] p-4"
+              >
+                <div class="flex items-start justify-between gap-4">
+                  <div class="space-y-1">
+                    <p class="font-medium">{{ employee.name }}</p>
+                    <p class="text-sm text-muted-foreground">{{ employee.meta }}</p>
+                  </div>
+                  <Badge variant="secondary">{{ employee.sessions }} sessions</Badge>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  <span>{{ formatHours(employee.hours) }}h delivered</span>
+                  <span>{{ employee.completed }} completed</span>
+                  <span>{{ employee.upcoming }} upcoming</span>
+                  <span v-if="employee.averageRating">Rated {{ employee.averageRating.toFixed(1) }}/5</span>
+                  <span v-if="employee.lastSessionAt">Last session {{ formatDate(employee.lastSessionAt) }}</span>
+                </div>
+              </div>
+            </div>
+            <p v-else class="text-sm text-muted-foreground">No employee session activity yet.</p>
+          </CardContent>
+        </Card>
+
+        <Card class="dashboard-card">
+          <CardHeader class="dashboard-card__header">
+            <CardTitle class="dashboard-section-title">
+              <Star class="h-5 w-5 text-[#9a4884]" />
+              Mentor Performance
+            </CardTitle>
+            <CardDescription class="dashboard-section-description">
+              Mentors who are supporting the most employees across your company programs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="dashboard-card__content">
+            <div v-if="mentorLeaderboard.length" class="space-y-3">
+              <div
+                v-for="mentor in mentorLeaderboard.slice(0, 6)"
+                :key="mentor.id"
+                class="flex items-start justify-between rounded-lg border border-[#e9e4eb] bg-[#fcfcfe] p-4"
+              >
+                <div class="space-y-1">
+                  <p class="font-medium">{{ mentor.name }}</p>
+                  <p class="text-sm text-muted-foreground">{{ mentor.completed }} completed sessions</p>
+                </div>
+                <div class="text-right text-sm">
+                  <p class="font-medium">{{ mentor.sessions }} sessions</p>
+                  <p class="text-muted-foreground">
+                    {{ mentor.averageRating ? `${mentor.averageRating.toFixed(1)}/5` : 'No ratings yet' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <p v-else class="text-sm text-muted-foreground">No mentor analytics available yet.</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card class="dashboard-card">
+        <CardHeader class="dashboard-card__header">
+          <CardTitle class="dashboard-section-title">
+            <Users class="h-5 w-5 text-[#9a4884]" />
+            Recent Registrations
+          </CardTitle>
+          <CardDescription class="dashboard-section-description">
+            Latest employee profiles added to the company workspace.
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="dashboard-card__content">
+          <div v-if="recentRegistrations.length" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div
+              v-for="profile in recentRegistrations.slice(0, 6)"
+              :key="profile.id"
+              class="rounded-lg border border-[#e9e4eb] bg-[#fcfcfe] p-4"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <p class="font-medium">{{ getProfileDisplayName(profile) }}</p>
+                  <p class="text-sm text-muted-foreground">{{ getProfileMeta(profile) }}</p>
+                </div>
+                <Badge :variant="profile.isVerified ? 'secondary' : 'outline'">
+                  {{ profile.isVerified ? 'Verified' : 'Pending' }}
+                </Badge>
+              </div>
+              <p class="mt-3 text-xs text-muted-foreground">Joined {{ formatDate(profile.createdAt) }}</p>
+            </div>
+          </div>
+          <p v-else class="text-sm text-muted-foreground">No employee profiles found.</p>
+        </CardContent>
+      </Card>
+
+    </template>
   </div>
 </template>
+
+<style scoped>
+.corporate-admin-dashboard {
+  font-family: 'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  color: #1f2430;
+}
+
+.dashboard-filter-shell {
+  border-radius: 0.8rem;
+  border: 1px solid #e4d4e1;
+  background: linear-gradient(180deg, #fefafd 0%, #f8f2f7 100%);
+  padding: 0.85rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.dashboard-card {
+  border-radius: 0.9rem;
+  border-color: #e2dde6;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 18px 38px -34px rgba(31, 36, 48, 0.35);
+}
+
+.dashboard-card__header {
+  padding-bottom: 0.85rem;
+}
+
+.dashboard-card__content {
+  padding-top: 0;
+}
+
+.dashboard-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: #222a36;
+}
+
+.dashboard-section-description {
+  color: #677286;
+}
+
+.dashboard-stat-chip {
+  border-color: #e8e1ea;
+  background: #fcfcfe;
+}
+
+.admin-chart {
+  --vis-text-color: 325 14% 30%;
+  --vis-primary-color: 315 36% 44%;
+  --vis-secondary-color: 170 43% 37%;
+}
+</style>

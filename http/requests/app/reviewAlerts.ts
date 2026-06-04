@@ -108,10 +108,23 @@ export interface ReviewAlertsQueryParams {
   alertType?: ReviewAlertType | null
 }
 
+type ReviewSummaryDateFilter = {
+  startDate?: string
+  endDate?: string
+}
+
 export default {
-  async getReviewAlertSummary(companyId: string, companyProgramId?: string | null): Promise<ReviewAlertSummaryResponse> {
+  async getReviewAlertSummary(
+    companyId: string,
+    companyProgramId?: string | null,
+    dateFilter: ReviewSummaryDateFilter = {},
+  ): Promise<ReviewAlertSummaryResponse> {
     const { data } = await api.get(`/v1/companies/${companyId}/review-alerts/summary`, {
-      params: { companyProgramId: companyProgramId || null },
+      params: {
+        companyProgramId: companyProgramId || null,
+        ...(dateFilter.startDate ? { startDate: dateFilter.startDate } : {}),
+        ...(dateFilter.endDate ? { endDate: dateFilter.endDate } : {}),
+      },
     })
     return data
   },

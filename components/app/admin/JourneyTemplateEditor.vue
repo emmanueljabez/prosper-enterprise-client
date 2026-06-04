@@ -8,12 +8,13 @@ import type {
   JourneyTemplateUpsertPayload,
 } from '@/http/requests/app/companyPrograms'
 import { useAppToast } from '@/composables/services/toastService'
+import { useFileUploadStore } from '@/store/modules/utility/file-upload/upload'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
-import { ArrowDown, ArrowUp, GitBranch, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowDown, ArrowUp, GitBranch, ImagePlus, Plus, Trash2, Upload, X } from 'lucide-vue-next'
 
 type StepForm = {
   stepKey: string
@@ -50,12 +51,16 @@ const emit = defineEmits<{
 }>()
 
 const companyProgramsStore = useCompanyProgramsStore()
+const fileUploadStore = useFileUploadStore()
 const toast = useAppToast()
+const coverUploadInput = ref<HTMLInputElement | null>(null)
+const isUploadingCover = computed(() => fileUploadStore.getIsUploading)
 
 const form = reactive({
   name: '',
   programType: '',
   description: '',
+  coverImageUrl: '',
   defaultDurationWeeks: '',
   active: true,
 })
@@ -85,6 +90,7 @@ const resetForm = () => {
   form.name = ''
   form.programType = ''
   form.description = ''
+  form.coverImageUrl = ''
   form.defaultDurationWeeks = ''
   form.active = true
   steps.value = [createEmptyStep(1)]
@@ -100,6 +106,7 @@ const populateForm = (template?: JourneyTemplateRecord | null) => {
   form.name = template.name || ''
   form.programType = template.programType || ''
   form.description = template.description || ''
+  form.coverImageUrl = template.coverImageUrl || ''
   form.defaultDurationWeeks = template.defaultDurationWeeks != null ? String(template.defaultDurationWeeks) : ''
   form.active = template.active !== false
 
@@ -195,6 +202,71 @@ const optionalNumber = (value: string | number | null | undefined) => {
   return trimmedValue ? Number(trimmedValue) : null
 }
 
+const normalizeOptionalString = (value?: string | null) => {
+  const trimmed = String(value || '').trim()
+  return trimmed ? trimmed : null
+}
+
+const extractUploadUrl = (payload: any): string | null => {
+  const candidates = [
+    payload?.url,
+    payload?.fileUrl,
+    payload?.imageUrl,
+    payload?.coverImageUrl,
+    payload?.data?.url,
+    payload?.data?.fileUrl,
+    payload?.data?.imageUrl,
+    payload?.data?.coverImageUrl,
+  ]
+
+  const firstStringCandidate = candidates.find(candidate =>
+    typeof candidate === 'string' && candidate.trim().length > 0,
+  )
+
+  if (firstStringCandidate) {
+    return String(firstStringCandidate).trim()
+  }
+
+  const objectValues = Object.values(payload || {})
+  const stringValue = objectValues.find(value => typeof value === 'string' && value.trim().length > 0)
+  return typeof stringValue === 'string' ? stringValue.trim() : null
+}
+
+const openCoverUploadPicker = () => {
+  coverUploadInput.value?.click()
+}
+
+const uploadCoverImage = async (file: File) => {
+  const result = await fileUploadStore.uploadFile(file)
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to upload cover image.')
+  }
+
+  const uploadUrl = extractUploadUrl(result.data)
+  if (!uploadUrl) {
+    throw new Error('Upload completed but no URL was returned.')
+  }
+
+  form.coverImageUrl = uploadUrl
+  toast.success('Cover image uploaded.')
+}
+
+const handleCoverFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) {
+    return
+  }
+
+  try {
+    await uploadCoverImage(file)
+  } catch (error: any) {
+    toast.error(error?.message || 'Failed to upload cover image.')
+  } finally {
+    target.value = ''
+  }
+}
+
 const submitForm = () => {
   const trimmedSteps = steps.value.map(step => ({
     stepKey: step.stepKey.trim(),
@@ -244,6 +316,7 @@ const submitForm = () => {
     name: form.name.trim(),
     programType: form.programType.trim() || null,
     description: form.description.trim() || null,
+    coverImageUrl: normalizeOptionalString(form.coverImageUrl),
     defaultDurationWeeks: optionalNumber(form.defaultDurationWeeks),
     active: form.active,
     steps: trimmedSteps.map(step => ({
@@ -272,6 +345,54 @@ const submitForm = () => {
     <div class="grid gap-2">
       <label class="text-sm font-medium">Description</label>
       <Textarea v-model="form.description" placeholder="What outcome should this journey help employees reach?" />
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-[minmax(0,1fr),280px]">
+      <div class="grid gap-2">
+        <label class="text-sm font-medium">Cover image URL</label>
+        <Input v-model="form.coverImageUrl" placeholder="https://example.com/journey-cover.png" />
+        <p class="text-xs text-muted-foreground">
+          Add a cover image URL or upload a new image. This is used as the template cover on the admin catalog.
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <input
+            ref="coverUploadInput"
+            type="file"
+            accept="image/*"
+            class="hidden"
+            @change="handleCoverFileChange"
+          >
+          <Button type="button" variant="outline" :disabled="isUploadingCover" @click="openCoverUploadPicker">
+            <Upload class="mr-2 h-4 w-4" />
+            {{ isUploadingCover ? 'Uploading cover...' : 'Upload cover image' }}
+          </Button>
+          <Button
+            v-if="form.coverImageUrl"
+            type="button"
+            variant="ghost"
+            class="text-muted-foreground"
+            @click="form.coverImageUrl = ''"
+          >
+            <X class="mr-2 h-4 w-4" />
+            Clear
+          </Button>
+        </div>
+      </div>
+
+      <div class="overflow-hidden rounded-lg border bg-[#f6f6f8]">
+        <div class="relative aspect-[16/9] w-full">
+          <img
+            v-if="form.coverImageUrl"
+            :src="form.coverImageUrl"
+            alt="Journey template cover preview"
+            class="h-full w-full object-cover"
+          >
+          <div v-else class="flex h-full w-full flex-col items-center justify-center gap-2 text-[#8e96a3]">
+            <ImagePlus class="h-6 w-6" />
+            <p class="text-xs font-medium">Cover preview</p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="grid gap-4 md:grid-cols-2">

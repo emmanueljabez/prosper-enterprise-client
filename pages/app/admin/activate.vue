@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from '#app'
+import { useRouter } from '#app'
 import AuthSplitShell from '@/components/auth/AuthSplitShell.vue'
 import { Button } from '@/components/ui/button'
 import { useAppToast } from '@/composables/services/toastService'
@@ -15,7 +15,6 @@ definePageMeta({
 })
 
 const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
 const toast = useAppToast()
 const companyActivationStore = useCompanyActivationStore()
@@ -115,10 +114,13 @@ onMounted(async () => {
   if (companyId.value) {
     companySignupStore.clearIntent()
     await companyActivationStore.loadActivationState(companyId.value)
-    sessionCount.value = pendingInvoiceSessionCount.value
-    if (route.query.invoice_paid === '1' && !companyActivationStore.requiresActivation) {
-      await router.push('/app/admin')
+    if (!companyActivationStore.requiresActivation) {
+      companySignupStore.clearPurchaseState()
+      await router.replace('/app/admin')
+      return
     }
+
+    sessionCount.value = pendingInvoiceSessionCount.value
   }
 })
 

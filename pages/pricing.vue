@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from '#app'
 import { storeToRefs } from 'pinia'
 import PublicSiteHeader from '@/components/landing/PublicSiteHeader.vue'
 import SocialFooter from '@/components/landing/SocialFooter.vue'
 import { useAuthStore } from '@/store/modules/auth'
 import { useSubscriptionsStore } from '@/store/modules/subscriptions'
-import { useCompanySignupStore } from '@/store/modules/company-signup'
 import { RoleManager } from '@/utils/roleManager'
 import type { SubscriptionPlan } from '@/http/requests/app/subscriptions'
 
@@ -15,9 +14,7 @@ definePageMeta({ auth: false })
 const router = useRouter()
 const authStore = useAuthStore()
 const subscriptionsStore = useSubscriptionsStore()
-const companySignupStore = useCompanySignupStore()
 const { activePlans, isLoading } = storeToRefs(subscriptionsStore)
-const sessionCount = ref(25)
 
 const includedFeatures = [
   {
@@ -55,9 +52,9 @@ const isAuthenticatedCompanyAdmin = computed(() =>
   RoleManager.isCorporateAdmin(authStore.loggedInUser) && Boolean(authStore.loggedInUser?.companyId),
 )
 
-const currency = computed(() => corporatePlan.value?.currency || 'KES')
-const getPlanTotal = (plan: SubscriptionPlan) =>
-  Number(plan.cost || 0) * Number(sessionCount.value || 0)
+const ctaLabel = computed(() =>
+  isAuthenticatedCompanyAdmin.value ? 'Manage Billing' : 'Create Company Account',
+)
 
 const currencyLabel = (value?: string | null) => {
   if (!value) return 'Ksh'
@@ -103,7 +100,7 @@ const getPlanFeatures = (plan: SubscriptionPlan) => {
       'Employee session allocation',
       'Program setup and mentor matching',
       'Usage, feedback, and outcome reporting',
-      'Secure company activation after payment',
+      'Self-serve billing when your team is ready',
     ]
   }
 
@@ -115,18 +112,9 @@ const getPlanFeatures = (plan: SubscriptionPlan) => {
   ]
 }
 
-const beginSignup = async (plan: SubscriptionPlan | null = corporatePlan.value) => {
-  if (!plan) {
-    return
-  }
-
-  companySignupStore.savePendingSelection({
-    planId: plan.id,
-    sessionCount: Math.max(1, Number(sessionCount.value || 1)),
-  })
-
+const beginSignup = async () => {
   if (isAuthenticatedCompanyAdmin.value) {
-    await router.push('/app/admin/activate')
+    await router.push('/app/admin/billing')
     return
   }
 
@@ -235,48 +223,13 @@ onMounted(() => {
                 </li>
               </ul>
 
-              <div
-                class="mx-auto mt-5 flex w-full max-w-[304px] items-center justify-between gap-4 rounded-[8px] border border-[#d0d5dd] bg-white p-4 shadow-[0_8px_18px_rgba(16,24,40,0.08)]"
-                aria-label="Corporate session quantity"
-              >
-                <button
-                  type="button"
-                  class="flex h-14 w-16 items-center justify-center rounded-[8px] border border-[#b8c8bf] bg-white text-[24px] font-medium leading-none text-[#2f765e] transition hover:border-[#2f765e] focus:outline-none focus:ring-2 focus:ring-[#2f765e]/15"
-                  aria-label="Decrease session count"
-                  @click="sessionCount = Math.max(1, sessionCount - 1)"
-                >
-                  -
-                </button>
-                <label class="sr-only" for="session-count">Sessions</label>
-                <input
-                  id="session-count"
-                  v-model.number="sessionCount"
-                  type="number"
-                  min="1"
-                  class="h-14 min-w-0 flex-1 rounded-[8px] border border-[#b8c8bf] bg-white px-3 text-center text-[22px] font-bold text-[#101828] outline-none transition focus:border-[#2f765e] focus:ring-2 focus:ring-[#2f765e]/15"
-                >
-                <button
-                  type="button"
-                  class="flex h-14 w-16 items-center justify-center rounded-[8px] border border-[#b8c8bf] bg-white text-[26px] font-medium leading-none text-[#2f765e] transition hover:border-[#2f765e] focus:outline-none focus:ring-2 focus:ring-[#2f765e]/15"
-                  aria-label="Increase session count"
-                  @click="sessionCount = sessionCount + 1"
-                >
-                  +
-                </button>
-              </div>
-
-              <div class="mt-4 rounded-[8px] border border-[#e4e7ec] bg-white px-3 py-2 text-[11px] text-[#475467]">
-                {{ sessionCount }} sessions: {{ currencyLabel(corporatePlan.currency || currency) }} {{ getPlanTotal(corporatePlan).toLocaleString() }}
-              </div>
-
               <button
                 type="button"
                 class="mt-5 flex h-12 w-full items-center justify-center rounded-[8px] bg-[#a4439b] text-[12px] font-normal text-white transition hover:bg-[#8d3387] disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="isLoading"
-                @click="beginSignup(corporatePlan)"
+                @click="beginSignup"
               >
-                <span class="sr-only">Buy Sessions</span>
-                <span aria-hidden="true">Proceed</span>
+                {{ ctaLabel }}
               </button>
             </article>
           </div>

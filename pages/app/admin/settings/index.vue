@@ -17,6 +17,7 @@ import { Separator } from '~/components/ui/separator'
 import { Badge } from '~/components/ui/badge'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Skeleton } from '~/components/ui/skeleton'
+import DepartmentsSettingsTab from '~/components/app/admin/settings/DepartmentsSettingsTab.vue'
 import {
   AlertCircle,
   Settings,
@@ -41,12 +42,12 @@ definePageMeta({
   permissions: ['admin:settings']
 })
 
-type SettingsTab = 'company' | 'branding' | 'program' | 'subscription' | 'billing'
+type SettingsTab = 'company' | 'branding' | 'program' | 'departments' | 'subscription' | 'billing'
 
 const DEFAULT_PRIMARY_COLOR = '#a03b93'
 const DEFAULT_SECONDARY_COLOR = '#d9a8d3'
 
-const { success, error: toastError, info } = useAppToast()
+const { success, error: toastError } = useAppToast()
 const route = useRoute()
 const router = useRouter()
 const subscriptionsStore = useSubscriptionsStore()
@@ -71,11 +72,30 @@ const resolveSettingsTab = (value?: unknown): SettingsTab => {
     case 'branding':
     case 'program':
     case 'subscription':
+    case 'departments':
     case 'billing':
       return normalized
     default:
       return 'company'
   }
+}
+
+const isBillingTabQuery = (value?: unknown) =>
+  String(Array.isArray(value) ? value[0] : value || '').trim().toLowerCase() === 'billing'
+
+const hasBillingReturnContext = () =>
+  route.query.invoice_paid === '1'
+  || route.query.invoice_cancelled === '1'
+  || route.query.context === 'company_subscription'
+
+const redirectSettingsBillingToFinance = async () => {
+  const query = { ...route.query }
+  delete query.tab
+
+  await navigateTo({
+    path: '/app/admin/billing',
+    query,
+  }, { replace: true })
 }
 
 const { activePlans: storeActivePlans, isLoading: isLoadingPlans, error: plansError } = storeToRefs(subscriptionsStore)
@@ -563,8 +583,8 @@ const purchaseCorporatePlan = async (planId: string, planName: string, minSessio
       companyId: companyContext.value.companyId,
       planId,
       sessionCount,
-      redirectSuccessUrl: `${origin}/app/admin/settings?tab=billing&invoice_paid=1&context=company_subscription&plan_id=${planId}`,
-      redirectCancelUrl: `${origin}/app/admin/settings?tab=billing&invoice_cancelled=1&context=company_subscription&plan_id=${planId}`,
+      redirectSuccessUrl: `${origin}/app/admin/billing?invoice_paid=1&context=company_subscription&plan_id=${planId}`,
+      redirectCancelUrl: `${origin}/app/admin/billing?invoice_cancelled=1&context=company_subscription&plan_id=${planId}`,
     })
 
     if (!response.success || !response.data?.paymentUrl) {
@@ -593,41 +613,12 @@ const refreshBilling = async () => {
   await loadCompanyBilling(companyContext.value.companyId)
 }
 
-const clearBillingQueryParams = async () => {
-  const query = { ...route.query }
-  delete query.invoice_paid
-  delete query.invoice_cancelled
-  delete query.context
-  delete query.plan_id
-  await router.replace({ query })
-}
-
-const handleBillingRouteReturn = async () => {
-  const hasBillingContext =
-    route.query.invoice_paid === '1'
-    || route.query.invoice_cancelled === '1'
-    || route.query.context === 'company_subscription'
-
-  if (!hasBillingContext) {
+watch(() => route.query.tab, async value => {
+  if (isBillingTabQuery(value)) {
+    await redirectSettingsBillingToFinance()
     return
   }
 
-  activeTab.value = 'billing'
-
-  if (route.query.invoice_paid === '1') {
-    success('Payment completed successfully.')
-  } else if (route.query.invoice_cancelled === '1') {
-    info('Payment was cancelled.')
-  }
-
-  if (companyContext.value.companyId) {
-    await loadCompanyBilling(companyContext.value.companyId)
-  }
-
-  await clearBillingQueryParams()
-}
-
-watch(() => route.query.tab, value => {
   const resolvedTab = resolveSettingsTab(value)
   if (activeTab.value !== resolvedTab) {
     activeTab.value = resolvedTab
@@ -671,22 +662,15 @@ watch(activeTab, async value => {
 
 // Load settings on mount
 onMounted(async () => {
+  if (isBillingTabQuery(route.query.tab) || hasBillingReturnContext()) {
+    await redirectSettingsBillingToFinance()
+    return
+  }
+
   await Promise.all([
     subscriptionsStore.fetchPlans('CORPORATE'),
     loadAvailablePrograms(),
   ])
-
-  if (
-    route.query.invoice_paid === '1'
-    || route.query.invoice_cancelled === '1'
-    || route.query.context === 'company_subscription'
-  ) {
-    await handleBillingRouteReturn()
-    if (companyContext.value.companyId) {
-      await loadCompanySettings()
-    }
-    return
-  }
 
   if (companyContext.value.companyId) {
     await Promise.all([
@@ -750,6 +734,17 @@ onMounted(async () => {
             <Plug class="h-4 w-4" /> Program
           </button>
           <button
+            @click="activeTab = 'departments'"
+            :class="[
+              'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
+              activeTab === 'departments'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            ]"
+          >
+            <Users class="h-4 w-4" /> Departments
+          </button>
+          <button
             @click="activeTab = 'subscription'"
             :class="[
               'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
@@ -761,7 +756,7 @@ onMounted(async () => {
             <Receipt class="h-4 w-4" /> Plans
           </button>
           <button
-            @click="activeTab = 'billing'"
+            @click="router.push('/app/admin/billing')"
             :class="[
               'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
               activeTab === 'billing'
@@ -1036,6 +1031,14 @@ onMounted(async () => {
       </Card>
     </div>
 
+    <!-- Departments Tab -->
+    <div v-show="activeTab === 'departments'" class="space-y-6">
+      <DepartmentsSettingsTab
+        :company-id="companyContext.companyId"
+        :can-manage="companyContext.isCorporateAdmin"
+      />
+    </div>
+
     <!-- Subscription Tab -->
     <div v-show="activeTab === 'subscription'" class="space-y-6">
       <Card>
@@ -1046,7 +1049,7 @@ onMounted(async () => {
               Purchase company-funded sessions for {{ companyContext.companyName }}. Every successful payment tops up one shared wallet that admins can allocate across employees.
             </CardDescription>
           </div>
-          <Button variant="outline" @click="activeTab = 'billing'">
+          <Button variant="outline" @click="router.push('/app/admin/billing')">
             Manage Sessions &amp; Billing
           </Button>
         </CardHeader>
@@ -1240,7 +1243,7 @@ onMounted(async () => {
         >
           Pay Open Invoice
         </Button>
-        <Button variant="outline" @click="router.push('/app/admin/participants')">
+        <Button variant="outline" @click="router.push('/app/admin/employees')">
           <Users class="mr-2 h-4 w-4" />
           Manage Employee Sessions
         </Button>

@@ -1,24 +1,21 @@
 <script setup lang="ts">
 definePageMeta({
-  title: 'Corporate Subscription Plans',
-  description: 'Redirecting to corporate subscription settings',
+  title: 'Finance',
+  description: 'Redirecting to finance workspace',
   requiresAuth: true,
-  permissions: ['admin:settings'],
+  permissions: ['admin:billing'],
 })
 
 const route = useRoute()
 
 await navigateTo({
-  path: '/app/admin/settings',
-  query: {
-    ...route.query,
-    tab: 'subscription',
-  },
+  path: '/app/admin/billing',
+  query: route.query,
 }, { replace: true })
 </script>
 
 <template>
   <div class="container mx-auto max-w-5xl px-4 py-10">
-    <p class="text-sm text-muted-foreground">Redirecting to subscription settings...</p>
+    <p class="text-sm text-muted-foreground">Redirecting to finance...</p>
   </div>
 </template>

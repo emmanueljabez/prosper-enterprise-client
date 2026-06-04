@@ -47,6 +47,13 @@ const formatDueOffset = (value?: number | null) => {
 <template>
   <div class="space-y-6">
     <Card>
+      <div v-if="template.coverImageUrl" class="overflow-hidden rounded-t-xl border-b">
+        <img
+          :src="template.coverImageUrl"
+          alt="Journey template cover"
+          class="h-52 w-full object-cover"
+        >
+      </div>
       <CardHeader class="space-y-4">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div class="space-y-2">

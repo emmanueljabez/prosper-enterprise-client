@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import companySignupApi from '@/http/requests/public/companySignup'
 import companySubscriptionsApi, { type CompanySubscriptionSummary } from '@/http/requests/app/companySubscriptions'
 
 export const useCompanyActivationStore = defineStore('company-activation', () => {
@@ -29,13 +28,6 @@ export const useCompanyActivationStore = defineStore('company-activation', () =>
     }
   }
 
-  const resumeIntentPurchase = async (
-    intentToken: string,
-    sessionCount: number,
-    redirectSuccessUrl: string,
-    redirectCancelUrl: string,
-  ) => companySignupApi.resumePurchase(intentToken, { sessionCount, redirectSuccessUrl, redirectCancelUrl })
-
   const createDirectPurchase = async (
     companyId: string,
     planId: string,
@@ -56,7 +48,6 @@ export const useCompanyActivationStore = defineStore('company-activation', () =>
     error,
     requiresActivation,
     loadActivationState,
-    resumeIntentPurchase,
     createDirectPurchase,
   }
 })

@@ -175,18 +175,28 @@ export class RoleManager {
       '/app/profile': ['profile:view'],
       '/app/admin': ['admin:users', 'admin:mentors', 'admin:reports'],
       '/app/admin/activate': ['admin:dashboard:view'],
+      '/app/admin/activity': ['admin:dashboard:view'],
       '/app/admin/programs': ['admin:programs'],
+      '/app/admin/programs/*': ['admin:programs'],
       '/app/admin/journey-templates': ['admin:programs'],
+      '/app/admin/employees': ['admin:users'],
+      '/app/admin/employees/*': ['admin:users'],
       '/app/admin/participants': ['admin:users'],
+      '/app/admin/participants/*': ['admin:users'],
       '/app/admin/matches': ['admin:programs'],
       '/app/admin/users': ['admin:users'],
+      '/app/admin/users/*': ['admin:users'],
       '/app/admin/mentors': ['admin:mentors'],
       '/app/admin/analytics': ['admin:reports'],
+      '/app/admin/reports': ['admin:reports'],
+      '/app/admin/reports/*': ['admin:reports'],
       '/app/admin/settings': ['admin:settings'],
       '/app/admin/billing': ['admin:billing'],
+      '/app/admin/billing/*': ['admin:billing'],
       '/app/admin/branding': ['admin:branding'],
       '/app/admin/trust': ['admin:settings'],
       '/app/employee/programs': ['mentors:view'],
+      '/app/employee/programs/*': ['mentors:view'],
       '/app/employee/journey': ['sessions:view'],
       '/app/employee/matches': ['mentors:view'],
       '/app/employee/mentor': ['mentors:view'],
@@ -196,7 +206,10 @@ export class RoleManager {
     }
     
     // Check if route requires specific permissions
-    const requiredPermissions = routePermissions[routePath]
+    const wildcardRoutePermissions = Object.entries(routePermissions).find(([path]) =>
+      path.endsWith('/*') && routePath.startsWith(path.slice(0, -1))
+    )?.[1]
+    const requiredPermissions = routePermissions[routePath] || wildcardRoutePermissions
     if (!requiredPermissions) return true // No specific permissions required
     
     return this.hasAnyPermission(user, requiredPermissions)

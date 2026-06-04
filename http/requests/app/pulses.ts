@@ -76,14 +76,27 @@ export interface CompanyParticipantPulseSummaryResponse {
   data: CompanyParticipantPulseSummaryRecord | null
 }
 
+type PulseSummaryDateFilter = {
+  startDate?: string
+  endDate?: string
+}
+
 export default {
   async getMyPulses(): Promise<MyParticipantPulsesResponse> {
     const { data } = await api.get('/v1/me/participant-pulses')
     return data
   },
 
-  async getCompanyPulseSummary(companyId: string): Promise<CompanyParticipantPulseSummaryResponse> {
-    const { data } = await api.get(`/v1/companies/${companyId}/participant-pulses/summary`)
+  async getCompanyPulseSummary(
+    companyId: string,
+    dateFilter: PulseSummaryDateFilter = {},
+  ): Promise<CompanyParticipantPulseSummaryResponse> {
+    const { data } = await api.get(`/v1/companies/${companyId}/participant-pulses/summary`, {
+      params: {
+        ...(dateFilter.startDate ? { startDate: dateFilter.startDate } : {}),
+        ...(dateFilter.endDate ? { endDate: dateFilter.endDate } : {}),
+      },
+    })
     return data
   },
 }

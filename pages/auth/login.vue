@@ -1,24 +1,20 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import {DUMMY_TOKENS, DUMMY_USER_DATA, useAuthStore} from '@/store/modules/auth'
+import { useAuthStore } from '@/store/modules/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
 import { useRouter } from '#app'
 import { useField, useForm } from 'vee-validate'
 import * as yup from 'yup'
 import { useToast } from '@/components/ui/toast'
-import { useCompanyActivationStore } from '@/store/modules/company-activation'
 import { useCompanyOnboardingStore } from '@/store/modules/company-onboarding'
 import { useCompanySignupStore } from '@/store/modules/company-signup'
+import PublicSiteHeader from '@/components/landing/PublicSiteHeader.vue'
 
 const authStore = useAuthStore()
-const companyActivationStore = useCompanyActivationStore()
 const companyOnboardingStore = useCompanyOnboardingStore()
 const companySignupStore = useCompanySignupStore()
 const router = useRouter()
-const rememberMe = ref(false)
 const { toast } = useToast()
 
 const { handleSubmit, isSubmitting } = useForm()
@@ -43,8 +39,6 @@ const login = handleSubmit(async (values) => {
       if(role === "mentee") {
         router.push('/app/dashboard')
       } else if (['company', 'company_admin', 'corporate_admin'].includes(String(role || '').toLowerCase())) {
-        companySignupStore.hydratePendingSelection()
-        companySignupStore.hydrateIntentToken()
         const companyId = authStore.loggedInUser?.companyId || result.profile?.company?.id || result.profile?.companyId || result.company?.companyId
         if (companyId) {
           await companyOnboardingStore.loadOnboardingStatus(companyId)
@@ -52,14 +46,9 @@ const login = handleSubmit(async (values) => {
             router.push('/app/admin/onboarding')
             return
           }
-
-          await companyActivationStore.loadActivationState(companyId)
         }
-        if (companySignupStore.intentToken || companySignupStore.pendingSelection || companyActivationStore.requiresActivation) {
-          router.push('/app/admin/activate')
-        } else {
-          router.push('/app/admin')
-        }
+        companySignupStore.clearPurchaseState()
+        router.push('/app/admin')
       }
     }
   } catch (error: any) {
@@ -116,93 +105,113 @@ const loginWithMicrosoft = async () => {
 </script>
 
 <template>
-  <div class="w-full lg:grid lg:min-h-[600px] lg:grid-cols-2 xl:min-h-[800px]">
-    <div class="hidden h-screen bg-muted lg:flex lg:items-center lg:justify-center">
-      <img src="/images/prosper_mentor_logo.png" alt="Image" width="150" height="150"
-        class="object-cover dark:brightness-[0.2] dark:grayscale">
-    </div>
-    <div class="flex items-center justify-center py-12">
-      <div class="mx-auto grid w-[350px] gap-8">
-        <div class="grid gap-2">
-          <p class="text-xl font-semibold">
-            Login
+  <div class="relative min-h-screen overflow-hidden" style="font-family: 'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;">
+    <img
+      src="/img_2.jpg"
+      alt="ProsperMentor background"
+      class="absolute inset-0 h-full w-full object-cover"
+    >
+    <div class="absolute inset-0 bg-[#0f3f35]/60" />
+
+    <PublicSiteHeader />
+
+    <main class="relative z-10 flex min-h-[calc(100vh-80px)] items-center justify-center px-4 py-8 sm:px-6">
+      <section class="w-full max-w-[460px] rounded-[28px] border border-white/30 bg-white/95 p-4 shadow-2xl sm:p-5">
+        <div class="space-y-2">
+          <h1 class="text-[24px] font-semibold leading-tight text-[#1f2937]">
+            Ready to accelerate your
+            <span class="text-[#027F63]">Growth</span>
+          </h1>
+          <p class="text-[13px] leading-relaxed text-[#4b5563]">
+            Get access to our expert community of mentors in leadership development, personal branding, and global growth.
           </p>
-
-        </div>
-        <form @submit="login" class="grid gap-4">
-          <div class="grid gap-2">
-            <Label for="email">Email</Label>
-            <Input id="email" type="email"  v-model="email"
-              :class="{ 'border-red-500': emailError }" required />
-            <span class="text-red-500">{{ emailError }}</span>
-          </div>
-          <div class="grid gap-2">
-            <Label for="password">Password</Label>
-            <Input id="password" type="password" v-model="password" :class="{ 'border-red-500': passwordError }"
-              required />
-            <span class="text-red-500">{{ passwordError }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-              <Checkbox id="remember" v-model="rememberMe" />
-              <Label for="remember" class="text-sm">Remember me</Label>
-            </div>
-            <NuxtLink to="/forgot-password" class="text-sm underline">
-              Forgot your password?
-            </NuxtLink>
-          </div>
-          <Button type="submit" class="w-full" :disabled="isSubmitting" style="background-color:#a03b93">
-            Login
-          </Button>
-        </form>
-        
-        <div class="relative">
-          <div class="absolute inset-0 flex items-center">
-            <span class="w-full border-t" />
-          </div>
-          <div class="relative flex justify-center text-xs uppercase">
-            <span class="bg-background px-2 text-muted-foreground">
-              Or continue with
-            </span>
-          </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-          <Button 
-            variant="outline" 
+        <div class="mt-4 grid gap-2 sm:grid-cols-2">
+          <Button
+            type="button"
+            variant="outline"
             @click="loginWithGoogle"
             :disabled="isSubmitting"
-            class="w-full"
+            class="h-10 justify-center rounded-full border-[#d1d5db] px-2 text-[11px] text-[#4b5563] hover:bg-[#f9fafb]"
           >
-            <svg class="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
-              <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h240z"></path>
+            <svg class="mr-2 h-4 w-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.6 0 6.8 1.2 9.4 3.6l7-7C36.3 2.4 30.6 0 24 0 14.7 0 6.7 5.3 2.7 13.1l8.1 6.3C12.6 13.3 17.9 9.5 24 9.5z" />
+              <path fill="#4285F4" d="M46.1 24.5c0-1.7-.2-3.3-.5-4.9H24v9.2h12.4c-.5 2.9-2.2 5.4-4.7 7.1l7.5 5.8c4.4-4.1 6.9-10.1 6.9-17.2z" />
+              <path fill="#FBBC05" d="M10.8 28.6c-.6-1.7-1-3.5-1-5.4s.4-3.7 1-5.4l-8.1-6.3C1 15 0 19.1 0 23.2s1 8.2 2.7 11.7l8.1-6.3z" />
+              <path fill="#34A853" d="M24 48c6.6 0 12.3-2.2 16.4-6l-7.5-5.8c-2.1 1.4-4.8 2.3-8.9 2.3-6.1 0-11.4-3.8-13.2-9.1l-8.1 6.3C6.7 42.7 14.7 48 24 48z" />
             </svg>
-            Google
+            Continue with Google
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            type="button"
+            variant="outline"
             @click="loginWithMicrosoft"
             :disabled="isSubmitting"
-            class="w-full"
+            class="h-10 justify-center rounded-full border-[#d1d5db] px-2 text-[11px] text-[#4b5563] hover:bg-[#f9fafb]"
           >
-            <svg class="mr-2 h-4 w-4" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23">
-              <path fill="#f35325" d="M1 1h10v10H1z"/>
-              <path fill="#81bc06" d="M12 1h10v10H12z"/>
-              <path fill="#05a6f0" d="M1 12h10v10H1z"/>
-              <path fill="#ffba08" d="M12 12h10v10H12z"/>
+            <svg class="mr-2 h-4 w-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23">
+              <path fill="#f35325" d="M1 1h10v10H1z" />
+              <path fill="#81bc06" d="M12 1h10v10H12z" />
+              <path fill="#05a6f0" d="M1 12h10v10H1z" />
+              <path fill="#ffba08" d="M12 12h10v10H12z" />
             </svg>
-            Microsoft
+            Continue with Microsoft
           </Button>
         </div>
-        
-        <div class="mt-4 text-center text-sm">
-          Don't have an account?
-          <NuxtLink to="/auth/signup" class="underline">
-            Sign up
-          </NuxtLink>
-        </div>
-      </div>
-    </div>
 
+        <div class="my-4 h-px bg-[#e5e7eb]" />
+
+        <form @submit="login" class="space-y-2.5">
+          <div class="grid gap-2">
+            <Label for="email" class="text-xs font-medium text-[#6b7280]">Email</Label>
+            <Input
+              id="email"
+              v-model="email"
+              type="email"
+              required
+              :class="[
+                'h-11 rounded-[14px] border-[#d1d5db] bg-white px-3 text-sm text-[#111827] placeholder:text-[#9ca3af]',
+                emailError ? 'border-red-500 focus-visible:ring-red-200' : 'focus-visible:ring-[#027F63]/25'
+              ]"
+            />
+            <span v-if="emailError" class="text-xs text-red-500">{{ emailError }}</span>
+          </div>
+          <div class="grid gap-2">
+            <Label for="password" class="text-xs font-medium text-[#6b7280]">Password</Label>
+            <Input
+              id="password"
+              v-model="password"
+              type="password"
+              required
+              :class="[
+                'h-11 rounded-[14px] border-[#d1d5db] bg-white px-3 text-sm text-[#111827]',
+                passwordError ? 'border-red-500 focus-visible:ring-red-200' : 'focus-visible:ring-[#027F63]/25'
+              ]"
+            />
+            <span v-if="passwordError" class="text-xs text-red-500">{{ passwordError }}</span>
+          </div>
+
+          <div class="mt-3 flex flex-wrap items-center gap-2.5">
+            <Button
+              type="submit"
+              :disabled="isSubmitting"
+              class="h-10 min-w-[145px] rounded-full bg-[#027F63] px-6 text-sm font-medium text-white hover:bg-[#046f58]"
+            >
+              Continue
+            </Button>
+            <p class="text-xs text-[#6b7280]">
+              Don't have an account?
+              <NuxtLink to="/auth/signup" class="font-medium text-[#027F63] hover:underline">
+                Register
+              </NuxtLink>
+            </p>
+          </div>
+          <NuxtLink to="/forgot-password" class="inline-flex text-xs text-[#6b7280] transition hover:text-[#027F63] hover:underline">
+            Forgot Password
+          </NuxtLink>
+        </form>
+      </section>
+    </main>
   </div>
 </template>

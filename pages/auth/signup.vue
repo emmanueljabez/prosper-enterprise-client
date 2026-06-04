@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue'
+import { computed, reactive } from 'vue'
 import { useRouter } from '#app'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,11 +33,6 @@ const errors = reactive<Record<SignupField, string>>({
 })
 
 const isSubmitting = computed(() => companySignupStore.isLoading)
-
-onMounted(() => {
-  companySignupStore.hydratePendingSelection()
-  companySignupStore.hydrateIntentToken()
-})
 
 const normalizeWhitespace = (value: string) => value.trim().replace(/\s+/g, ' ')
 
@@ -163,7 +158,7 @@ const submit = async () => {
         Create your company account
       </p>
       <p class="text-sm text-muted-foreground">
-        Set up your company workspace, then buy sessions to activate it.
+        Set up your company workspace, then sign in to complete onboarding.
       </p>
     </div>
 

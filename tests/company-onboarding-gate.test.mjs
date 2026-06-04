@@ -28,8 +28,10 @@ assert.match(layoutSource, /'\/app\/admin\/onboarding'/, 'The app layout should 
 assert.match(onboardingPageSource, /setupSteps/, 'Onboarding should render a step-based wizard.')
 assert.match(onboardingPageSource, /currentStep/, 'Onboarding wizard should track the active setup step.')
 assert.match(onboardingPageSource, /Step 1/, 'Onboarding wizard should show numbered steps.')
-assert.match(onboardingPageSource, /Step 2/, 'Onboarding wizard should show numbered steps.')
+assert.doesNotMatch(onboardingPageSource, /Step 2/, 'Onboarding should not include a mentorship needs step.')
 assert.doesNotMatch(onboardingPageSource, /Step 3/, 'Onboarding wizard should not include the deferred program approach step.')
+assert.doesNotMatch(onboardingPageSource, /Mentorship needs/, 'Mentorship needs should not be part of first-time onboarding.')
+assert.doesNotMatch(onboardingPageSource, /Main mentorship objective|Target employee audience/, 'Onboarding should not ask for mentorship needs fields.')
 assert.doesNotMatch(onboardingPageSource, /Program approach/, 'Program approach should not be part of first-time onboarding.')
 assert.doesNotMatch(onboardingPageSource, /Preferred Prosper programs/, 'Prosper program selection should happen later, not during onboarding.')
 assert.match(onboardingPageSource, /country-state-city/, 'Country setup should use the country catalog dependency.')
@@ -69,13 +71,13 @@ for (const field of [
   'companySizeBand',
   'country',
   'timezone',
-  'mentorshipObjective',
-  'targetAudienceDescription',
 ]) {
   assert.match(onboardingPageSource, new RegExp(field), `Onboarding page should capture ${field}.`)
 }
 
+assert.doesNotMatch(onboardingPageSource, /mentorshipObjective|targetAudienceDescription/, 'Onboarding should not capture mentorship needs fields.')
 assert.doesNotMatch(onboardingPageSource, /recommendedProgramIds/, 'Onboarding should not ask companies to choose preferred Prosper programs.')
-assert.match(onboardingPageSource, /\/app\/admin\/activate/, 'Completed onboarding should continue to session activation.')
+assert.match(onboardingPageSource, /router\.push\('\/app\/admin'\)/, 'Completed onboarding should continue to the admin workspace.')
+assert.doesNotMatch(onboardingPageSource, /\/app\/admin\/activate|Continue to Buy Sessions|session activation/i, 'Completed onboarding should not force session purchase before the admin workspace.')
 
 console.log('Company onboarding gate verified.')

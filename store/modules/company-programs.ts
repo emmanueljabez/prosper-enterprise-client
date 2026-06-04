@@ -5,6 +5,9 @@ import companyProgramsApi, {
   type CompanyProgramJourneyActionItemRecord,
   type CompanyProgramJourneyStepRecord,
   type CompanyProgramMentorCandidateRecord,
+  type EmployeeMentorSelectionOptionsRecord,
+  type MatchWorkspaceSummaryRecord,
+  type ParticipantMatchWorkspaceUpdateRecord,
   type CompanyProgramParticipantRecord,
   type CompanyProgramParticipantStatus,
   type ParticipantConsentStatus,
@@ -34,6 +37,9 @@ interface CompanyProgramsState {
   isSaving: boolean
   error: string | null
   programs: CompanyProgramRecord[]
+  selectedProgram: CompanyProgramRecord | null
+  selectedProgramLoading: boolean
+  selectedProgramError: string | null
   pagination: {
     currentPage: number
     totalPages: number
@@ -90,6 +96,11 @@ interface CompanyProgramsState {
   employeeMatchesLoading: boolean
   employeeMatchesError: string | null
   employeeMatches: EmployeeCompanyProgramMatchRecord[]
+  employeeMatchOptionsLoading: boolean
+  employeeMatchOptionsError: string | null
+  employeeMatchOptionsByParticipant: Record<string, EmployeeMentorSelectionOptionsRecord>
+  employeeMatchSelectionSavingIds: string[]
+  participantMatchWorkspaceSavingIds: string[]
   employeeJourneysLoading: boolean
   employeeJourneysError: string | null
   employeeJourneys: EmployeeCompanyProgramJourneyRecord[]
@@ -124,6 +135,9 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
     isSaving: false,
     error: null,
     programs: [],
+    selectedProgram: null,
+    selectedProgramLoading: false,
+    selectedProgramError: null,
     pagination: { ...defaultPagination },
     filters: {
       search: '',
@@ -166,6 +180,11 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
     employeeMatchesLoading: false,
     employeeMatchesError: null,
     employeeMatches: [],
+    employeeMatchOptionsLoading: false,
+    employeeMatchOptionsError: null,
+    employeeMatchOptionsByParticipant: {},
+    employeeMatchSelectionSavingIds: [],
+    participantMatchWorkspaceSavingIds: [],
     employeeJourneysLoading: false,
     employeeJourneysError: null,
     employeeJourneys: [],
@@ -227,6 +246,28 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
         throw error
       } finally {
         this.isLoading = false
+      }
+    },
+
+    async loadCompanyProgram(companyProgramId: string) {
+      this.selectedProgramLoading = true
+      this.selectedProgramError = null
+
+      try {
+        const response = await companyProgramsApi.getCompanyProgram(companyProgramId)
+
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to load company program')
+        }
+
+        this.selectedProgram = response.data
+        this.upsertProgram(response.data)
+        return response.data
+      } catch (error: any) {
+        this.selectedProgramError = error?.response?.data?.message || error?.message || 'Failed to load company program'
+        throw error
+      } finally {
+        this.selectedProgramLoading = false
       }
     },
 
@@ -581,6 +622,14 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
         }
 
         this.applyMentorAssignment(participantId, response.data)
+        try {
+          const workspaceResponse = await companyProgramsApi.refreshParticipantMatchWorkspace(participantId)
+          if (workspaceResponse.success && workspaceResponse.data) {
+            this.applyParticipantMatchWorkspaceUpdate(workspaceResponse.data)
+          }
+        } catch {
+          // Keep mentor assignment update even if workspace sync call fails.
+        }
         toast.success(response.message || 'Mentor assigned successfully')
         return response.data
       } catch (error: any) {
@@ -606,6 +655,14 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
         }
 
         this.applyMentorAssignment(participantId, null)
+        try {
+          const workspaceResponse = await companyProgramsApi.refreshParticipantMatchWorkspace(participantId)
+          if (workspaceResponse.success && workspaceResponse.data) {
+            this.applyParticipantMatchWorkspaceUpdate(workspaceResponse.data)
+          }
+        } catch {
+          // Keep mentor assignment removal even if workspace sync call fails.
+        }
         toast.success(response.message || 'Mentor assignment removed successfully')
       } catch (error: any) {
         const message = error?.response?.data?.message || error?.message || 'Failed to remove mentor assignment'
@@ -705,6 +762,139 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
         throw error
       } finally {
         this.employeeMatchesLoading = false
+      }
+    },
+
+    async loadMyMatchOptions(participantId: string) {
+      this.employeeMatchOptionsLoading = true
+      this.employeeMatchOptionsError = null
+
+      try {
+        const response = await companyProgramsApi.getMyCompanyProgramMatchOptions(participantId)
+
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to load mentor selection options')
+        }
+
+        this.employeeMatchOptionsByParticipant = {
+          ...this.employeeMatchOptionsByParticipant,
+          [participantId]: response.data,
+        }
+        this.applyMatchWorkspaceSummary(participantId, response.data.matchWorkspace || null)
+        return response.data
+      } catch (error: any) {
+        this.employeeMatchOptionsError = error?.response?.data?.message || error?.message || 'Failed to load mentor selection options'
+        throw error
+      } finally {
+        this.employeeMatchOptionsLoading = false
+      }
+    },
+
+    async selectMyMentor(participantId: string, mentorId: string) {
+      const toast = useAppToast()
+      this.employeeMatchSelectionSavingIds = [...this.employeeMatchSelectionSavingIds, participantId]
+      this.employeeMatchOptionsError = null
+
+      try {
+        const response = await companyProgramsApi.selectMyCompanyProgramMentor(participantId, { mentorId })
+
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to select mentor')
+        }
+
+        this.applyMentorAssignment(participantId, response.data)
+        await this.loadMyCompanyProgramMatches()
+        await this.loadMyCompanyProgramJourneys()
+        const optionsResponse = await companyProgramsApi.getMyCompanyProgramMatchOptions(participantId).catch(() => null)
+        if (optionsResponse?.success && optionsResponse.data) {
+          this.employeeMatchOptionsByParticipant = {
+            ...this.employeeMatchOptionsByParticipant,
+            [participantId]: optionsResponse.data,
+          }
+          this.applyMatchWorkspaceSummary(participantId, optionsResponse.data.matchWorkspace || null)
+        }
+        toast.success(response.message || 'Mentor selected successfully')
+        return response.data
+      } catch (error: any) {
+        const message = error?.response?.data?.message || error?.message || 'Failed to select mentor'
+        this.employeeMatchOptionsError = message
+        toast.error(message)
+        throw error
+      } finally {
+        this.employeeMatchSelectionSavingIds = this.employeeMatchSelectionSavingIds.filter(id => id !== participantId)
+      }
+    },
+
+    async selectMyMarketplaceMentor(participantId: string, mentorId: string, journeyInstanceStepId?: string | null) {
+      const toast = useAppToast()
+      this.employeeMatchSelectionSavingIds = [...this.employeeMatchSelectionSavingIds, participantId]
+      this.employeeMatchOptionsError = null
+
+      try {
+        const response = await companyProgramsApi.selectMyMarketplaceMentor(participantId, {
+          mentorId,
+          journeyInstanceStepId: journeyInstanceStepId || null,
+        })
+
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to select mentor')
+        }
+
+        if (response.data.journeyInstanceStepId) {
+          this.applyJourneyStepMentorAssignment(participantId, response.data)
+        } else {
+          this.applyMentorAssignment(participantId, response.data)
+        }
+        await this.loadMyCompanyProgramMatches()
+        await this.loadMyCompanyProgramJourneys()
+        toast.success(response.message || 'Mentor selected successfully')
+        return response.data
+      } catch (error: any) {
+        const message = error?.response?.data?.message || error?.message || 'Failed to select mentor'
+        this.employeeMatchOptionsError = message
+        toast.error(message)
+        throw error
+      } finally {
+        this.employeeMatchSelectionSavingIds = this.employeeMatchSelectionSavingIds.filter(id => id !== participantId)
+      }
+    },
+
+    async refreshParticipantMatchWorkspace(participantId: string) {
+      this.participantMatchWorkspaceSavingIds = [...this.participantMatchWorkspaceSavingIds, participantId]
+      this.mentorCandidatesError = null
+      this.employeeMatchOptionsError = null
+
+      try {
+        const response = await companyProgramsApi.refreshParticipantMatchWorkspace(participantId)
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to refresh match workspace')
+        }
+
+        this.applyParticipantMatchWorkspaceUpdate(response.data)
+        return response.data
+      } finally {
+        this.participantMatchWorkspaceSavingIds = this.participantMatchWorkspaceSavingIds.filter(id => id !== participantId)
+      }
+    },
+
+    async autoAssignParticipantMentor(participantId: string) {
+      this.participantMatchWorkspaceSavingIds = [...this.participantMatchWorkspaceSavingIds, participantId]
+      this.mentorCandidatesError = null
+      this.employeeMatchOptionsError = null
+
+      try {
+        const response = await companyProgramsApi.autoAssignParticipantMentor(participantId)
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to auto-assign mentor')
+        }
+
+        this.applyParticipantMatchWorkspaceUpdate(response.data)
+        if (response.data.mentorAssignment) {
+          this.applyMentorAssignment(participantId, response.data.mentorAssignment)
+        }
+        return response.data
+      } finally {
+        this.participantMatchWorkspaceSavingIds = this.participantMatchWorkspaceSavingIds.filter(id => id !== participantId)
       }
     },
 
@@ -917,10 +1107,79 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
       })
     },
 
+    applyJourneyStepMentorAssignment(participantId: string, mentorAssignment: MentorAssignmentSummaryRecord) {
+      if (!mentorAssignment.journeyInstanceStepId) {
+        return
+      }
+
+      this.employeeJourneys = this.employeeJourneys.map(journey => {
+        if (journey.participantId !== participantId) {
+          return journey
+        }
+
+        return {
+          ...journey,
+          steps: journey.steps.map(step =>
+            step.journeyInstanceStepId === mentorAssignment.journeyInstanceStepId
+              ? {
+                  ...step,
+                  mentorAssignment,
+                }
+              : step,
+          ),
+        }
+      })
+    },
+
     applyMentorAssignment(participantId: string, mentorAssignment: MentorAssignmentSummaryRecord | null) {
       const participant = this.participants.find(item => item.id === participantId)
       if (participant) {
         participant.mentorAssignment = mentorAssignment
+      }
+
+      this.employeeMatches = this.employeeMatches.map(match =>
+        match.participantId === participantId
+          ? {
+              ...match,
+              mentorAssignment,
+            }
+          : match,
+      )
+
+      this.employeeJourneys = this.employeeJourneys.map(journey =>
+        journey.participantId === participantId
+          ? {
+              ...journey,
+              mentorAssignment,
+            }
+          : journey,
+      )
+    },
+
+    applyMatchWorkspaceSummary(participantId: string, matchWorkspace: MatchWorkspaceSummaryRecord | null) {
+      this.participants = this.participants.map(participant =>
+        participant.id === participantId
+          ? {
+              ...participant,
+              matchWorkspace,
+            }
+          : participant,
+      )
+
+      this.employeeMatches = this.employeeMatches.map(match =>
+        match.participantId === participantId
+          ? {
+              ...match,
+              matchWorkspace,
+            }
+          : match,
+      )
+    },
+
+    applyParticipantMatchWorkspaceUpdate(update: ParticipantMatchWorkspaceUpdateRecord) {
+      this.applyMatchWorkspaceSummary(update.participantId, update.matchWorkspace || null)
+      if (update.mentorAssignment !== undefined) {
+        this.applyMentorAssignment(update.participantId, update.mentorAssignment || null)
       }
     },
 
@@ -928,10 +1187,16 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
       const index = this.programs.findIndex(item => item.id === program.id)
       if (index === -1) {
         this.programs.unshift(program)
+        if (this.selectedProgram?.id === program.id) {
+          this.selectedProgram = program
+        }
         return
       }
 
       this.programs.splice(index, 1, program)
+      if (this.selectedProgram?.id === program.id) {
+        this.selectedProgram = program
+      }
     },
 
     syncJourneyTemplateRecord(template: JourneyTemplateRecord) {
@@ -1045,6 +1310,14 @@ export const useCompanyProgramsStore = defineStore('company-programs', {
 
     isJourneyStepSaving(journeyInstanceStepId: string) {
       return this.journeyStepSavingIds.includes(journeyInstanceStepId)
+    },
+
+    isEmployeeMatchSelectionSaving(participantId: string) {
+      return this.employeeMatchSelectionSavingIds.includes(participantId)
+    },
+
+    isParticipantMatchWorkspaceSaving(participantId: string) {
+      return this.participantMatchWorkspaceSavingIds.includes(participantId)
     },
   },
 })

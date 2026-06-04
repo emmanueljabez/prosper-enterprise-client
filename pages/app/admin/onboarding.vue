@@ -14,11 +14,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/com
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Skeleton } from '~/components/ui/skeleton'
-import { Textarea } from '~/components/ui/textarea'
 
 definePageMeta({
   title: 'Company Setup',
-  description: 'Complete company setup before activation',
+  description: 'Complete company setup before entering your workspace',
   requiresAuth: true,
   permissions: ['admin:dashboard:view'],
 })
@@ -34,11 +33,6 @@ const setupSteps = [
     title: 'Company profile',
     description: 'Add the company context used for program setup.',
   },
-  {
-    stepLabel: 'Step 2',
-    title: 'Mentorship needs',
-    description: 'Define the business objective and employee audience.',
-  },
 ]
 
 const currentStep = ref(0)
@@ -50,8 +44,6 @@ const form = reactive<UpdateCompanyOnboardingPayload>({
   companySizeBand: '',
   country: 'Kenya',
   timezone: 'Africa/Nairobi',
-  mentorshipObjective: '',
-  targetAudienceDescription: '',
 })
 
 const isBootstrapping = ref(false)
@@ -76,7 +68,6 @@ const companyId = computed(() => {
 
 const currentStepMeta = computed(() => setupSteps[currentStep.value])
 const stepNumber = computed(() => currentStep.value + 1)
-const isFirstStep = computed(() => currentStep.value === 0)
 const isLastStep = computed(() => currentStep.value === setupSteps.length - 1)
 
 const baseIndustryOptions = [
@@ -192,23 +183,15 @@ const hydrateForm = () => {
   const hydratedCountry = findCountryOption(status.country || 'Kenya')
   form.country = hydratedCountry?.name || status.country || 'Kenya'
   form.timezone = status.timezone || hydratedCountry?.timezones?.[0]?.zoneName || 'Africa/Nairobi'
-  form.mentorshipObjective = status.mentorshipObjective || ''
-  form.targetAudienceDescription = status.targetAudienceDescription || ''
 }
 
 const validateStep = (step = currentStep.value) => {
-  const stepValidations = [
-    [
-      ['industry', form.industry, 'Industry is required.'],
-      ['companySizeBand', form.companySizeBand, 'Company size is required.'],
-      ['country', form.country, 'Country is required.'],
-      ['timezone', form.timezone, 'Timezone is required.'],
-    ],
-    [
-      ['mentorshipObjective', form.mentorshipObjective, 'Main mentorship objective is required.'],
-      ['targetAudienceDescription', form.targetAudienceDescription, 'Target employee audience is required.'],
-    ],
-  ]
+  const stepValidations = [[
+    ['industry', form.industry, 'Industry is required.'],
+    ['companySizeBand', form.companySizeBand, 'Company size is required.'],
+    ['country', form.country, 'Country is required.'],
+    ['timezone', form.timezone, 'Timezone is required.'],
+  ]]
 
   const missing = stepValidations[step]?.find(([, value]) => !String(value || '').trim())
   if (missing) {
@@ -262,13 +245,6 @@ const nextStep = () => {
   }
 }
 
-const previousStep = () => {
-  if (!isFirstStep.value) {
-    currentStep.value -= 1
-    formError.value = null
-  }
-}
-
 const loadSetup = async () => {
   if (!companyId.value) {
     formError.value = 'Company context is missing for this account. Sign in again to continue.'
@@ -311,8 +287,8 @@ const saveOnboarding = async () => {
       return
     }
 
-    toast.success('Company setup saved. Continue to session activation.')
-    await router.push('/app/admin/activate')
+    toast.success('Company setup saved. Your admin workspace is ready.')
+    await router.push('/app/admin')
   } catch (error: any) {
     formError.value = error?.response?.data?.message || error?.message || 'Failed to save company setup.'
     toast.error(formError.value)
@@ -498,38 +474,7 @@ watch(() => form.country, value => {
               </div>
             </section>
 
-            <section v-if="currentStep === 1" class="grid gap-5">
-              <div class="grid gap-2">
-                <Label for="mentorshipObjective">Main mentorship objective</Label>
-                <Textarea
-                  id="mentorshipObjective"
-                  v-model="form.mentorshipObjective"
-                  rows="5"
-                  placeholder="Example: build first-time manager confidence, accelerate onboarding, or support women in leadership."
-                />
-              </div>
-
-              <div class="grid gap-2">
-                <Label for="targetAudienceDescription">Target employee audience</Label>
-                <Textarea
-                  id="targetAudienceDescription"
-                  v-model="form.targetAudienceDescription"
-                  rows="5"
-                  placeholder="Example: newly promoted managers, high-potential employees, or employees transitioning into new roles."
-                />
-              </div>
-            </section>
-
-            <div class="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                :disabled="isFirstStep || onboardingStore.isSaving"
-                @click="previousStep"
-              >
-                Back
-              </Button>
-
+            <div class="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-end">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button
                   v-if="!isLastStep"
@@ -545,7 +490,7 @@ watch(() => form.country, value => {
                   class="bg-[#a03b93] hover:bg-[#8a2f7d]"
                   :disabled="onboardingStore.isSaving"
                 >
-                  Continue to Buy Sessions
+                  Finish Setup
                 </Button>
               </div>
             </div>

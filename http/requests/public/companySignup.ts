@@ -6,8 +6,6 @@ export interface PublicCompanySignupIntentPayload {
   phoneNumber: string
   firstName: string
   lastName: string
-  planId?: string | null
-  sessionCount?: number | null
 }
 
 export interface PublicCompanySignupIntentResponse {
@@ -20,8 +18,6 @@ export interface PublicCompanySignupIntentResponse {
     workEmail: string
     firstName: string
     lastName: string
-    planId?: string | null
-    sessionCount?: number | null
     status: string
     expiresAt?: string | null
   } | null
@@ -47,15 +43,6 @@ export default {
     dateOfBirth?: string
   }) {
     const { data } = await api.post(`/v1/public/company-signup-intents/${token}/complete`, payload)
-    return data
-  },
-
-  async resumePurchase(token: string, payload: {
-    sessionCount?: number | null
-    redirectSuccessUrl: string
-    redirectCancelUrl: string
-  }) {
-    const { data } = await api.post(`/v1/public/company-signup-intents/${token}/resume-purchase`, payload)
     return data
   },
 }
