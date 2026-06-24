@@ -10,8 +10,10 @@ interface CreateSessionPayload {
     menteeId: string
     skillId: string
     scheduledStart: string
+    scheduledEnd?: string | null
     meetingPlatform?: string
     menteeMessage?: string | null
+    questionnaireResponses?: Record<string, unknown> | null
     companyProgramId?: string | null
     companyProgramParticipantId?: string | null
     journeyInstanceStepId?: string | null
@@ -28,6 +30,26 @@ interface CompleteSessionPayload {
     reflectionPrompt?: string | null
     mentorPrivateNotes?: string | null
     actionItems?: OutcomeActionItemPayload[]
+}
+
+interface ProposedSessionSlotPayload {
+    scheduledStart: string
+    scheduledEnd?: string | null
+}
+
+interface ProposeSessionAlternativePayload {
+    mentorMessage?: string | null
+    slots: ProposedSessionSlotPayload[]
+}
+
+interface RespondToSessionProposalPayload {
+    slotId?: string | null
+    response?: string | null
+}
+
+interface ContactSessionSupportPayload {
+    requesterType: 'MENTOR' | 'MENTEE'
+    message?: string | null
 }
 
 const normalizeMeetingPlatform = (value: unknown): 'GOOGLE_MEET' | 'ZOOM' => {
@@ -87,6 +109,26 @@ export default {
         return axiosInstance.post(`/v1/sessions/${sessionId}/decline`, {
             reason: reason || 'Mentor declined the session request'
         })
+    },
+
+    proposeAlternative(sessionId: string, payload: ProposeSessionAlternativePayload) {
+        return axiosInstance.post(`/v1/sessions/${sessionId}/proposals`, payload)
+    },
+
+    getActiveProposal(sessionId: string) {
+        return axiosInstance.get(`/v1/sessions/${sessionId}/proposals/active`)
+    },
+
+    acceptProposal(sessionId: string, proposalId: string, payload: RespondToSessionProposalPayload = {}) {
+        return axiosInstance.post(`/v1/sessions/${sessionId}/proposals/${proposalId}/accept`, payload)
+    },
+
+    declineProposal(sessionId: string, proposalId: string, payload: RespondToSessionProposalPayload = {}) {
+        return axiosInstance.post(`/v1/sessions/${sessionId}/proposals/${proposalId}/decline`, payload)
+    },
+
+    contactSupport(sessionId: string, payload: ContactSessionSupportPayload) {
+        return axiosInstance.post(`/v1/sessions/${sessionId}/support-contact`, payload)
     },
 
     completeSession(sessionId: string, payload: CompleteSessionPayload = {}) {

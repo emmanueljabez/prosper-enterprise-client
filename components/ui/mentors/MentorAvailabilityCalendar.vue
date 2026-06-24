@@ -272,6 +272,28 @@
                 <p class="booking-balance-meta">{{ bookingSessionBalanceDescription }}</p>
               </div>
 
+              <div
+                v-if="hasBookingPersonalBalance"
+                class="booking-balance-panel booking-personal-balance-panel"
+              >
+                <div class="booking-balance-head">
+                  <p class="booking-balance-title">Personal Session Balance</p>
+                </div>
+                <div class="booking-balance-grid">
+                  <div class="booking-balance-item">
+                    <p class="booking-balance-label">Package</p>
+                    <p class="booking-balance-value is-plan-name">{{ bookingPersonalBalanceTitle }}</p>
+                  </div>
+                  <div class="booking-balance-item">
+                    <p class="booking-balance-label">Sessions Left</p>
+                    <p class="booking-balance-value" :class="{ 'is-empty': bookingPersonalBalanceLeft <= 0 }">
+                      {{ bookingPersonalBalanceLeft }}
+                    </p>
+                  </div>
+                </div>
+                <p class="booking-balance-meta">{{ bookingPersonalBalanceDescription }}</p>
+              </div>
+
               <div class="booking-field-group">
                 <Label class="booking-field-label">Select Date</Label>
                 <div class="booking-field-static">
@@ -311,7 +333,7 @@
                   @click="submitBooking"
                 >
                   <span v-if="props.isLoading || isSubmittingBooking" class="inline-block animate-spin mr-2">⏳</span>
-                  {{ props.isLoading || isSubmittingBooking ? 'Processing...' : 'Proceed To Pay' }}
+                  {{ props.isLoading || isSubmittingBooking ? 'Processing...' : bookingSubmitButtonLabel }}
                 </Button>
                 <Button
                   variant="ghost"
@@ -399,6 +421,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useMentorsStore } from '@/store/modules/mentors'
 import { useCompanyProgramsStore } from '@/store/modules/company-programs'
+import { useSubscriptionsStore } from '@/store/modules/subscriptions'
+import { useAuthStore } from '@/store/modules/auth'
 
 interface Props {
   mentorId: string
@@ -434,6 +458,8 @@ const emit = defineEmits<Emits>()
 // Store
 const mentorsStore = useMentorsStore()
 const companyProgramsStore = useCompanyProgramsStore()
+const subscriptionsStore = useSubscriptionsStore()
+const authStore = useAuthStore()
 
 // State
 const viewMode = ref<'week' | 'month'>('month')
@@ -474,6 +500,74 @@ const bookingForm = reactive({
 })
 
 const bookingSessionBalance = computed(() => companyProgramsStore.employeeSessionBalance)
+const bookingSubscriptionContext = computed(() => subscriptionsStore.activeSubscriptionContext)
+const bookingPersonalSubscription = computed(() => bookingSubscriptionContext.value?.subscription || null)
+const bookingPersonalPlanName = computed(() => String(bookingPersonalSubscription.value?.plan?.name || '').trim())
+const bookingPersonalSessionsIncluded = computed(() => {
+  const subscription = bookingPersonalSubscription.value
+  const explicitIncluded = Number(subscription?.sessionsPerMonth)
+  if (Number.isFinite(explicitIncluded) && explicitIncluded > 0) {
+    return explicitIncluded
+  }
+
+  const planIncluded = Number(subscription?.plan?.sessionsPerPeriod)
+  return Number.isFinite(planIncluded) && planIncluded > 0 ? planIncluded : 0
+})
+const bookingPersonalSessionsUsed = computed(() =>
+  Math.max(0, Number(bookingPersonalSubscription.value?.sessionsUsed || 0))
+)
+const bookingPersonalSubscriptionLeft = computed(() => {
+  const explicitRemaining = Number(bookingPersonalSubscription.value?.remainingSessionsCount)
+  if (Number.isFinite(explicitRemaining) && explicitRemaining >= 0) {
+    return explicitRemaining
+  }
+
+  const included = bookingPersonalSessionsIncluded.value
+  if (included <= 0) {
+    return 0
+  }
+
+  return Math.max(0, included - bookingPersonalSessionsUsed.value)
+})
+const bookingPersonalCreditsLeft = computed(() => {
+  const context = bookingSubscriptionContext.value
+  if (!context) return 0
+  const explicitCredits = Number(context.personalCreditsRemaining || 0)
+  if (explicitCredits > 0) return explicitCredits
+  return context.subscriptionSource === 'PERSONAL_CREDIT'
+    ? Math.max(0, Number(context.remainingSessions || 0))
+    : 0
+})
+const bookingPersonalBalanceLeft = computed(() =>
+  bookingPersonalSubscription.value
+    ? bookingPersonalSubscriptionLeft.value
+    : bookingPersonalCreditsLeft.value
+)
+const bookingPersonalBalanceTotal = computed(() => {
+  if (!bookingPersonalSubscription.value) {
+    return bookingPersonalCreditsLeft.value
+  }
+
+  return Math.max(
+    bookingPersonalSessionsIncluded.value,
+    bookingPersonalSessionsUsed.value + bookingPersonalSubscriptionLeft.value,
+  )
+})
+const hasBookingPersonalBalance = computed(() =>
+  Boolean(bookingPersonalSubscription.value)
+  || bookingPersonalSessionsIncluded.value > 0
+  || bookingPersonalSubscriptionLeft.value > 0
+  || bookingPersonalCreditsLeft.value > 0
+)
+const bookingPersonalBalanceTitle = computed(() => {
+  if (bookingPersonalPlanName.value) {
+    return bookingPersonalPlanName.value
+  }
+
+  return bookingPersonalCreditsLeft.value > 0
+    ? 'Personal credits'
+    : 'Personal package'
+})
 const bookingSessionsAssigned = computed(() => Math.max(0, Number(bookingSessionBalance.value?.allocatedTotal || 0)))
 const bookingSessionsUsed = computed(() => Math.max(0, Number(bookingSessionBalance.value?.consumedTotal || 0)))
 const bookingSessionsLeft = computed(() => Math.max(0, Number(bookingSessionBalance.value?.availableBalance || 0)))
@@ -502,6 +596,50 @@ const bookingSessionBalanceDescription = computed(() => {
   return `${left} of ${assigned} assigned session${assigned === 1 ? '' : 's'}${companyLabel} remaining (${used} used).`
 })
 
+const bookingPersonalBalanceDescription = computed(() => {
+  if (bookingPersonalSubscription.value) {
+    const left = bookingPersonalSubscriptionLeft.value
+    const total = bookingPersonalBalanceTotal.value
+    const used = bookingPersonalSessionsUsed.value
+
+    if (total > 0) {
+      return `${left} of ${total} paid session${total === 1 ? '' : 's'} remaining (${used} used).`
+    }
+
+    return `${left} paid session${left === 1 ? '' : 's'} remaining.`
+  }
+
+  const credits = bookingPersonalCreditsLeft.value
+  return `${credits} personal credited session${credits === 1 ? '' : 's'} available for rebooking.`
+})
+const bookingHasUsableSessionBalance = computed(() =>
+  bookingSessionsLeft.value > 0 || bookingPersonalBalanceLeft.value > 0
+)
+const bookingSubmitButtonLabel = computed(() =>
+  bookingHasUsableSessionBalance.value ? 'Book Session' : 'Proceed To Pay'
+)
+
+const resolveCurrentUserId = (): string | null => {
+  const storeUserId = authStore.loggedInUser?.id
+  if (storeUserId) {
+    return storeUserId
+  }
+
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem('loggedInUser')
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw)
+        return parsed?.id || null
+      } catch {
+        return null
+      }
+    }
+  }
+
+  return null
+}
+
 const refreshBookingSessionBalance = async (force = false) => {
   if (bookingSessionBalanceLoading.value) {
     return
@@ -513,7 +651,11 @@ const refreshBookingSessionBalance = async (force = false) => {
 
   bookingSessionBalanceLoading.value = true
   try {
-    await companyProgramsStore.loadMySessionBalance()
+    const userId = resolveCurrentUserId()
+    await Promise.all([
+      companyProgramsStore.loadMySessionBalance(),
+      userId ? subscriptionsStore.fetchActiveSubscription(userId) : Promise.resolve(),
+    ])
   } catch (error: any) {
     console.warn('Could not load employee session balance for booking dialog:', error)
   } finally {
@@ -1236,6 +1378,11 @@ onMounted(async () => {
   padding: 0.95rem 1.05rem;
 }
 
+.booking-personal-balance-panel {
+  border-color: #b9e5d8;
+  background: #f5fffb;
+}
+
 .booking-balance-head {
   display: flex;
   align-items: center;
@@ -1292,6 +1439,11 @@ onMounted(async () => {
   font-weight: 700;
   color: #1f2430;
   line-height: 1;
+}
+
+.booking-balance-value.is-plan-name {
+  font-size: 0.95rem;
+  line-height: 1.2;
 }
 
 .booking-balance-value.is-empty {

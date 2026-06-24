@@ -92,6 +92,15 @@ const {
 // Computed for pagination
 const hasMoreProfiles = computed(() => mentorProfilesPagination.value.hasNext)
 const totalProfiles = computed(() => mentorProfilesPagination.value.totalItems)
+const alternativeSessionId = computed(() => route.query.fromSession as string | undefined)
+const excludedMentorId = computed(() => route.query.excludeMentorId as string | undefined)
+const isAlternativeMentorFlow = computed(() => Boolean(alternativeSessionId.value))
+const visibleMentors = computed(() => {
+  if (!excludedMentorId.value) {
+    return mentors.value
+  }
+  return mentors.value.filter((mentor: any) => mentor.id !== excludedMentorId.value)
+})
 
 // Debug logging
 watch(mentors, (newMentors) => {
@@ -264,7 +273,8 @@ const dismissError = () => {
         <div>
           <h1 class="text-3xl font-bold tracking-tight">Find Your Mentor</h1>
           <p class="text-muted-foreground">
-            Connect with experienced professionals to accelerate your growth
+            <span v-if="isAlternativeMentorFlow">Choose another mentor for this session request</span>
+            <span v-else>Connect with experienced professionals to accelerate your growth</span>
           </p>
         </div>
         
@@ -371,6 +381,13 @@ const dismissError = () => {
       </CardContent>
     </Card>
 
+    <Alert v-if="isAlternativeMentorFlow">
+      <Users class="h-4 w-4" />
+      <AlertDescription>
+        Showing alternative mentors for your pending session request. The originally selected mentor is hidden.
+      </AlertDescription>
+    </Alert>
+
     <!-- Error Alert -->
     <Alert v-if="error" variant="destructive">
       <AlertCircle class="h-4 w-4" />
@@ -409,17 +426,17 @@ const dismissError = () => {
       <div :class="showFilters ? 'lg:col-span-3' : 'lg:col-span-4'">
         <div class="space-y-6">
           <!-- Results Header -->
-          <div v-if="!isLoading && mentors.length > 0" class="flex items-center justify-between">
+          <div v-if="!isLoading && visibleMentors.length > 0" class="flex items-center justify-between">
             <div>
               <h2 class="text-xl font-semibold">All Mentors</h2>
               <p class="text-sm text-muted-foreground">
-                Showing {{ mentors.length }} of {{ totalCount }} mentors
+                Showing {{ visibleMentors.length }} of {{ totalCount }} mentors
               </p>
             </div>
           </div>
 
           <!-- Mentor Grid/List -->
-          <div v-if="!isLoading && mentors.length > 0">
+          <div v-if="!isLoading && visibleMentors.length > 0">
 
             <!-- Original mentor display -->
             <div
@@ -430,7 +447,7 @@ const dismissError = () => {
               }"
             >
               <MentorCard
-                v-for="mentor in mentors"
+                v-for="mentor in visibleMentors"
                 :key="mentor.id"
                 :mentor="mentor"
                 :view-mode="viewMode"
@@ -451,7 +468,7 @@ const dismissError = () => {
                 {{ isLoading ? 'Loading...' : 'Load More Mentors' }}
               </Button>
               <p class="text-sm text-muted-foreground ml-4 flex items-center">
-                Showing {{ mentors.length }} of {{ totalProfiles }}
+                Showing {{ visibleMentors.length }} of {{ totalProfiles }}
               </p>
             </div>
           </div>
@@ -517,4 +534,4 @@ const dismissError = () => {
 .container {
   max-width: 1400px;
 }
-</style> 
+</style>

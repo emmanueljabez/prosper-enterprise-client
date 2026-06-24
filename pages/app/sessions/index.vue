@@ -15,6 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 
 // Icons
 import {
@@ -32,7 +34,9 @@ import {
   MapPin,
   FileText,
   Users,
-  Zap
+  Zap,
+  CalendarClock,
+  LifeBuoy
 } from 'lucide-vue-next'
 
 definePageMeta({
@@ -52,6 +56,10 @@ const selectedTab = ref<'all' | 'today' | 'upcoming' | 'past'>('upcoming')
 const selectedSession = ref(null)
 const showSessionDetails = ref(false)
 const completingSessionId = ref<string | null>(null)
+const respondingProposalId = ref<string | null>(null)
+const supportRequestingSessionId = ref<string | null>(null)
+const proposalResponses = ref<Record<string, string>>({})
+const supportMessages = ref<Record<string, string>>({})
 
 // Get mentee ID from localStorage
 const getMenteeId = () => {
@@ -117,6 +125,10 @@ const formatTime = (date) => {
   })
 }
 
+const formatDateTime = (date) => {
+  return `${formatDate(date)} at ${formatTime(date)}`
+}
+
 const formatDuration = (minutes) => {
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
@@ -180,6 +192,109 @@ const joinSession = (session: any) => {
   } else {
     toast.error('Meeting link not available')
   }
+}
+
+const hasPendingProposal = (session: any) => {
+  return session?.activeProposal?.status === 'PENDING_MENTEE_RESPONSE' &&
+         Array.isArray(session.activeProposal.slots) &&
+         session.activeProposal.slots.length > 0
+}
+
+const getProposalResponse = (sessionId: string) => {
+  return proposalResponses.value[sessionId] || ''
+}
+
+const setProposalResponse = (sessionId: string, value: string) => {
+  proposalResponses.value = {
+    ...proposalResponses.value,
+    [sessionId]: value
+  }
+}
+
+const getSupportMessage = (sessionId: string) => {
+  return supportMessages.value[sessionId] || ''
+}
+
+const setSupportMessage = (sessionId: string, value: string) => {
+  supportMessages.value = {
+    ...supportMessages.value,
+    [sessionId]: value
+  }
+}
+
+const handleAcceptProposal = async (session: any, slot: any) => {
+  if (!session?.activeProposal?.id || !slot?.id) return
+
+  respondingProposalId.value = session.activeProposal.id
+  try {
+    await sessionsStore.acceptProposal(session.id, session.activeProposal.id, {
+      slotId: slot.id,
+      response: getProposalResponse(session.id).trim() || null
+    })
+
+    session.status = 'CONFIRMED'
+    session.scheduledStart = slot.scheduledStart
+    session.scheduledEnd = slot.scheduledEnd
+    session.activeProposal = {
+      ...session.activeProposal,
+      status: 'ACCEPTED',
+      acceptedSlotId: slot.id
+    }
+  } catch (error) {
+    console.error('Error accepting proposal:', error)
+  } finally {
+    respondingProposalId.value = null
+  }
+}
+
+const handleDeclineProposal = async (session: any) => {
+  if (!session?.activeProposal?.id) return
+
+  respondingProposalId.value = session.activeProposal.id
+  try {
+    await sessionsStore.declineProposal(session.id, session.activeProposal.id, {
+      response: getProposalResponse(session.id).trim() || null
+    })
+
+    session.activeProposal = {
+      ...session.activeProposal,
+      status: 'DECLINED',
+      menteeResponse: getProposalResponse(session.id).trim() || null
+    }
+  } catch (error) {
+    console.error('Error declining proposal:', error)
+  } finally {
+    respondingProposalId.value = null
+  }
+}
+
+const handleContactSupport = async (session: any) => {
+  supportRequestingSessionId.value = session.id
+  try {
+    await sessionsStore.contactSupport(session.id, {
+      requesterType: 'MENTEE',
+      message: getSupportMessage(session.id).trim() || null
+    })
+    supportMessages.value = {
+      ...supportMessages.value,
+      [session.id]: ''
+    }
+  } catch (error) {
+    console.error('Error requesting support contact:', error)
+  } finally {
+    supportRequestingSessionId.value = null
+  }
+}
+
+const viewAlternativeMentors = (session: any) => {
+  router.push({
+    path: '/app/mentors',
+    query: {
+      fromSession: session.id,
+      excludeMentorId: session.mentorId,
+      skillId: session.skillId
+    }
+  })
 }
 
 const viewSessionDetails = (session: any) => {
@@ -459,6 +574,95 @@ onMounted(async () => {
                     <span class="text-muted-foreground">{{ session.menteeMessage }}</span>
                   </div>
 
+                  <div
+                    v-if="hasPendingProposal(session)"
+                    class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div>
+                        <div class="flex items-center gap-2 font-medium text-emerald-900">
+                          <CalendarClock class="h-4 w-4" />
+                          Mentor proposed an alternative time
+                        </div>
+                        <p v-if="session.activeProposal.mentorMessage" class="mt-1 text-sm text-emerald-800">
+                          {{ session.activeProposal.mentorMessage }}
+                        </p>
+                      </div>
+                      <Badge variant="outline" class="bg-white text-emerald-700">
+                        Awaiting response
+                      </Badge>
+                    </div>
+
+                    <div class="mt-3 grid gap-2 md:grid-cols-2">
+                      <div
+                        v-for="slot in session.activeProposal.slots"
+                        :key="slot.id"
+                        class="rounded-md border bg-white p-3"
+                      >
+                        <div class="text-sm font-medium">{{ formatDateTime(slot.scheduledStart) }}</div>
+                        <div class="text-xs text-muted-foreground">
+                          Ends {{ formatTime(slot.scheduledEnd) }}
+                        </div>
+                        <Button
+                          class="mt-3 w-full"
+                          size="sm"
+                          @click="handleAcceptProposal(session, slot)"
+                          :disabled="respondingProposalId === session.activeProposal.id"
+                        >
+                          <CheckCircle class="mr-2 h-4 w-4" />
+                          Accept this time
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div class="mt-3 space-y-2">
+                      <Label :for="`proposal-response-${session.id}`">Response (Optional)</Label>
+                      <Textarea
+                        :id="`proposal-response-${session.id}`"
+                        :model-value="getProposalResponse(session.id)"
+                        placeholder="Add a short response for your mentor."
+                        rows="2"
+                        @update:model-value="setProposalResponse(session.id, String($event || ''))"
+                      />
+                    </div>
+
+                    <div class="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        @click="handleDeclineProposal(session)"
+                        :disabled="respondingProposalId === session.activeProposal.id"
+                      >
+                        <X class="mr-2 h-4 w-4" />
+                        Decline proposed time
+                      </Button>
+                      <Button variant="outline" size="sm" @click="viewAlternativeMentors(session)">
+                        <Users class="mr-2 h-4 w-4" />
+                        View alternative mentors
+                      </Button>
+                    </div>
+
+                    <div class="mt-3 space-y-2 border-t border-emerald-100 pt-3">
+                      <Label :for="`support-message-${session.id}`">Support Message (Optional)</Label>
+                      <Textarea
+                        :id="`support-message-${session.id}`"
+                        :model-value="getSupportMessage(session.id)"
+                        placeholder="Ask the Mentee Experience team to contact you."
+                        rows="2"
+                        @update:model-value="setSupportMessage(session.id, String($event || ''))"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        @click="handleContactSupport(session)"
+                        :disabled="supportRequestingSessionId === session.id"
+                      >
+                        <LifeBuoy class="mr-2 h-4 w-4" />
+                        {{ supportRequestingSessionId === session.id ? 'Sending...' : 'Contact support' }}
+                      </Button>
+                    </div>
+                  </div>
+
                   <!-- Cancellation Reason -->
                   <Alert v-if="session.status === 'CANCELLED' && session.cancellationReason" variant="destructive" class="mt-2">
                     <AlertCircle class="h-4 w-4" />
@@ -625,6 +829,56 @@ onMounted(async () => {
           <div v-if="selectedSession.mentorResponse">
             <h4 class="font-semibold mb-2">Mentor Response</h4>
             <p class="text-sm text-muted-foreground">{{ selectedSession.mentorResponse }}</p>
+          </div>
+
+          <div v-if="hasPendingProposal(selectedSession)" class="rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
+            <div class="flex items-center gap-2 font-medium text-emerald-900">
+              <CalendarClock class="h-4 w-4" />
+              Proposed Alternative Time
+            </div>
+            <p v-if="selectedSession.activeProposal.mentorMessage" class="mt-1 text-sm text-emerald-800">
+              {{ selectedSession.activeProposal.mentorMessage }}
+            </p>
+            <div class="mt-3 grid gap-2">
+              <div
+                v-for="slot in selectedSession.activeProposal.slots"
+                :key="slot.id"
+                class="flex items-center justify-between gap-3 rounded-md border bg-white p-3"
+              >
+                <div>
+                  <div class="text-sm font-medium">{{ formatDateTime(slot.scheduledStart) }}</div>
+                  <div class="text-xs text-muted-foreground">Ends {{ formatTime(slot.scheduledEnd) }}</div>
+                </div>
+                <Button
+                  size="sm"
+                  @click="handleAcceptProposal(selectedSession, slot)"
+                  :disabled="respondingProposalId === selectedSession.activeProposal.id"
+                >
+                  Accept
+                </Button>
+              </div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                @click="handleDeclineProposal(selectedSession)"
+                :disabled="respondingProposalId === selectedSession.activeProposal.id"
+              >
+                Decline proposed time
+              </Button>
+              <Button variant="outline" size="sm" @click="viewAlternativeMentors(selectedSession)">
+                View alternative mentors
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                @click="handleContactSupport(selectedSession)"
+                :disabled="supportRequestingSessionId === selectedSession.id"
+              >
+                Contact support
+              </Button>
+            </div>
           </div>
 
           <!-- Session Notes (for completed sessions) -->

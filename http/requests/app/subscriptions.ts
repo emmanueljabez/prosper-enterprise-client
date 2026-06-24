@@ -35,12 +35,13 @@ export interface SubscriptionPlan {
   durationMonths: number
   isActive: boolean
   displayOrder: number
-  features: string[] | null
+  features: string[] | string | null
   billingType: 'RECURRING' | 'ONE_TIME'
   yearlyCost: number | null
   allowsAddons: boolean
   addonSessionCost: number | null
   planAudience?: 'INDIVIDUAL' | 'CORPORATE' | 'BOTH'
+  sessionDurationMinutes?: number | null
   minSeats?: number
   defaultSeats?: number
   maxSeats?: number | null
@@ -115,6 +116,7 @@ export interface ActiveSubscriptionData {
   remainingSessions: number
   addonSessionsRemaining?: number
   personalCreditsRemaining?: number
+  sessionDurationMinutes?: number | null
   canBookSession: boolean
   nextBillingDate?: string | null
   companyId?: string | null

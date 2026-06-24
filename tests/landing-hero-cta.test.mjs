@@ -6,33 +6,22 @@ const landingSource = readFileSync(
   'utf8',
 )
 
-const getConnectedSource = readFileSync(
-  new URL('../components/landing/GetConnectedSection.vue', import.meta.url),
-  'utf8',
-)
-
 assert.match(
-  getConnectedSource,
-  /<section\s+id="get-connected-section"/,
-  'The Ready to Elevate Your Team section should expose a stable scroll target.',
+  landingSource,
+  /const FREE_TRIAL_SIGNUP_PATH = '\/auth\/signup\?audience=mentee&trial=1&product=FREE_TRIAL'/,
+  'The landing page should keep the free-trial signup path as a stable constant.',
 )
 
 assert.match(
   landingSource,
-  /aria-label="Get in touch"\s+@click="scrollToGetConnectedSection"/,
-  'The hero Get in touch button should scroll to the Ready to Elevate section.',
-)
-
-assert.match(
-  landingSource,
-  /const scrollToGetConnectedSection = \(\) => \{[\s\S]*document\s*\.\s*getElementById\('get-connected-section'\)[\s\S]*scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/,
-  'The hero CTA scroll helper should smoothly scroll to the get-connected section.',
+  /<NuxtLink[\s\S]*:to="FREE_TRIAL_SIGNUP_PATH"[\s\S]*aria-label="Start free trial"[\s\S]*Start free trial[\s\S]*<\/NuxtLink>/,
+  'The hero CTA should route visitors into the free-trial signup flow.',
 )
 
 assert.doesNotMatch(
   landingSource,
-  /aria-label="Get in touch"\s+@click="go\('\/contact'\)"/,
-  'The hero Get in touch button should no longer navigate away from the landing page.',
+  /aria-label="Get in touch"|>\s*Get in touch\s*<\/button>|scrollToImpactSection|scrollToGetConnectedSection/,
+  'The hero should no longer render the old Get in touch CTA or scroll behavior.',
 )
 
-console.log('Landing hero CTA scroll behavior verified.')
+console.log('Landing hero free-trial CTA verified.')

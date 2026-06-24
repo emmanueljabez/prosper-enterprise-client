@@ -661,28 +661,38 @@ export const useAuthStore = defineStore('auth', {
       this.loading = true
 
       return new Promise((resolve, reject) => {
-        jwt.register(userData)
+        const signupPayload = {
+          ...userData,
+          email: userData.email || userData.emailAddress,
+          role: userData.role || 'mentee',
+        }
+
+        jwt.register(signupPayload)
           .then((response) => {
             // Since axios interceptor handles decryption, response.data is already decrypted
             if (response && response.data) {
               const responseData = response.data.data || response.data
+              const responseUser = responseData?.user || response.data?.user || {}
+              const responseProfile = responseData?.profile || response.data?.profile || {}
+              const resolvedEmail = responseUser.email || userData.email || userData.emailAddress || ''
+              const resolvedUserId = responseUser.id || responseData.id || responseProfile.id || ''
               
               // Create User object from registration response
               this.loggedInUser = {
-                id: responseData.id || responseData.tenantId || responseData.sub,
-                email: userData.emailAddress || '',
+                id: resolvedUserId || responseData.tenantId || responseData.sub,
+                email: resolvedEmail,
                 name: responseData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
                 firstName: userData.firstName || undefined,
                 lastName: userData.lastName || undefined,
                 provider: 'local',
-                roles: responseData.roles?.map((roleName: string) => {
+                roles: (responseData.roles || (responseProfile.role ? [responseProfile.role] : null))?.map((roleName: string) => {
                   const role = normalizeFrontendRoleName(roleName)
                   return DEFAULT_ROLES[role] || DEFAULT_ROLES.employee
                 }) || [DEFAULT_ROLES.employee],
                 isVerified: false, // Email verification required
                 createdAt: responseData.createdAt || new Date().toISOString(),
                 lastLoginAt: new Date().toISOString(),
-                companyId: responseData.tenantId
+                companyId: responseData.tenantId || responseProfile.companyId || responseProfile.company_id
               }
 
               // Token handling can be uncommented if needed

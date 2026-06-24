@@ -5,6 +5,7 @@ import { useMentorsStore } from '@/store/modules/mentors'
 import { useSubscriptionsStore } from '@/store/modules/subscriptions'
 import { useAuthStore } from '@/store/modules/auth'
 import { useCompanyProgramsStore } from '@/store/modules/company-programs'
+import { useSessionContextDocumentsStore } from '@/store/modules/session-context-documents'
 import { storeToRefs } from 'pinia'
 
 // UI
@@ -13,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import { ArrowLeft, AlertCircle, Clock3, CreditCard, Loader2, CheckCircle2, XCircle, Linkedin } from 'lucide-vue-next'
+import { ArrowLeft, AlertCircle, Clock3, CreditCard, Loader2, CheckCircle2, XCircle, Linkedin, UploadCloud, FileText, X, PackageCheck } from 'lucide-vue-next'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -25,6 +26,11 @@ import { useAppToast } from '@/composables/services/toastService'
 import {useSessionsStore} from "~/store/modules/sessions/sessions";
 import type { SubscriptionPlan } from '@/http/requests/app/subscriptions'
 import invoicesApi from '@/http/requests/app/invoices'
+import {
+  formatPackagePrice,
+  getBookableSessionPackages,
+  getPackageDisplayMeta,
+} from '@/utils/bookingPricingPlans'
 
 definePageMeta({
   title: 'Mentor Profile',
@@ -38,6 +44,7 @@ const sessionStore = useSessionsStore()
 const subscriptionsStore = useSubscriptionsStore()
 const authStore = useAuthStore()
 const companyProgramsStore = useCompanyProgramsStore()
+const sessionContextDocumentsStore = useSessionContextDocumentsStore()
 const { mentors } = storeToRefs(mentorsStore)
 
 const mentor = ref<any | null>(null)
@@ -61,16 +68,90 @@ const DAY_NUM_TO_API_NAME: Record<number, string> = {
   0: 'SUNDAY', 1: 'MONDAY', 2: 'TUESDAY', 3: 'WEDNESDAY', 4: 'THURSDAY', 5: 'FRIDAY', 6: 'SATURDAY'
 }
 
+type BookingContextDocument = {
+  id?: string | null
+  name: string
+  storedName?: string | null
+  size: number
+  sizeLabel: string
+  type: string
+  url?: string | null
+  lastModified: number
+}
+
+type BookingQuestionnaireResponses = {
+  primaryGoal: string
+  alreadyTried: string
+  successLooksLike: string
+  contextDocument: BookingContextDocument | null
+}
+
+const DEFAULT_SESSION_DURATION_MINUTES = 60
+const FREE_TRIAL_SESSION_DURATION_MINUTES = 30
+const MAX_CONTEXT_DOCUMENT_SIZE_BYTES = 50 * 1024 * 1024
+const CONTEXT_DOCUMENT_ACCEPT = [
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.ppt',
+  '.pptx',
+  '.xls',
+  '.xlsx',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.mp4',
+  '.mov',
+  '.avi',
+].join(',')
+
 // Simple booking form (used by date-chip "Book Session for [date]" button)
 const showSimpleBookingForm = ref(false)
 const bookingSlot = ref<{ start: string; end: string } | null>(null)
 const selectedBookingDate = ref('')
-const simpleBookingForm = reactive({ topic: '', platform: '', message: '' })
+const simpleBookingForm = reactive({
+  topic: '',
+  platform: '',
+  primaryGoal: '',
+  alreadyTried: '',
+  successLooksLike: '',
+})
+const contextDocumentInput = ref<HTMLInputElement | null>(null)
+const selectedContextDocument = ref<BookingContextDocument | null>(null)
+const contextDocumentUploading = computed(() => sessionContextDocumentsStore.isUploading)
 const bookingSessionBalanceLoading = ref(false)
 const bookingSessionBalanceLoaded = ref(false)
 
 const bookingSessionBalance = computed(() => companyProgramsStore.employeeSessionBalance)
 const bookingSubscriptionContext = computed(() => subscriptionsStore.activeSubscriptionContext)
+const bookingPersonalSubscription = computed(() => bookingSubscriptionContext.value?.subscription || null)
+const bookingPersonalPlanName = computed(() => String(bookingPersonalSubscription.value?.plan?.name || '').trim())
+const bookingPersonalSessionsIncluded = computed(() => {
+  const subscription = bookingPersonalSubscription.value
+  const explicitIncluded = Number(subscription?.sessionsPerMonth)
+  if (Number.isFinite(explicitIncluded) && explicitIncluded > 0) {
+    return explicitIncluded
+  }
+
+  const planIncluded = Number(subscription?.plan?.sessionsPerPeriod)
+  return Number.isFinite(planIncluded) && planIncluded > 0 ? planIncluded : 0
+})
+const bookingPersonalSessionsUsed = computed(() =>
+  Math.max(0, Number(bookingPersonalSubscription.value?.sessionsUsed || 0))
+)
+const bookingPersonalSubscriptionLeft = computed(() => {
+  const explicitRemaining = Number(bookingPersonalSubscription.value?.remainingSessionsCount)
+  if (Number.isFinite(explicitRemaining) && explicitRemaining >= 0) {
+    return explicitRemaining
+  }
+
+  const included = bookingPersonalSessionsIncluded.value
+  if (included <= 0) {
+    return 0
+  }
+
+  return Math.max(0, included - bookingPersonalSessionsUsed.value)
+})
 const bookingPersonalCreditsLeft = computed(() => {
   const context = bookingSubscriptionContext.value
   if (!context) return 0
@@ -80,25 +161,90 @@ const bookingPersonalCreditsLeft = computed(() => {
     ? Math.max(0, Number(context.remainingSessions || 0))
     : 0
 })
+const bookingPersonalBalanceLeft = computed(() =>
+  bookingPersonalSubscription.value
+    ? bookingPersonalSubscriptionLeft.value
+    : bookingPersonalCreditsLeft.value
+)
+const bookingPersonalBalanceTotal = computed(() => {
+  if (!bookingPersonalSubscription.value) {
+    return bookingPersonalCreditsLeft.value
+  }
+
+  return Math.max(
+    bookingPersonalSessionsIncluded.value,
+    bookingPersonalSessionsUsed.value + bookingPersonalSubscriptionLeft.value,
+  )
+})
+const hasBookingPersonalBalance = computed(() =>
+  Boolean(bookingPersonalSubscription.value)
+  || bookingPersonalSessionsIncluded.value > 0
+  || bookingPersonalSubscriptionLeft.value > 0
+  || bookingPersonalCreditsLeft.value > 0
+)
+const bookingPersonalBalanceTitle = computed(() => {
+  if (bookingPersonalPlanName.value) {
+    return bookingPersonalPlanName.value
+  }
+
+  return bookingPersonalCreditsLeft.value > 0
+    ? 'Personal credits'
+    : 'Personal package'
+})
 const bookingSessionsAssigned = computed(() => Math.max(0, Number(bookingSessionBalance.value?.allocatedTotal || 0)))
 const bookingSessionsUsed = computed(() => Math.max(0, Number(bookingSessionBalance.value?.consumedTotal || 0)))
 const bookingSessionsLeft = computed(() => Math.max(0, Number(bookingSessionBalance.value?.availableBalance || 0)))
-const bookingDisplayAssigned = computed(() =>
-  bookingSessionsAssigned.value > 0 ? bookingSessionsAssigned.value : bookingPersonalCreditsLeft.value
-)
-const bookingDisplayLeft = computed(() =>
-  bookingSessionsAssigned.value > 0 ? bookingSessionsLeft.value : bookingPersonalCreditsLeft.value
-)
 const bookingSessionCompanyName = computed(() => String(bookingSessionBalance.value?.companyName || '').trim())
+const hasFreeTrialBookingIntent = computed(() => {
+  const trial = resolveSingleQueryValue(route.query.trial).trim()
+  const product = resolveSingleQueryValue(route.query.product).trim().toUpperCase()
+  return trial === '1' || product === 'FREE_TRIAL'
+})
+const hasTrialSubscriptionContext = computed(() => {
+  const context = bookingSubscriptionContext.value
+  const subscription = context?.subscription
+  const planCode = String(subscription?.plan?.code || '').trim().toUpperCase()
+  return Boolean(subscription?.isTrial) || subscription?.status === 'TRIAL' || planCode === 'FREE_TRIAL'
+})
+const canUseSubscriptionDurationForBooking = computed(() => {
+  if (!bookingSubscriptionContext.value) {
+    return hasFreeTrialBookingIntent.value
+  }
+
+  return bookingSubscriptionContext.value?.canBookSession === true
+})
+const bookingSessionDurationMinutes = computed(() => {
+  if (canUseSubscriptionDurationForBooking.value) {
+    const contextDuration = Number(bookingSubscriptionContext.value?.sessionDurationMinutes)
+    if (Number.isFinite(contextDuration) && contextDuration > 0) {
+      return contextDuration
+    }
+
+    const planDuration = Number(bookingSubscriptionContext.value?.subscription?.plan?.sessionDurationMinutes)
+    if (Number.isFinite(planDuration) && planDuration > 0) {
+      return planDuration
+    }
+
+    if (hasTrialSubscriptionContext.value || hasFreeTrialBookingIntent.value) {
+      return FREE_TRIAL_SESSION_DURATION_MINUTES
+    }
+  }
+
+  return DEFAULT_SESSION_DURATION_MINUTES
+})
+const bookingHasUsableSessionBalance = computed(() =>
+  bookingSessionsLeft.value > 0
+  || bookingPersonalBalanceLeft.value > 0
+  || hasTrialSubscriptionContext.value
+  || hasFreeTrialBookingIntent.value
+)
+const bookingSubmitButtonLabel = computed(() =>
+  bookingHasUsableSessionBalance.value ? 'Book Session' : 'Proceed To Pay'
+)
 
 const bookingSessionBalanceDescription = computed(() => {
   if (bookingSessionBalanceLoading.value && !bookingSessionBalanceLoaded.value) {
     return 'Loading your session balance...'
-  }
-
-  if (bookingPersonalCreditsLeft.value > 0 && bookingSessionsAssigned.value <= 0) {
-    const credits = bookingPersonalCreditsLeft.value
-    return `${credits} credited session${credits === 1 ? '' : 's'} available for rebooking.`
   }
 
   if (!bookingSessionBalance.value) {
@@ -118,6 +264,23 @@ const bookingSessionBalanceDescription = computed(() => {
     : ''
 
   return `${left} of ${assigned} assigned session${assigned === 1 ? '' : 's'}${companyLabel} remaining (${used} used).`
+})
+
+const bookingPersonalBalanceDescription = computed(() => {
+  if (bookingPersonalSubscription.value) {
+    const left = bookingPersonalSubscriptionLeft.value
+    const total = bookingPersonalBalanceTotal.value
+    const used = bookingPersonalSessionsUsed.value
+
+    if (total > 0) {
+      return `${left} of ${total} paid session${total === 1 ? '' : 's'} remaining (${used} used).`
+    }
+
+    return `${left} paid session${left === 1 ? '' : 's'} remaining.`
+  }
+
+  const credits = bookingPersonalCreditsLeft.value
+  return `${credits} personal credited session${credits === 1 ? '' : 's'} available for rebooking.`
 })
 
 const refreshBookingSessionBalance = async (force = false) => {
@@ -219,16 +382,16 @@ const fromDateValue = (value: string): Date | null => {
 const buildBookingSlotFromDate = (date: Date) => {
   const now = new Date()
   const dayName = DAY_NUM_TO_API_NAME[date.getDay()]
+  const durationMinutes = bookingSessionDurationMinutes.value
   const daySchedule = mentorAvailability.value?.schedule?.find((s: any) => s.dayOfWeek === dayName)
   const activeSlots = (daySchedule?.timeSlots || [])
     .filter((t: any) => t.isActive)
     .map((t: any) => {
       const [sh, sm] = t.startTime.split(':').map(Number)
-      const [eh, em] = t.endTime.split(':').map(Number)
       const startDate = new Date(date)
       startDate.setHours(sh, sm, 0, 0)
       const endDate = new Date(date)
-      endDate.setHours(eh, em, 0, 0)
+      endDate.setTime(startDate.getTime() + (durationMinutes * 60 * 1000))
       return { startDate, endDate }
     })
     .filter((slot: any) => slot.startDate.getTime() > now.getTime())
@@ -259,7 +422,7 @@ const buildBookingSlotFromDate = (date: Date) => {
   }
 
   const endDate = new Date(startDate)
-  endDate.setMinutes(endDate.getMinutes() + 60)
+  endDate.setMinutes(endDate.getMinutes() + durationMinutes)
 
   return { start: startDate.toISOString(), end: endDate.toISOString() }
 }
@@ -290,6 +453,120 @@ const isPastCalendarDate = (date: Date) => {
   return candidate.getTime() < today.getTime()
 }
 
+const formatContextDocumentSize = (size: number) => {
+  const bytes = Number(size || 0)
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const normalizeContextDocument = (value: unknown): BookingContextDocument | null => {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const source = value as Partial<BookingContextDocument>
+  const name = String(source.name || '').trim()
+  if (!name) {
+    return null
+  }
+
+  const size = Math.max(0, Number(source.size || 0))
+  return {
+    id: source.id || null,
+    name,
+    storedName: source.storedName || null,
+    size,
+    sizeLabel: String(source.sizeLabel || formatContextDocumentSize(size)).trim(),
+    type: String(source.type || '').trim(),
+    url: source.url || null,
+    lastModified: Number(source.lastModified || 0),
+  }
+}
+
+const buildContextDocumentMetadata = (file: File): BookingContextDocument => ({
+  name: file.name,
+  size: file.size,
+  sizeLabel: formatContextDocumentSize(file.size),
+  type: file.type || 'application/octet-stream',
+  lastModified: file.lastModified,
+})
+
+const resolveContextDocumentUrl = (value: string | null | undefined) => {
+  const url = String(value || '').trim()
+  if (!url) return null
+  if (/^https?:\/\//i.test(url)) return url
+  if (typeof window === 'undefined') return url
+  return `${window.location.origin}${url.startsWith('/') ? url : `/${url}`}`
+}
+
+const clearContextDocument = () => {
+  selectedContextDocument.value = null
+  if (contextDocumentInput.value) {
+    contextDocumentInput.value.value = ''
+  }
+}
+
+const handleContextDocumentChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] || null
+  if (!file) {
+    selectedContextDocument.value = null
+    return
+  }
+
+  if (file.size > MAX_CONTEXT_DOCUMENT_SIZE_BYTES) {
+    toast.error('Please upload a file smaller than 50 MB.')
+    clearContextDocument()
+    return
+  }
+
+  selectedContextDocument.value = buildContextDocumentMetadata(file)
+
+  try {
+    const uploaded = await sessionContextDocumentsStore.upload(file)
+    selectedContextDocument.value = {
+      id: uploaded.id,
+      name: uploaded.name || file.name,
+      storedName: uploaded.storedName,
+      size: Number(uploaded.size || file.size),
+      sizeLabel: formatContextDocumentSize(Number(uploaded.size || file.size)),
+      type: uploaded.type || file.type || 'application/octet-stream',
+      url: resolveContextDocumentUrl(uploaded.url),
+      lastModified: file.lastModified,
+    }
+  } catch (error: any) {
+    toast.error(error?.message || 'Failed to upload file.')
+    clearContextDocument()
+  }
+}
+
+const trimBookingQuestionnaireResponses = (value: Partial<BookingQuestionnaireResponses> = {}): BookingQuestionnaireResponses => ({
+  primaryGoal: String(value.primaryGoal || '').trim(),
+  alreadyTried: String(value.alreadyTried || '').trim(),
+  successLooksLike: String(value.successLooksLike || '').trim(),
+  contextDocument: normalizeContextDocument(value.contextDocument || selectedContextDocument.value),
+})
+
+const buildBookingMessage = (responses: BookingQuestionnaireResponses) => {
+  const contextDocumentLabel = responses.contextDocument
+    ? [
+      `${responses.contextDocument.name} (${responses.contextDocument.sizeLabel})`,
+      responses.contextDocument.url,
+    ].filter(Boolean).join(' - ')
+    : ''
+
+  return [
+    ['Primary goal', responses.primaryGoal],
+    ['Already tried', responses.alreadyTried],
+    ['Success looks like', responses.successLooksLike],
+    ['Context document', contextDocumentLabel],
+  ]
+    .filter(([, value]) => value)
+    .map(([label, value]) => `${label}: ${value}`)
+    .join('\n\n')
+}
+
 const openSimpleBookingForm = () => {
   const date = selectedDate.value ?? availableDates.value[0]?.full ?? new Date()
 
@@ -297,8 +574,11 @@ const openSimpleBookingForm = () => {
   Object.assign(simpleBookingForm, {
     topic: mentorTopicOptions.value[0] || '',
     platform: 'google-meet',
-    message: ''
+    primaryGoal: '',
+    alreadyTried: '',
+    successLooksLike: '',
   })
+  clearContextDocument()
   void refreshBookingSessionBalance()
   showSimpleBookingForm.value = true
 }
@@ -320,6 +600,17 @@ const submitSimpleBooking = async () => {
     return
   }
 
+  if (contextDocumentUploading.value) {
+    toast.error('Please wait for the context document upload to finish.')
+    return
+  }
+
+  const questionnaireResponses = trimBookingQuestionnaireResponses(simpleBookingForm)
+  if (!questionnaireResponses.primaryGoal || !questionnaireResponses.alreadyTried || !questionnaireResponses.successLooksLike) {
+    toast.error('Please answer the required session questions.')
+    return
+  }
+
   startJourneyLoading(
     'Submitting Booking',
     'Checking eligibility and creating your session request...'
@@ -330,8 +621,9 @@ const submitSimpleBooking = async () => {
     requestedStart: bookingSlot.value.start,
     requestedEnd: bookingSlot.value.end,
     platform: simpleBookingForm.platform,
-    message: simpleBookingForm.message,
-    topic: simpleBookingForm.topic
+    message: buildBookingMessage(questionnaireResponses),
+    topic: simpleBookingForm.topic,
+    questionnaireResponses,
   }, { loadingAlreadyStarted: true })
 }
 
@@ -407,6 +699,37 @@ const startJourneyLoading = (title: string, message: string) => {
 const stopJourneyLoading = () => {
   showJourneyLoadingDialog.value = false
 }
+
+const setRecommendedPackagePlans = (plans: SubscriptionPlan[]) => {
+  const packages = getBookableSessionPackages(plans)
+  recommendedPlans.value = packages
+  selectedRecommendedPlan.value = packages[0]?.id || null
+  selectedPlanForPayment.value = packages[0] || null
+  return packages
+}
+
+const loadRecommendedPackagePlans = async (candidatePlans: SubscriptionPlan[] = []) => {
+  const candidatePackages = getBookableSessionPackages(candidatePlans)
+  if (candidatePackages.length > 0) {
+    return setRecommendedPackagePlans(candidatePackages)
+  }
+
+  const individualPlans = await subscriptionsStore.fetchPlansForAudience('INDIVIDUAL')
+  return setRecommendedPackagePlans(individualPlans)
+}
+
+const selectRecommendedPackage = (plan: SubscriptionPlan) => {
+  selectedRecommendedPlan.value = plan.id
+  selectedPlanForPayment.value = plan
+}
+
+const recommendedPackageCards = computed(() =>
+  recommendedPlans.value.map(plan => ({
+    plan,
+    meta: getPackageDisplayMeta(plan, recommendedPlans.value),
+    price: formatPackagePrice(plan),
+  })),
+)
 
 // Minimal fallback dataset (topics trimmed to names only)
 const fallbackData = () => {
@@ -577,8 +900,10 @@ const buildSessionData = (booking: any, userId: string) => {
     menteeId: userId,
     skillId: booking?.skillId || DEFAULT_SESSION_SKILL_ID,
     scheduledStart: booking.requestedStart,
+    scheduledEnd: booking.requestedEnd || null,
     meetingPlatform: normalizeMeetingPlatform(booking?.platform),
     menteeMessage: booking.message,
+    questionnaireResponses: booking.questionnaireResponses || null,
     companyProgramId: normalizeOptionalString(booking?.companyProgramId) || programContext?.companyProgramId || null,
     companyProgramParticipantId: normalizeOptionalString(booking?.companyProgramParticipantId) || programContext?.companyProgramParticipantId || null,
     journeyInstanceStepId: normalizeOptionalString(booking?.journeyInstanceStepId) || programContext?.journeyInstanceStepId || null,
@@ -610,6 +935,7 @@ const normalizePendingBooking = (value: any): any | null => {
     message: typeof value.message === 'string' ? value.message : '',
     topic: typeof value.topic === 'string' ? value.topic : '',
     platform: normalizeMeetingPlatform(value.platform),
+    questionnaireResponses: trimBookingQuestionnaireResponses(value.questionnaireResponses || {}),
     mentorId: typeof value.mentorId === 'string' ? value.mentorId : (mentor.value?.id || ''),
     skillId: typeof value.skillId === 'string' ? value.skillId : DEFAULT_SESSION_SKILL_ID,
     companyProgramId: normalizeOptionalString(value.companyProgramId) || programContext?.companyProgramId || null,
@@ -628,6 +954,7 @@ const buildPendingBookingRecord = (booking: any, bookingRef?: string): PendingBo
     message: booking?.message || '',
     topic: booking?.topic || '',
     platform: normalizeMeetingPlatform(booking?.platform),
+    questionnaireResponses: trimBookingQuestionnaireResponses(booking?.questionnaireResponses || {}),
     mentorId: mentor.value?.id || '',
     skillId: DEFAULT_SESSION_SKILL_ID,
     companyProgramId: normalizeOptionalString(booking?.companyProgramId) || programBookingContext.value?.companyProgramId || null,
@@ -964,6 +1291,7 @@ const createInvoiceAndRedirect = async (context: InvoiceRedirectContext, plan?: 
         message: pending.message || '',
         topic: pending.topic || '',
         platform: normalizeMeetingPlatform(pending.platform),
+        questionnaireResponses: pending.questionnaireResponses || null,
         mentorId: mentor.value?.id || '',
         skillId: DEFAULT_SESSION_SKILL_ID,
         companyProgramId: pending.companyProgramId || null,
@@ -1123,22 +1451,13 @@ const handleBookingSubmit = async (booking: any, options: { loadingAlreadyStarte
 
       if (apiRecommendedPlans.length > 0) {
         stopJourneyLoading()
-        // Store recommended plans
-        recommendedPlans.value = apiRecommendedPlans
-
-        // If only one plan is recommended, auto-select it and proceed directly to payment
-        if (apiRecommendedPlans.length === 1) {
-          selectedPlanForPayment.value = apiRecommendedPlans[0]
-          selectedRecommendedPlan.value = apiRecommendedPlans[0].id
-          await createInvoiceAndRedirect('PLAN_PURCHASE', apiRecommendedPlans[0])
-        } else {
-          // Multiple plans available - show error dialog with plan selection
-          selectedRecommendedPlan.value = apiRecommendedPlans[0].id // Pre-select first plan
-          selectedPlanForPayment.value = apiRecommendedPlans[0]
-
-          errorDialogTitle.value = 'Subscription Required'
-          errorDialogMessage.value = errorResponse.message || 'Please select a subscription plan to continue.'
+        const packages = await loadRecommendedPackagePlans(apiRecommendedPlans)
+        if (packages.length > 0) {
+          errorDialogTitle.value = 'Choose a mentorship package'
+          errorDialogMessage.value = errorResponse.message || 'Choose a package to continue booking this session.'
           showErrorDialog.value = true
+        } else {
+          toast.error('No mentorship packages are available. Please contact support.')
         }
       } else {
         // Check if addon option is available
@@ -1146,25 +1465,27 @@ const handleBookingSubmit = async (booking: any, options: { loadingAlreadyStarte
 
         if (apiAddOnOption && apiAddOnOption.available) {
           stopJourneyLoading()
-          // Store addon option
           addOnOption.value = apiAddOnOption
           selectedAddonQuantity.value = apiAddOnOption.recommendedQuantity || 1
 
-          // Show error dialog with addon purchase option
-          errorDialogTitle.value = 'Sessions Exhausted'
-          errorDialogMessage.value = errorResponse.message || 'You have used all your sessions. Purchase additional sessions to continue.'
+          const packages = await loadRecommendedPackagePlans()
+          if (packages.length > 0) {
+            errorDialogTitle.value = 'Choose a mentorship package'
+            errorDialogMessage.value = errorResponse.message || 'You have used all your sessions. Choose a package to continue booking.'
+          } else {
+            errorDialogTitle.value = 'Sessions Exhausted'
+            errorDialogMessage.value = errorResponse.message || 'You have used all your sessions. Purchase additional sessions to continue.'
+          }
           showErrorDialog.value = true
         } else {
           // Fallback: No recommended plans or addons, fetch all available plans
           try {
             stopJourneyLoading()
-            await subscriptionsStore.fetchPlans()
-
-            const fallbackPlan = subscriptionsStore.activePlans[0]
-            if (fallbackPlan) {
-              selectedPlanForPayment.value = fallbackPlan
-              errorDialogTitle.value = 'Subscription Limit Reached'
-              errorDialogMessage.value = errorResponse.message || 'Subscription limit reached. Please upgrade your plan or make a payment.'
+            const plans = await subscriptionsStore.fetchPlansForAudience('INDIVIDUAL')
+            const packages = setRecommendedPackagePlans(plans)
+            if (packages.length > 0) {
+              errorDialogTitle.value = 'Choose a mentorship package'
+              errorDialogMessage.value = errorResponse.message || 'Choose a package to continue booking this session.'
               showErrorDialog.value = true
             } else {
               toast.error('No subscription plans available. Please contact support.')
@@ -1189,6 +1510,10 @@ const handleBookingSubmit = async (booking: any, options: { loadingAlreadyStarte
 }
 
 const handleUpgradeClick = () => {
+  if (!selectedPlanForPayment.value && selectedRecommendedPlan.value) {
+    selectedPlanForPayment.value = recommendedPlans.value.find(plan => plan.id === selectedRecommendedPlan.value) || null
+  }
+
   if (!selectedPlanForPayment.value) {
     toast.error('Please select a subscription plan.')
     return
@@ -1459,7 +1784,7 @@ const closeRetryDialog = () => {
                   <div class="mentor-booking-duration-icon">
                     <Clock3 class="h-5 w-5 text-white" />
                   </div>
-                  <p class="mentor-booking-duration-label"><span class="font-semibold">60</span> min Session</p>
+                  <p class="mentor-booking-duration-label"><span class="font-semibold">{{ bookingSessionDurationMinutes }}</span> min Session</p>
                 </div>
               </div>
             </div>
@@ -1491,17 +1816,41 @@ const closeRetryDialog = () => {
                 <div class="mentor-booking-balance-grid">
                   <div class="mentor-booking-balance-item">
                     <p class="mentor-booking-balance-label">Assigned</p>
-                    <p class="mentor-booking-balance-value">{{ bookingDisplayAssigned }}</p>
+                    <p class="mentor-booking-balance-value">{{ bookingSessionsAssigned }}</p>
                   </div>
                   <div class="mentor-booking-balance-item">
                     <p class="mentor-booking-balance-label">Sessions Left</p>
-                    <p class="mentor-booking-balance-value" :class="{ 'is-empty': bookingDisplayLeft <= 0 }">
-                      {{ bookingDisplayLeft }}
+                    <p class="mentor-booking-balance-value" :class="{ 'is-empty': bookingSessionsLeft <= 0 }">
+                      {{ bookingSessionsLeft }}
                     </p>
                   </div>
                 </div>
                 <p class="mentor-booking-balance-meta">
                   {{ bookingSessionBalanceDescription }}
+                </p>
+              </div>
+
+              <div
+                v-if="hasBookingPersonalBalance"
+                class="mentor-booking-balance-panel mentor-booking-personal-balance-panel"
+              >
+                <div class="mentor-booking-balance-head">
+                  <p class="mentor-booking-balance-title">Personal Session Balance</p>
+                </div>
+                <div class="mentor-booking-balance-grid">
+                  <div class="mentor-booking-balance-item">
+                    <p class="mentor-booking-balance-label">Package</p>
+                    <p class="mentor-booking-balance-value is-plan-name">{{ bookingPersonalBalanceTitle }}</p>
+                  </div>
+                  <div class="mentor-booking-balance-item">
+                    <p class="mentor-booking-balance-label">Sessions Left</p>
+                    <p class="mentor-booking-balance-value" :class="{ 'is-empty': bookingPersonalBalanceLeft <= 0 }">
+                      {{ bookingPersonalBalanceLeft }}
+                    </p>
+                  </div>
+                </div>
+                <p class="mentor-booking-balance-meta">
+                  {{ bookingPersonalBalanceDescription }}
                 </p>
               </div>
 
@@ -1531,18 +1880,71 @@ const closeRetryDialog = () => {
                 </Select>
               </div>
 
-              <div class="mentor-booking-field-group">
-                <Label class="mentor-booking-field-label">Description &amp; Goals</Label>
-                <Textarea
-                  v-model="simpleBookingForm.message"
-                  placeholder="Briefly describe what you'd like to achieve in this session"
-                  class="mentor-booking-field-textarea"
-                />
+              <div class="mentor-booking-question-grid">
+                <div class="mentor-booking-field-group">
+                  <Label class="mentor-booking-field-label">Primary goal for this session? *</Label>
+                  <Textarea
+                    v-model="simpleBookingForm.primaryGoal"
+                    placeholder="I would like to..."
+                    class="mentor-booking-field-textarea"
+                  />
+                </div>
+
+                <div class="mentor-booking-field-group">
+                  <Label class="mentor-booking-field-label">What have you already tried? *</Label>
+                  <Textarea
+                    v-model="simpleBookingForm.alreadyTried"
+                    placeholder="I have already..."
+                    class="mentor-booking-field-textarea"
+                  />
+                </div>
+
+                <div class="mentor-booking-field-group">
+                  <Label class="mentor-booking-field-label">What does success look like? *</Label>
+                  <Textarea
+                    v-model="simpleBookingForm.successLooksLike"
+                    placeholder="Success would be..."
+                    class="mentor-booking-field-textarea"
+                  />
+                </div>
+
+                <div class="mentor-booking-field-group">
+                  <Label class="mentor-booking-field-label">Context document</Label>
+                  <label
+                    class="mentor-booking-upload-zone"
+                    :class="{ 'is-uploading': contextDocumentUploading }"
+                  >
+                    <input
+                      ref="contextDocumentInput"
+                      type="file"
+                      class="sr-only"
+                      :accept="CONTEXT_DOCUMENT_ACCEPT"
+                      :disabled="contextDocumentUploading"
+                      @change="handleContextDocumentChange"
+                    >
+                    <Loader2 v-if="contextDocumentUploading" class="h-5 w-5 animate-spin text-[#0a8167]" />
+                    <UploadCloud v-else class="h-5 w-5 text-[#0a8167]" />
+                    <span class="mentor-booking-upload-text">
+                      {{ contextDocumentUploading ? 'Uploading file...' : (selectedContextDocument ? 'Replace file' : 'Upload file') }}
+                    </span>
+                    <span class="mentor-booking-upload-hint">PDF, Office, image, or video up to 50 MB</span>
+                  </label>
+                  <div v-if="selectedContextDocument" class="mentor-booking-file-chip">
+                    <FileText class="h-4 w-4 text-[#0a8167]" />
+                    <div class="min-w-0 flex-1">
+                      <p class="mentor-booking-file-name">{{ selectedContextDocument.name }}</p>
+                      <p class="mentor-booking-file-meta">{{ selectedContextDocument.sizeLabel }}</p>
+                    </div>
+                    <button type="button" class="mentor-booking-file-remove" aria-label="Remove context document" @click="clearContextDocument">
+                      <X class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div class="mentor-booking-actions">
-                <Button class="mentor-booking-submit" :disabled="isBookingSession || !bookingSlot" @click="submitSimpleBooking">
-                  {{ isBookingSession ? 'Processing...' : 'Proceed To Pay' }}
+                <Button class="mentor-booking-submit" :disabled="isBookingSession || contextDocumentUploading || !bookingSlot" @click="submitSimpleBooking">
+                  {{ isBookingSession ? 'Processing...' : bookingSubmitButtonLabel }}
                 </Button>
                 <Button variant="ghost" class="mentor-booking-cancel" :disabled="isBookingSession" @click="showSimpleBookingForm = false">
                   Cancel
@@ -1580,13 +1982,14 @@ const closeRetryDialog = () => {
       </DialogContent>
     </Dialog>
 
-    <!-- Error Dialog -->
+    <!-- Payment Package Dialog -->
     <Dialog v-model:open="showErrorDialog">
-      <DialogContent class="sm:max-w-lg">
+      <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
           <div class="flex items-center gap-3 mb-2">
-            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-amber-100">
-              <AlertCircle class="w-6 h-6 text-amber-600" />
+            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-[#0a8167]/10">
+              <PackageCheck v-if="recommendedPlans.length > 0" class="w-6 h-6 text-[#0a8167]" />
+              <AlertCircle v-else class="w-6 h-6 text-amber-600" />
             </div>
             <DialogTitle class="text-xl">{{ errorDialogTitle }}</DialogTitle>
           </div>
@@ -1595,41 +1998,95 @@ const closeRetryDialog = () => {
           </DialogDescription>
         </DialogHeader>
 
-        <!-- Plan Selection (when multiple plans available) -->
-        <div v-if="recommendedPlans.length > 1" class="space-y-3">
-          <div class="space-y-2">
-            <p class="text-sm font-medium">Choose a subscription plan:</p>
-            <div class="space-y-2">
-              <div
-                v-for="plan in recommendedPlans"
-                :key="plan.id"
-                @click="selectedRecommendedPlan = plan.id; selectedPlanForPayment = plan"
-                :class="{
-                  'border-primary bg-primary/5': selectedRecommendedPlan === plan.id,
-                  'border-border hover:border-primary/50': selectedRecommendedPlan !== plan.id
-                }"
-                class="border rounded-lg p-4 cursor-pointer transition-all"
+        <!-- Plan Selection -->
+        <div v-if="recommendedPlans.length > 0" class="flex flex-col gap-3">
+          <div class="flex flex-col gap-2">
+            <p class="text-sm font-medium">Choose a package:</p>
+            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+              <button
+                v-for="card in recommendedPackageCards"
+                :key="card.plan.id"
+                type="button"
+                :aria-pressed="selectedRecommendedPlan === card.plan.id"
+                class="group relative flex min-h-[360px] cursor-pointer flex-col rounded-[24px] border px-5 pb-5 pt-7 text-left transition duration-200 focus:outline-none focus:ring-2 focus:ring-[#00856d] focus:ring-offset-2"
+                :class="[
+                  card.meta.highlighted
+                    ? 'border-[#006f58] bg-[#006f58] text-white shadow-[0_20px_45px_rgba(2,127,99,0.20)] xl:-mt-3'
+                    : 'border-[#eff1f4] bg-white text-[#111827] shadow-[0_16px_38px_rgba(15,23,42,0.07)] hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(15,23,42,0.11)]',
+                  selectedRecommendedPlan === card.plan.id
+                    ? card.meta.highlighted
+                      ? 'ring-2 ring-[#dd63c4] ring-offset-2'
+                      : 'ring-2 ring-[#00856d] ring-offset-2'
+                    : '',
+                ]"
+                @click="selectRecommendedPackage(card.plan)"
               >
-                <div class="flex items-start justify-between">
-                  <div class="flex-1">
-                    <div class="flex items-center gap-2">
-                      <h4 class="font-semibold">{{ plan.name }}</h4>
-                      <Badge variant="secondary" class="text-xs">{{ plan.code }}</Badge>
-                    </div>
-                    <p class="text-sm text-muted-foreground mt-1">{{ plan.description }}</p>
-                    <div class="flex items-center gap-4 mt-2">
-                      <span class="text-lg font-bold text-primary">{{ plan.formattedPrice }}</span>
-                      <span class="text-sm text-muted-foreground">{{ plan.sessionsDescription }}</span>
-                    </div>
-                  </div>
-                  <div
-                    :class="selectedRecommendedPlan === plan.id ? 'bg-primary border-primary' : 'border-2'"
-                    class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                  >
-                    <div v-if="selectedRecommendedPlan === plan.id" class="w-2.5 h-2.5 bg-white rounded-full"></div>
-                  </div>
+                <div
+                  v-if="card.meta.highlighted"
+                  class="absolute left-1/2 top-0 inline-flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#dd63c4] px-7 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-white"
+                >
+                  Most Popular
                 </div>
-              </div>
+
+                <div class="flex min-h-[28px] flex-wrap items-center justify-between gap-2">
+                  <Badge
+                    variant="outline"
+                    class="rounded-full border-0 px-3 py-1 text-[9px] font-extrabold uppercase tracking-[0.06em]"
+                    :class="card.meta.highlighted
+                      ? 'bg-white text-[#4b5563]'
+                      : card.meta.label === 'TRANSFORMATION'
+                        ? 'bg-[#ffe6f7] text-[#a83291]'
+                        : card.meta.label === 'ACCOUNTABILITY'
+                          ? 'bg-[#00856d] text-white'
+                          : 'bg-[#e5e7eb] text-[#4b5563]'"
+                  >
+                    {{ card.meta.label }}
+                  </Badge>
+                  <span
+                    v-if="card.meta.accentLabel"
+                    class="inline-flex items-center rounded-[5px] px-3 py-1 text-[9px] font-extrabold uppercase"
+                    :class="card.meta.highlighted ? 'bg-white/15 text-white' : 'bg-[#a23da1] text-white'"
+                  >
+                    {{ card.meta.accentLabel }}
+                  </span>
+                </div>
+
+                <h4 class="mt-6 text-[22px] font-bold leading-tight" :class="card.meta.highlighted ? 'text-white' : 'text-[#111827]'">
+                  {{ card.plan.name || 'Session package' }}
+                </h4>
+                <p class="mt-2 text-[30px] font-extrabold leading-none" :class="card.meta.highlighted ? 'text-white' : 'text-[#080b12]'">
+                  {{ card.price }}
+                </p>
+                <p class="mt-3 text-[12px] leading-5" :class="card.meta.highlighted ? 'text-white' : 'text-[#6b7280]'">
+                  {{ card.meta.subtitle }}
+                </p>
+                <p v-if="card.meta.footnote" class="mt-2 text-[9px] font-extrabold uppercase" :class="card.meta.highlighted ? 'text-white/85' : 'text-[#00856d]'">
+                  {{ card.meta.footnote }}
+                </p>
+
+                <ul class="mt-7 flex flex-1 flex-col gap-3">
+                  <li
+                    v-for="feature in card.meta.features"
+                    :key="feature"
+                    class="flex items-start gap-2 text-[12px] font-medium leading-5"
+                    :class="card.meta.highlighted ? 'text-white' : 'text-[#374151]'"
+                  >
+                    <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0" :class="card.meta.highlighted ? 'text-white' : 'text-[#00856d]'" />
+                    <span>{{ feature }}</span>
+                  </li>
+                </ul>
+
+                <span
+                  class="mt-7 inline-flex h-12 w-full items-center justify-center rounded-[14px] text-[13px] font-bold transition"
+                  :class="card.meta.highlighted
+                    ? 'bg-white text-[#006f58] group-hover:bg-[#f2fffb]'
+                    : selectedRecommendedPlan === card.plan.id
+                      ? 'bg-[#00856d] text-white'
+                      : 'bg-[#e5e7eb] text-[#111827] group-hover:bg-[#d9dde2]'"
+                >
+                  {{ selectedRecommendedPlan === card.plan.id ? 'Selected Package' : card.meta.actionLabel }}
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -1714,7 +2171,7 @@ const closeRetryDialog = () => {
             Cancel
           </Button>
           <Button
-            v-if="addOnOption && addOnOption.available"
+            v-if="addOnOption && addOnOption.available && recommendedPlans.length === 0"
             @click="handleAddonPurchase"
             :disabled="isRedirectingToPayment"
             class="w-full sm:w-auto"
@@ -1724,10 +2181,10 @@ const closeRetryDialog = () => {
           <Button
             v-else
             @click="handleUpgradeClick"
-            :disabled="isRedirectingToPayment"
+            :disabled="isRedirectingToPayment || (recommendedPlans.length > 0 && !selectedRecommendedPlan)"
             class="w-full sm:w-auto"
           >
-            {{ isRedirectingToPayment ? 'Redirecting...' : (recommendedPlans.length > 1 ? 'Continue with Selected Plan' : 'Upgrade Plan') }}
+            {{ isRedirectingToPayment ? 'Redirecting...' : (recommendedPlans.length > 0 ? 'Continue to Payment' : 'Upgrade Plan') }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2200,10 +2657,16 @@ const closeRetryDialog = () => {
 }
 
 /* ── Mentor Booking Dialog ── */
+:global(.mentor-booking-dialog),
+:global(.mentor-booking-dialog:focus),
+:global(.mentor-booking-dialog:focus-visible) {
+  outline: none;
+}
+
 .mentor-booking-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 40%) minmax(0, 60%);
-  min-height: 560px;
+  grid-template-columns: minmax(260px, 39%) minmax(0, 61%);
+  min-height: 520px;
   font-family: 'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -2216,32 +2679,32 @@ const closeRetryDialog = () => {
 }
 
 .mentor-booking-left-body {
-  padding: 1.75rem 1.75rem 1.25rem;
+  padding: 1.45rem 1.55rem 1rem;
 }
 
 .mentor-booking-eyebrow {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: #0f6b45;
   letter-spacing: 0.16em;
-  margin-bottom: 0.55rem;
+  margin-bottom: 0.45rem;
 }
 
 .mentor-booking-title {
-  font-size: 2rem;
+  font-size: 1.75rem;
   line-height: 1.12;
   font-weight: 600;
   color: #1f2430;
   max-width: 11ch;
   letter-spacing: -0.01em;
-  margin: 0 0 1.25rem;
+  margin: 0 0 1rem;
 }
 
 .mentor-booking-card {
   border: 1px solid #ebedf1;
   background: white;
-  border-radius: 1rem;
-  padding: 1rem;
+  border-radius: 0.85rem;
+  padding: 0.85rem;
   max-width: 430px;
 }
 
@@ -2252,9 +2715,9 @@ const closeRetryDialog = () => {
 }
 
 .mentor-booking-avatar {
-  width: 3.25rem;
-  height: 3.25rem;
-  border-radius: 0.75rem;
+  width: 2.85rem;
+  height: 2.85rem;
+  border-radius: 0.65rem;
   object-fit: cover;
 }
 
@@ -2269,28 +2732,28 @@ const closeRetryDialog = () => {
 }
 
 .mentor-booking-name {
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   font-weight: 600;
   line-height: 1.15;
   color: #222a36;
 }
 
 .mentor-booking-role {
-  font-size: 0.875rem;
+  font-size: 0.78rem;
   color: #687386;
   margin-top: 0.2rem;
 }
 
 .mentor-booking-duration-row {
-  margin-top: 0.95rem;
+  margin-top: 0.8rem;
   display: flex;
   align-items: center;
   gap: 0.65rem;
 }
 
 .mentor-booking-duration-icon {
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: 999px;
   background: #0a8167;
   display: inline-flex;
@@ -2299,14 +2762,14 @@ const closeRetryDialog = () => {
 }
 
 .mentor-booking-duration-label {
-  font-size: 0.95rem;
+  font-size: 0.84rem;
   color: #2d3646;
 }
 
 .mentor-booking-quote {
   border-top: 1px solid #e7eaee;
-  padding: 1.25rem 1.75rem 1.45rem;
-  font-size: 0.875rem;
+  padding: 1rem 1.55rem 1.15rem;
+  font-size: 0.78rem;
   line-height: 1.5;
   color: #677286;
 }
@@ -2316,12 +2779,12 @@ const closeRetryDialog = () => {
 }
 
 .mentor-booking-right-inner {
-  padding: 1.75rem;
-  max-width: 640px;
+  padding: 1.35rem 1.55rem 1.45rem;
+  max-width: 680px;
 }
 
 .mentor-booking-form-title {
-  font-size: 1.5rem;
+  font-size: 1.28rem;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.01em;
@@ -2329,17 +2792,22 @@ const closeRetryDialog = () => {
 }
 
 .mentor-booking-form-subtitle {
-  margin-top: 0.3rem;
-  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
   color: #687386;
 }
 
 .mentor-booking-balance-panel {
-  margin-top: 1rem;
+  margin-top: 0.8rem;
   border: 1px solid #d8dfeb;
-  border-radius: 0.75rem;
+  border-radius: 0.65rem;
   background: #f8fbff;
-  padding: 0.75rem 0.85rem;
+  padding: 0.6rem 0.7rem;
+}
+
+.mentor-booking-personal-balance-panel {
+  border-color: #b9e5d8;
+  background: #f5fffb;
 }
 
 .mentor-booking-balance-head {
@@ -2350,7 +2818,7 @@ const closeRetryDialog = () => {
 }
 
 .mentor-booking-balance-title {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: #2e3a4d;
@@ -2361,7 +2829,7 @@ const closeRetryDialog = () => {
   border: none;
   background: transparent;
   color: #0a8167;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -2372,32 +2840,37 @@ const closeRetryDialog = () => {
 }
 
 .mentor-booking-balance-grid {
-  margin-top: 0.55rem;
+  margin-top: 0.45rem;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
 .mentor-booking-balance-item {
-  border-radius: 0.6rem;
+  border-radius: 0.52rem;
   background: white;
   border: 1px solid #e0e5ef;
-  padding: 0.5rem 0.6rem;
+  padding: 0.42rem 0.55rem;
 }
 
 .mentor-booking-balance-label {
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   color: #728097;
   text-transform: uppercase;
   letter-spacing: 0.01em;
 }
 
 .mentor-booking-balance-value {
-  margin-top: 0.2rem;
-  font-size: 1.1rem;
+  margin-top: 0.16rem;
+  font-size: 0.98rem;
   font-weight: 700;
   color: #1f2430;
   line-height: 1;
+}
+
+.mentor-booking-balance-value.is-plan-name {
+  font-size: 0.78rem;
+  line-height: 1.2;
 }
 
 .mentor-booking-balance-value.is-empty {
@@ -2405,20 +2878,20 @@ const closeRetryDialog = () => {
 }
 
 .mentor-booking-balance-meta {
-  margin-top: 0.5rem;
-  font-size: 0.78rem;
+  margin-top: 0.42rem;
+  font-size: 0.7rem;
   color: #5c687a;
   line-height: 1.35;
 }
 
 .mentor-booking-field-group {
-  margin-top: 1.05rem;
+  margin-top: 0.72rem;
 }
 
 .mentor-booking-field-label {
   display: inline-block;
-  margin-bottom: 0.45rem;
-  font-size: 0.875rem;
+  margin-bottom: 0.32rem;
+  font-size: 0.76rem;
   font-weight: 500;
   color: #2d3646;
 }
@@ -2437,50 +2910,143 @@ const closeRetryDialog = () => {
 
 .mentor-booking-date-picker :deep(.mentor-booking-date-input) {
   width: 100%;
-  min-height: 2.8rem;
+  min-height: 2.35rem;
   border-color: #d7dce2;
-  border-radius: 0.7rem;
-  font-size: 0.95rem;
+  border-radius: 0.6rem;
+  font-size: 0.82rem;
   color: #1f2430;
-  padding-left: 0.75rem;
+  padding-left: 0.65rem;
   font-family: inherit;
 }
 
 .mentor-booking-field-select {
-  min-height: 2.8rem;
+  min-height: 2.35rem;
   border-color: #d7dce2;
-  border-radius: 0.7rem;
-  font-size: 0.95rem;
+  border-radius: 0.6rem;
+  font-size: 0.82rem;
   color: #1f2430;
-  padding-left: 0.75rem;
+  padding-left: 0.65rem;
   font-family: inherit;
 }
 
+.mentor-booking-question-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.72rem;
+}
+
+.mentor-booking-question-grid .mentor-booking-field-group {
+  margin-top: 0;
+}
+
 .mentor-booking-field-textarea {
-  min-height: 8rem;
+  min-height: 4.2rem;
   border-color: #d7dce2;
-  border-radius: 0.7rem;
-  font-size: 0.95rem;
-  line-height: 1.45;
-  padding: 0.75rem 0.85rem;
+  border-radius: 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  padding: 0.58rem 0.65rem;
   font-family: inherit;
   resize: none;
 }
 
+.mentor-booking-upload-zone {
+  min-height: 4.2rem;
+  border: 1px dashed #b8c8c2;
+  border-radius: 0.6rem;
+  background: #f8fbfa;
+  padding: 0.58rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.mentor-booking-upload-zone:hover {
+  border-color: #0a8167;
+  background: #f2faf7;
+}
+
+.mentor-booking-upload-zone.is-uploading {
+  cursor: progress;
+  opacity: 0.78;
+}
+
+.mentor-booking-upload-text {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1f2430;
+}
+
+.mentor-booking-upload-hint {
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: #687386;
+}
+
+.mentor-booking-file-chip {
+  margin-top: 0.45rem;
+  min-height: 2.1rem;
+  border: 1px solid #d7dce2;
+  border-radius: 0.55rem;
+  padding: 0.38rem 0.45rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: white;
+}
+
+.mentor-booking-file-name {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1f2430;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mentor-booking-file-meta {
+  margin: 0.05rem 0 0;
+  font-size: 0.64rem;
+  color: #687386;
+}
+
+.mentor-booking-file-remove {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  border: 1px solid #d7dce2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #596579;
+  background: white;
+}
+
+.mentor-booking-file-remove:hover {
+  color: #b64040;
+  border-color: #efc5c5;
+  background: #fff7f7;
+}
+
 .mentor-booking-actions {
-  margin-top: 1.35rem;
+  margin-top: 1rem;
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
 .mentor-booking-submit {
-  min-width: 11.5rem;
-  height: 2.75rem;
+  min-width: 10.5rem;
+  height: 2.45rem;
   border-radius: 999px;
   background: #0a8167;
   color: white;
-  font-size: 0.95rem;
+  font-size: 0.84rem;
   font-weight: 600;
 }
 
@@ -2490,7 +3056,7 @@ const closeRetryDialog = () => {
 
 .mentor-booking-cancel {
   color: #222a35;
-  font-size: 0.95rem;
+  font-size: 0.84rem;
   font-weight: 500;
 }
 
@@ -2519,6 +3085,10 @@ const closeRetryDialog = () => {
   }
 
   .mentor-booking-balance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mentor-booking-question-grid {
     grid-template-columns: 1fr;
   }
 }

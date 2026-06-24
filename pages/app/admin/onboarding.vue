@@ -7,10 +7,9 @@ import { useAuthStore } from '@/store/modules/auth'
 import { useCompanyOnboardingStore } from '@/store/modules/company-onboarding'
 import type { UpdateCompanyOnboardingPayload } from '@/http/requests/app/company'
 import { useAppToast } from '@/composables/services/toastService'
-import AuthSplitShell from '@/components/auth/AuthSplitShell.vue'
+import PublicSiteHeader from '@/components/landing/PublicSiteHeader.vue'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Button } from '~/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Skeleton } from '~/components/ui/skeleton'
@@ -307,59 +306,81 @@ watch(() => form.country, value => {
 </script>
 
 <template>
-  <AuthSplitShell content-class="w-full max-w-5xl px-4 lg:px-8" align="start">
-    <div class="space-y-6">
-      <div class="rounded-[28px] border border-[#e8d9e6] bg-white p-4 shadow-sm lg:p-5">
-        <div class="grid gap-3 md:grid-cols-3">
+  <div class="relative min-h-screen overflow-hidden" style="font-family: 'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;">
+    <img
+      src="/img_2.jpg"
+      alt="ProsperMentor background"
+      class="absolute inset-0 h-full w-full object-cover"
+    >
+    <div class="absolute inset-0 bg-[#0f3f35]/60" />
+
+    <PublicSiteHeader />
+
+    <main class="relative z-10 flex min-h-[calc(100vh-80px)] items-center justify-center px-4 py-8 sm:px-6">
+      <section class="w-full max-w-[760px] rounded-[28px] border border-white/30 bg-white/95 p-4 shadow-2xl sm:p-5">
+        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div class="space-y-2">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#027F63]">
+              Company setup
+            </p>
+            <h1 class="text-[24px] font-semibold leading-tight text-[#1f2937]">
+              Finish setting up your workspace
+            </h1>
+            <p class="max-w-[520px] text-[13px] leading-relaxed text-[#4b5563]">
+              Add the company context ProsperMentor needs to prepare your corporate mentorship workspace.
+            </p>
+          </div>
+          <div class="rounded-full border border-[#d1d5db] bg-white px-3 py-1.5 text-xs font-medium text-[#027F63]">
+            Step {{ stepNumber }} of {{ setupSteps.length }}
+          </div>
+        </div>
+
+        <div class="mt-4 grid gap-2 sm:grid-cols-1">
           <button
             v-for="(step, index) in setupSteps"
             :key="step.title"
             type="button"
-            class="rounded-2xl border p-4 text-left transition"
-            :class="index === currentStep ? 'border-[#a03b93] bg-[#fbf1f9]' : 'border-[#e5e7eb] bg-white hover:border-[#d8b6d2]'"
+            class="rounded-[18px] border p-3 text-left transition"
+            :class="index === currentStep ? 'border-[#027F63] bg-[#f0faf7]' : 'border-[#e5e7eb] bg-white hover:border-[#9bd1c3]'"
             @click="goToStep(index)"
           >
-            <span class="text-xs font-semibold uppercase tracking-[0.18em] text-[#a03b93]">
+            <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#027F63]">
               {{ step.stepLabel }}
             </span>
-            <span class="mt-2 block text-sm font-semibold text-[#211827]">
+            <span class="mt-1 block text-sm font-semibold text-[#1f2937]">
               {{ step.title }}
             </span>
           </button>
         </div>
-      </div>
 
-      <Alert v-if="formError || onboardingStore.error" variant="destructive">
-        <AlertDescription>{{ formError || onboardingStore.error }}</AlertDescription>
-      </Alert>
+        <Alert v-if="formError || onboardingStore.error" variant="destructive" class="mt-4">
+          <AlertDescription>{{ formError || onboardingStore.error }}</AlertDescription>
+        </Alert>
 
-      <Card v-if="isBootstrapping">
-        <CardContent class="space-y-4 p-6">
-          <Skeleton class="h-10 w-1/2" />
-          <Skeleton class="h-12 w-full" />
-          <Skeleton class="h-12 w-full" />
-          <Skeleton class="h-28 w-full" />
-        </CardContent>
-      </Card>
+        <div v-if="isBootstrapping" class="mt-4 space-y-3 rounded-[18px] border border-[#e5e7eb] bg-white p-4">
+          <Skeleton class="h-8 w-1/2" />
+          <Skeleton class="h-10 w-full" />
+          <Skeleton class="h-10 w-full" />
+          <Skeleton class="h-20 w-full" />
+        </div>
 
-      <Card v-else>
-        <CardHeader>
-          <CardTitle>
-            Step {{ stepNumber }}: {{ currentStepMeta.title }}
-          </CardTitle>
-          <CardDescription>
-            {{ currentStepMeta.description }}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form class="grid gap-6" @submit.prevent="saveOnboarding">
-            <section v-if="currentStep === 0" class="grid gap-5 md:grid-cols-2">
-              <div class="grid gap-2">
-                <Label for="industry">Industry</Label>
+        <form v-else class="mt-4 grid gap-4" @submit.prevent="saveOnboarding">
+          <div class="border-t border-[#e5e7eb] pt-4">
+            <h2 class="text-[18px] font-semibold text-[#1f2937]">
+              {{ currentStepMeta.title }}
+            </h2>
+            <p class="mt-1 text-[13px] leading-relaxed text-[#4b5563]">
+              {{ currentStepMeta.description }}
+            </p>
+          </div>
+
+          <section v-if="currentStep === 0" class="grid gap-3 md:grid-cols-2">
+            <div class="grid gap-1.5">
+              <Label for="industry" class="text-xs font-medium text-[#6b7280]">Industry</Label>
                 <select
                   id="industry"
                   v-model="form.industry"
-                  class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  class="h-10 rounded-[14px] border border-[#d1d5db] bg-white px-3 text-sm text-[#111827] outline-none focus:border-[#027F63] focus:ring-2 focus:ring-[#027F63]/20"
                 >
                   <option value="">Select industry</option>
                   <option
@@ -370,14 +391,14 @@ watch(() => form.country, value => {
                     {{ industry }}
                   </option>
                 </select>
-              </div>
+            </div>
 
-              <div class="grid gap-2">
-                <Label for="companySizeBand">Company size</Label>
+            <div class="grid gap-1.5">
+              <Label for="companySizeBand" class="text-xs font-medium text-[#6b7280]">Company size</Label>
                 <select
                   id="companySizeBand"
                   v-model="form.companySizeBand"
-                  class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  class="h-10 rounded-[14px] border border-[#d1d5db] bg-white px-3 text-sm text-[#111827] outline-none focus:border-[#027F63] focus:ring-2 focus:ring-[#027F63]/20"
                 >
                   <option value="">Select size</option>
                   <option value="1-50">1-50 employees</option>
@@ -386,15 +407,15 @@ watch(() => form.country, value => {
                   <option value="1001-5000">1,001-5,000 employees</option>
                   <option value="5000+">5,000+ employees</option>
                 </select>
-              </div>
+            </div>
 
-              <div class="grid gap-2">
-                <Label for="country">Country</Label>
+            <div class="grid gap-1.5">
+              <Label for="country" class="text-xs font-medium text-[#6b7280]">Country</Label>
                 <div class="relative" @focusout="handleCountryFocusOut">
                   <button
                     id="country"
                     type="button"
-                    class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-left text-sm"
+                    class="flex h-10 w-full items-center justify-between rounded-[14px] border border-[#d1d5db] bg-white px-3 text-left text-sm text-[#111827] transition hover:bg-[#f9fafb] focus:outline-none focus:ring-2 focus:ring-[#027F63]/25"
                     :aria-expanded="countryDropdownOpen"
                     aria-haspopup="listbox"
                     @click="countryDropdownOpen ? closeCountryDropdown() : openCountryDropdown()"
@@ -402,18 +423,18 @@ watch(() => form.country, value => {
                     <span :class="form.country ? 'text-foreground' : 'text-muted-foreground'">
                       {{ selectedCountry ? formatCountryLabel(selectedCountry) : form.country || 'Search and select country' }}
                     </span>
-                    <span class="text-xs text-muted-foreground">⌄</span>
+                    <span class="text-xs text-[#6b7280]">⌄</span>
                   </button>
 
                   <div
                     v-if="countryDropdownOpen"
-                    class="absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-[#ead8e7] bg-white shadow-xl"
+                    class="absolute z-50 mt-2 w-full overflow-hidden rounded-[16px] border border-[#d1d5db] bg-white shadow-xl"
                   >
-                    <div class="border-b p-2">
+                    <div class="border-b border-[#e5e7eb] p-2">
                       <Input
                         v-model="countrySearch"
                         placeholder="Search country..."
-                        class="h-9"
+                        class="h-9 rounded-[12px] border-[#d1d5db] text-sm focus-visible:ring-[#027F63]/25"
                         @keydown.escape.prevent="closeCountryDropdown"
                       />
                     </div>
@@ -426,29 +447,29 @@ watch(() => form.country, value => {
                         v-for="country in filteredCountryOptions"
                         :key="country.isoCode"
                         type="button"
-                        class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-[#fbf1f9]"
+                        class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-[#111827] hover:bg-[#f3faf8]"
                         :aria-selected="country.name === form.country"
                         role="option"
                         @click="selectCountry(country)"
                       >
                         <span>{{ formatCountryLabel(country) }}</span>
-                        <span v-if="country.name === form.country" class="text-xs font-semibold text-[#a03b93]">Selected</span>
+                        <span v-if="country.name === form.country" class="text-xs font-semibold text-[#027F63]">Selected</span>
                       </button>
                     </div>
-                    <div v-else class="px-3 py-6 text-center text-sm text-muted-foreground">
+                    <div v-else class="px-3 py-6 text-center text-sm text-[#6b7280]">
                       No country found.
                     </div>
                   </div>
                 </div>
-              </div>
+            </div>
 
-              <div class="grid gap-2">
-                <Label for="timezone">Timezone</Label>
+            <div class="grid gap-1.5">
+              <Label for="timezone" class="text-xs font-medium text-[#6b7280]">Timezone</Label>
                 <select
                   v-if="countryTimezones.length"
                   id="timezone"
                   v-model="form.timezone"
-                  class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  class="h-10 rounded-[14px] border border-[#d1d5db] bg-white px-3 text-sm text-[#111827] outline-none focus:border-[#027F63] focus:ring-2 focus:ring-[#027F63]/20"
                 >
                   <option value="">Select timezone</option>
                   <option
@@ -459,8 +480,14 @@ watch(() => form.country, value => {
                     {{ formatTimezoneLabel(timezone) }}
                   </option>
                 </select>
-                <Input v-else id="timezone" v-model="form.timezone" placeholder="Africa/Nairobi" />
-                <p class="text-xs text-muted-foreground">
+                <Input
+                  v-else
+                  id="timezone"
+                  v-model="form.timezone"
+                  placeholder="Africa/Nairobi"
+                  class="h-10 rounded-[14px] border-[#d1d5db] text-sm focus-visible:ring-[#027F63]/25"
+                />
+                <p class="text-xs leading-relaxed text-[#6b7280]">
                   <span v-if="selectedCountry && hasMultipleTimezones">
                     Inferred from {{ selectedCountry.name }}. Confirm the timezone that fits this company.
                   </span>
@@ -471,32 +498,34 @@ watch(() => form.country, value => {
                     Select a country to infer timezone.
                   </span>
                 </p>
-              </div>
-            </section>
-
-            <div class="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-end">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Button
-                  v-if="!isLastStep"
-                  type="button"
-                  class="bg-[#a03b93] hover:bg-[#8a2f7d]"
-                  @click="nextStep"
-                >
-                  Next
-                </Button>
-                <Button
-                  v-else
-                  type="submit"
-                  class="bg-[#a03b93] hover:bg-[#8a2f7d]"
-                  :disabled="onboardingStore.isSaving"
-                >
-                  Finish Setup
-                </Button>
-              </div>
             </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  </AuthSplitShell>
+          </section>
+
+          <div class="flex flex-col gap-3 border-t border-[#e5e7eb] pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-xs leading-relaxed text-[#6b7280]">
+              You can update company details later from admin settings.
+            </p>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                v-if="!isLastStep"
+                type="button"
+                class="h-10 rounded-full bg-[#027F63] px-6 text-sm font-medium text-white hover:bg-[#046f58]"
+                @click="nextStep"
+              >
+                Next
+              </Button>
+              <Button
+                v-else
+                type="submit"
+                class="h-10 rounded-full bg-[#027F63] px-6 text-sm font-medium text-white hover:bg-[#046f58]"
+                :disabled="onboardingStore.isSaving"
+              >
+                {{ onboardingStore.isSaving ? 'Saving...' : 'Finish Setup' }}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
 </template>

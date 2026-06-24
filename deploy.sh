@@ -27,7 +27,9 @@ load_deploy_env
 
 DEPLOY_SERVER="${DEPLOY_SERVER:-109.123.250.133}"
 DEPLOY_USER="${DEPLOY_USER:-root}"
-DEPLOY_TARGET_DIR="${DEPLOY_TARGET_DIR:-/var/www/html/prosper_enterprise}"
+DEPLOY_TARGET_DIR="${DEPLOY_TARGET_DIR:-/opt/prosper/frontend}"
+FRONTEND_SERVICE="${FRONTEND_SERVICE:-prosper-frontend}"
+FRONTEND_HEALTH_URL="${FRONTEND_HEALTH_URL:-http://127.0.0.1:3000}"
 
 SSHPASS_BIN="$(command -v sshpass || true)"
 if [ -z "$SSHPASS_BIN" ]; then
@@ -59,9 +61,9 @@ ssh_cmd() {
 
 scp_cmd() {
     if [ -n "${DEPLOY_PASSWORD:-}" ] && [ -n "$SSHPASS_BIN" ]; then
-        "$SSHPASS_BIN" -p "$DEPLOY_PASSWORD" scp "${SSH_OPTS[@]}" "$@"
+        "$SSHPASS_BIN" -p "$DEPLOY_PASSWORD" scp -O "${SSH_OPTS[@]}" "$@"
     else
-        scp "$@"
+        scp -O "$@"
     fi
 }
 
@@ -190,10 +192,11 @@ fi
 
 # Create deployment package
 echo "📁 Creating deployment package..."
-tar -czf deployment.tar.gz .output package.json package-lock.json
+COPYFILE_DISABLE=1 tar -czf deployment.tar.gz .output package.json package-lock.json
 
 # Upload to server
 echo "⬆️  Uploading to server..."
+ssh_cmd "mkdir -p '$DEPLOY_TARGET_DIR'"
 if ! scp_cmd deployment.tar.gz "$DEPLOY_USER@$DEPLOY_SERVER:$DEPLOY_TARGET_DIR/"; then
     echo "❌ Upload failed!"
     exit 1
@@ -201,94 +204,32 @@ fi
 
 # Deploy on server
 echo "🔄 Deploying on server..."
-ssh_cmd << 'EOF'
+ssh_cmd "DEPLOY_TARGET_DIR='$DEPLOY_TARGET_DIR' FRONTEND_SERVICE='$FRONTEND_SERVICE' FRONTEND_HEALTH_URL='$FRONTEND_HEALTH_URL' bash -s" << 'EOF'
 set -euo pipefail
 
-cd /var/www/html/prosper_enterprise
+cd "$DEPLOY_TARGET_DIR"
+
+if [ -d .output ]; then
+    backup_dir=".output.backup.$(date +%Y%m%d%H%M%S)"
+    echo "🧾 Backing up current build to $backup_dir"
+    mv .output "$backup_dir"
+fi
+
 echo "📂 Extracting files..."
-rm -rf .output
 tar -xzf deployment.tar.gz
+
 echo "📦 Installing dependencies..."
 npm ci --omit=dev --ignore-scripts
 
-delete_stale_pm2_apps() {
-    echo "🔎 Checking PM2 for stale app processes..."
+if id prosper >/dev/null 2>&1; then
+    chown -R prosper:prosper "$DEPLOY_TARGET_DIR"
+fi
 
-    if ! command -v pm2 >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1; then
-        echo "⚠️  PM2 or node is unavailable; skipping PM2 metadata cleanup"
-        return 0
-    fi
+echo "🔄 Restarting $FRONTEND_SERVICE..."
+systemctl restart "$FRONTEND_SERVICE"
 
-    local stale_ids
-    stale_ids=$(pm2 jlist | node -e '
-const fs = require("fs")
-const cwd = process.cwd()
-const apps = JSON.parse(fs.readFileSync(0, "utf8"))
-
-for (const app of apps) {
-  const env = app.pm2_env || {}
-  const name = app.name || ""
-  const appCwd = env.pm_cwd || ""
-  const execPath = env.pm_exec_path || ""
-  const args = Array.isArray(env.args) ? env.args.join(" ") : String(env.args || "")
-
-  if (
-    name === "nuxt-app" ||
-    appCwd === cwd ||
-    execPath.includes("/node_modules/.bin/nuxt") ||
-    args.includes("nuxt dev") ||
-    args.includes("nuxt start")
-  ) {
-    console.log(app.pm_id)
-  }
-}
-' || true)
-
-    if [ -n "$stale_ids" ]; then
-        echo "🧹 Deleting stale PM2 app id(s): $stale_ids"
-        for id in $stale_ids; do
-            pm2 delete "$id" >/dev/null 2>&1 || true
-        done
-    fi
-}
-
-stop_port_3000_listener() {
-    echo "🔎 Checking for existing listeners on port 3000..."
-
-    if command -v lsof >/dev/null 2>&1; then
-        local pids
-        pids=$(lsof -ti tcp:3000 -sTCP:LISTEN || true)
-
-        if [ -n "$pids" ]; then
-            echo "🧹 Stopping stale port 3000 listener(s): $pids"
-            kill $pids >/dev/null 2>&1 || true
-            sleep 2
-
-            pids=$(lsof -ti tcp:3000 -sTCP:LISTEN || true)
-            if [ -n "$pids" ]; then
-                echo "🧹 Force stopping stale port 3000 listener(s): $pids"
-                kill -9 $pids >/dev/null 2>&1 || true
-                sleep 1
-            fi
-        fi
-    elif command -v fuser >/dev/null 2>&1; then
-        if fuser 3000/tcp >/dev/null 2>&1; then
-            echo "🧹 Stopping stale port 3000 listener with fuser"
-            fuser -k 3000/tcp >/dev/null 2>&1 || true
-            sleep 2
-        fi
-    else
-        echo "⚠️  Neither lsof nor fuser is available; cannot pre-clear port 3000"
-    fi
-}
-
-echo "🔄 Recreating production PM2 process..."
-delete_stale_pm2_apps
-stop_port_3000_listener
-NODE_ENV=production HOST=127.0.0.1 PORT=3000 pm2 start .output/server/index.mjs --name "nuxt-app" --interpreter node --update-env
-pm2 save
 echo "⏳ Waiting for application to start..."
-sleep 10
+sleep 6
 echo "🔍 Checking application health..."
 
 # Health check function
@@ -299,16 +240,13 @@ check_health() {
     local html_file="/tmp/prosper-enterprise-health.html"
 
     verify_production_html() {
-        local base_url="$1"
-        local label="$2"
-
-        if ! curl -f -sS --max-time 10 "$base_url/" -o "$html_file"; then
-            echo "⚠️  $label is not responding to HTTP requests"
+        if ! curl -f -sS --max-time 10 "$FRONTEND_HEALTH_URL/" -o "$html_file"; then
+            echo "⚠️  Frontend is not responding at $FRONTEND_HEALTH_URL"
             return 1
         fi
 
         if grep -Eq '@vite/client|WebstormProjects|/_nuxt/Users/' "$html_file"; then
-            echo "❌ $label is serving dev-only Nuxt assets"
+            echo "❌ Frontend is serving dev-only Nuxt assets"
             sed -n '1,20p' "$html_file"
             return 1
         fi
@@ -316,33 +254,25 @@ check_health() {
         local asset_path
         asset_path=$(grep -oE '/_nuxt/[^" ]+\.js' "$html_file" | head -1 || true)
         if [ -z "$asset_path" ]; then
-            echo "⚠️  $label HTML did not expose a production JS asset"
+            echo "⚠️  Frontend HTML did not expose a production JS asset"
             return 1
         fi
 
-        if ! curl -f -sS -I --max-time 10 "${base_url%/}$asset_path" >/dev/null; then
-            echo "⚠️  $label production JS asset is not reachable: $asset_path"
+        if ! curl -f -sS -I --max-time 10 "${FRONTEND_HEALTH_URL%/}$asset_path" >/dev/null; then
+            echo "⚠️  Frontend production JS asset is not reachable: $asset_path"
             return 1
         fi
 
-        echo "✅ $label is serving production Nuxt assets"
+        echo "✅ Frontend is serving production Nuxt assets"
         return 0
     }
     
     while [ $attempt -le $max_attempts ]; do
         echo "🔄 Health check attempt $attempt/$max_attempts..."
         
-        # Check if PM2 process is running
-        if pm2 list | grep -q "nuxt-app.*online"; then
-            echo "✅ PM2 process is running"
-            
-            if verify_production_html "http://127.0.0.1:3000" "Local app" && \
-               verify_production_html "https://enterprise.prospermentor.com" "Public domain"; then
-                echo "🎉 Health check passed!"
-                return 0
-            fi
-        else
-            echo "❌ PM2 process is not running properly"
+        if systemctl is-active --quiet "$FRONTEND_SERVICE" && verify_production_html; then
+            echo "🎉 Health check passed!"
+            return 0
         fi
         
         if [ $attempt -lt $max_attempts ]; then
@@ -354,10 +284,10 @@ check_health() {
     done
     
     echo "❌ Health check failed after $max_attempts attempts"
-    echo "📊 PM2 Status:"
-    pm2 status nuxt-app
+    echo "📊 Service status:"
+    systemctl status "$FRONTEND_SERVICE" --no-pager || true
     echo "📋 Recent logs:"
-    pm2 logs nuxt-app --lines 20 --nostream
+    journalctl -u "$FRONTEND_SERVICE" -n 40 --no-pager || true
     return 1
 }
 

@@ -7,6 +7,9 @@ import companyProgramsApi, {
   type CompanyProgramParticipantRecord,
   type CompanyProgramRecord,
 } from '@/http/requests/app/companyPrograms'
+import companySubscriptionsApi, {
+  type CompanySubscriptionSummary,
+} from '@/http/requests/app/companySubscriptions'
 import reviewAlertsApi, {
   type ReviewAlertSummaryRecord,
 } from '@/http/requests/app/reviewAlerts'
@@ -346,6 +349,7 @@ const storedCompanyName = ref('Your company')
 const dashboardData = ref<CompanyDashboardResponse | null>(null)
 const reviewSummary = ref<ReviewAlertSummaryRecord | null>(null)
 const pulseSummary = ref<CompanyParticipantPulseSummaryRecord | null>(null)
+const companySubscriptions = ref<CompanySubscriptionSummary[]>([])
 const programInsights = ref<ProgramInsightsSummary>({ ...DEFAULT_PROGRAM_INSIGHTS })
 const programInsightsError = ref<string | null>(null)
 const selectedDatePreset = ref<DashboardDatePreset>(DEFAULT_DASHBOARD_DATE_PRESET)
@@ -371,6 +375,13 @@ const formatHours = (value: number) => {
   const rounded = roundTo(value, 1)
   return Number.isInteger(rounded) ? formatNumber(rounded) : rounded.toFixed(1)
 }
+
+const formatCurrency = (value: number | string, currency = 'KES') =>
+  new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0))
 
 const toDate = (value?: string | null) => {
   if (!value) return null
@@ -591,6 +602,30 @@ const stats = computed<CompanyDashboardStats>(() => ({
   ...DEFAULT_STATS,
   ...(dashboardData.value?.stats || {}),
 }))
+
+const managedCompanySubscription = computed(() =>
+  companySubscriptions.value.find(subscription => subscription.status === 'ACTIVE' && subscription.wallet)
+  || companySubscriptions.value.find(subscription => subscription.wallet)
+  || companySubscriptions.value.find(subscription => subscription.status === 'PENDING_PAYMENT')
+  || companySubscriptions.value[0]
+  || null,
+)
+
+const managedCompanyWallet = computed(() => managedCompanySubscription.value?.wallet || null)
+const walletAvailableSessions = computed(() => Math.max(0, Number(managedCompanyWallet.value?.sessionsAvailable || 0)))
+const walletPurchasedSessions = computed(() => Math.max(0, Number(managedCompanyWallet.value?.sessionsPurchased || managedCompanySubscription.value?.seatsPurchased || 0)))
+const walletAllocatedSessions = computed(() => Math.max(0, Number(managedCompanyWallet.value?.sessionsAllocated || 0)))
+const walletReturnedSessions = computed(() => Math.max(0, Number(managedCompanyWallet.value?.sessionsReturned || 0)))
+const walletReservedSessions = computed(() => Math.max(0, walletAllocatedSessions.value - walletReturnedSessions.value))
+const walletUsedSessions = computed(() => Math.max(0, walletPurchasedSessions.value - walletAvailableSessions.value))
+const walletUtilizationRate = computed(() => {
+  if (!walletPurchasedSessions.value) return 0
+  return clampPercent((walletUsedSessions.value / walletPurchasedSessions.value) * 100)
+})
+const walletCurrency = computed(() => 'KES')
+const walletAvailableBalance = computed(() =>
+  walletAvailableSessions.value * Number(managedCompanyWallet.value?.pricePerSession || 0),
+)
 
 const lastRefreshedAt = computed(() => dashboardData.value?.snapshotAt || null)
 const hasLoadedData = computed(() => dashboardData.value !== null)
@@ -1208,6 +1243,10 @@ const openActivityWorkspace = async () => {
   })
 }
 
+const openBillingWorkspace = async () => {
+  await router.push('/app/admin/billing')
+}
+
 const applyDateFilter = async () => {
   if (!selectedStartDate.value || !selectedEndDate.value) {
     toast.error('Select both start and end dates.')
@@ -1262,12 +1301,19 @@ const refreshDashboard = async () => {
 
   try {
     const dateFilter = dashboardDateFilterParams.value
-    const dashboardResult = await dashboardApi.getCompanyDashboard(resolvedCompanyId, dateFilter)
-
-    await Promise.all([
+    const [dashboardResult, companySubscriptionsResult] = await Promise.all([
+      dashboardApi.getCompanyDashboard(resolvedCompanyId, dateFilter),
+      companySubscriptionsApi.getCompanySubscriptions(resolvedCompanyId).catch((subscriptionError) => {
+        console.error('Failed to load company subscriptions:', subscriptionError)
+        return { success: false, data: [] as CompanySubscriptionSummary[] }
+      }),
       loadInsightsSummary(resolvedCompanyId, dateFilter),
       loadProgramInsights(resolvedCompanyId, dateFilter),
     ])
+
+    companySubscriptions.value = companySubscriptionsResult?.success
+      ? companySubscriptionsResult.data || []
+      : []
 
     const payload = dashboardResult?.data
 
@@ -1429,21 +1475,74 @@ onMounted(() => {
     </div>
 
     <template v-else>
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiSummaryCard
-          v-for="kpi in topKpis"
-          :key="kpi.id"
-          :title="kpi.title"
-          :value="kpi.value"
-          :subtitle="kpi.subtitle"
-          :progress="kpi.progress"
-          :icon="kpi.icon"
-          :tone="kpi.tone"
-          :delta-text="kpi.deltaText"
-          :delta-tone="kpi.deltaTone"
-          :health-tone="kpi.healthTone"
-          :sparkline="kpi.sparkline"
-        />
+      <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiSummaryCard
+            v-for="kpi in topKpis"
+            :key="kpi.id"
+            :title="kpi.title"
+            :value="kpi.value"
+            :subtitle="kpi.subtitle"
+            :progress="kpi.progress"
+            :icon="kpi.icon"
+            :tone="kpi.tone"
+            :delta-text="kpi.deltaText"
+            :delta-tone="kpi.deltaTone"
+            :health-tone="kpi.healthTone"
+            :sparkline="kpi.sparkline"
+          />
+        </div>
+
+        <Card class="dashboard-card">
+          <CardHeader class="space-y-2 p-4 pb-2">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle class="text-sm font-semibold text-[#1f2430]">Session Wallet</CardTitle>
+                <CardDescription class="text-xs text-[#7c8595]">
+                  Company-funded sessions available for employee allocation.
+                </CardDescription>
+              </div>
+              <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e9f6f1] text-[#00856f]">
+                <BookOpen class="h-4 w-4" />
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent class="space-y-4 p-4 pt-0">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-[#7c8595]">Sessions Available</p>
+              <p class="mt-1 text-2xl font-semibold leading-none text-[#1f2430]">{{ formatNumber(walletAvailableSessions) }}</p>
+              <p class="mt-1 text-xs text-[#7c8595]">
+                {{ formatCurrency(walletAvailableBalance, walletCurrency) }} remaining value
+              </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div class="rounded-md border border-[#edf0f4] bg-[#fbfcfd] p-2">
+                <p class="font-medium text-[#7c8595]">Purchased</p>
+                <p class="mt-1 text-sm font-semibold text-[#1f2430]">{{ formatNumber(walletPurchasedSessions) }}</p>
+              </div>
+              <div class="rounded-md border border-[#edf0f4] bg-[#fbfcfd] p-2">
+                <p class="font-medium text-[#7c8595]">Reserved</p>
+                <p class="mt-1 text-sm font-semibold text-[#1f2430]">{{ formatNumber(walletReservedSessions) }}</p>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between text-xs text-[#7c8595]">
+                <span>Wallet utilization</span>
+                <span>{{ walletUtilizationRate }}%</span>
+              </div>
+              <div class="h-2 overflow-hidden rounded-full bg-[#eef1f5]">
+                <div class="h-full rounded-full bg-[#00856f]" :style="{ width: `${walletUtilizationRate}%` }" />
+              </div>
+            </div>
+
+            <Button class="h-9 w-full rounded-md bg-[#00856f] text-white hover:bg-[#006f5d]" @click="openBillingWorkspace">
+              {{ managedCompanyWallet ? 'Manage Billing' : 'Buy Sessions' }}
+              <ArrowRight class="ml-2 h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

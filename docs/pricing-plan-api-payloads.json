@@ -1,0 +1,498 @@
+{
+  "info": {
+    "_postman_id": "8d6f3e6d-fc87-4b7f-9e64-d8ec03dfec0f",
+    "name": "ProsperMentor Pricing Plans APIs",
+    "description": "Postman collection for ProsperMentor pricing products, session checkout, bundle checkout, funding options, and legacy subscription-plan APIs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://enterprise.prospermentor.com",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "mentorId",
+      "value": "33333333-3333-3333-3333-333333333333",
+      "type": "string"
+    },
+    {
+      "key": "menteeId",
+      "value": "11111111-1111-1111-1111-111111111111",
+      "type": "string"
+    },
+    {
+      "key": "skillId",
+      "value": "44444444-4444-4444-4444-444444444444",
+      "type": "string"
+    },
+    {
+      "key": "productIdOrSku",
+      "value": "BUNDLE_MID",
+      "type": "string"
+    },
+    {
+      "key": "planId",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Pricing Products",
+      "item": [
+        {
+          "name": "List Public Pricing Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pricing/products?audience=MENTEE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "pricing",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "audience",
+                  "value": "MENTEE"
+                }
+              ]
+            },
+            "description": "Returns visible active session-commerce pricing products for the pricing page."
+          },
+          "response": []
+        },
+        {
+          "name": "List Public Pricing Products Alias",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/public/session-commerce/products?audience=MENTEE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "public",
+                "session-commerce",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "audience",
+                  "value": "MENTEE"
+                }
+              ]
+            },
+            "description": "Alias for public pricing products."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin List Pricing Products",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/pricing/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "pricing",
+                "products"
+              ]
+            },
+            "description": "Admin-only list of all pricing products, including inactive/hidden products."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Update Pricing Product",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"5-Session Pack\",\n  \"subtitle\": \"Consistent growth path\",\n  \"currency\": \"KES\",\n  \"priceAmount\": 17500,\n  \"creditQuantity\": 5,\n  \"sessionDurationMinutes\": 45,\n  \"trialWindowDays\": null,\n  \"slotHoldMinutes\": 15,\n  \"displayOrder\": 4,\n  \"badgeLabel\": \"ACCOUNTABILITY\",\n  \"badgeTone\": \"success\",\n  \"savingsLabel\": \"SAVE KES 2,500\",\n  \"featureItems\": [\n    \"Monthly career audits\",\n    \"Long-term goal setting\",\n    \"Priority scheduling\"\n  ],\n  \"noRefundPolicyVersion\": \"NO_REFUND_V1\",\n  \"active\": true,\n  \"visible\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/pricing/products/{{productIdOrSku}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "pricing",
+                "products",
+                "{{productIdOrSku}}"
+              ]
+            },
+            "description": "Admin-only pricing product update. productIdOrSku can be a UUID or SKU. All body fields are optional."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Checkout",
+      "item": [
+        {
+          "name": "Single Session Checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mentorId\": \"{{mentorId}}\",\n  \"menteeId\": \"{{menteeId}}\",\n  \"skillId\": \"{{skillId}}\",\n  \"scheduledStart\": \"2026-06-25T09:00:00+03:00\",\n  \"meetingPlatform\": \"GOOGLE_MEET\",\n  \"menteeMessage\": \"I want help clarifying my career roadmap.\",\n  \"questionnaireResponses\": {\n    \"primaryGoal\": \"Clarify my leadership roadmap\",\n    \"alreadyTried\": \"Completed one internal course\",\n    \"successLooksLike\": \"A clear 30-day action plan\",\n    \"contextLinks\": \"https://example.com/context\"\n  },\n  \"noRefundAccepted\": true,\n  \"redirectSuccessUrl\": \"https://enterprise.prospermentor.com/app/sessions\",\n  \"redirectCancelUrl\": \"https://enterprise.prospermentor.com/pricing\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/checkouts/session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "checkouts",
+                "session"
+              ]
+            },
+            "description": "Creates a self-pay single-session checkout invoice. noRefundAccepted must be true."
+          },
+          "response": []
+        },
+        {
+          "name": "Bundle Checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{menteeId}}\",\n  \"productSku\": \"BUNDLE_MID\",\n  \"redirectSuccessUrl\": \"https://enterprise.prospermentor.com/app/sessions\",\n  \"redirectCancelUrl\": \"https://enterprise.prospermentor.com/pricing\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/checkouts/bundle",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "checkouts",
+                "bundle"
+              ]
+            },
+            "description": "Creates a checkout invoice for a session bundle. Valid bundle SKUs: BUNDLE_SHORT, BUNDLE_MID, BUNDLE_LONG."
+          },
+          "response": []
+        },
+        {
+          "name": "Credit-Funded Booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mentorId\": \"{{mentorId}}\",\n  \"menteeId\": \"{{menteeId}}\",\n  \"skillId\": \"{{skillId}}\",\n  \"scheduledStart\": \"2026-06-25T09:00:00+03:00\",\n  \"meetingPlatform\": \"GOOGLE_MEET\",\n  \"menteeMessage\": \"I want help preparing for a role transition.\",\n  \"questionnaireResponses\": {\n    \"primaryGoal\": \"Prepare for role transition\",\n    \"alreadyTried\": \"Updated my CV\",\n    \"successLooksLike\": \"Clear interview strategy\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/credit-bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "credit-bookings"
+              ]
+            },
+            "description": "Books a session using existing personal/bundle credits."
+          },
+          "response": []
+        },
+        {
+          "name": "Funding Options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/funding-options?menteeId={{menteeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "funding-options"
+              ],
+              "query": [
+                {
+                  "key": "menteeId",
+                  "value": "{{menteeId}}"
+                }
+              ]
+            },
+            "description": "Returns employer allocation, bundle credit, and self-pay options for a mentee."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Legacy Subscription Plans",
+      "description": "These endpoints are older subscription-plan APIs. The current pricing page/packages use Pricing Products above.",
+      "item": [
+        {
+          "name": "List Subscription Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions/plans?includeInactive=false&audience=INDIVIDUAL",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans"
+              ],
+              "query": [
+                {
+                  "key": "includeInactive",
+                  "value": "false"
+                },
+                {
+                  "key": "audience",
+                  "value": "INDIVIDUAL"
+                }
+              ]
+            },
+            "description": "Lists legacy subscription plans."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Subscription Plan By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions/plans/{{planId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans",
+                "{{planId}}"
+              ]
+            },
+            "description": "Gets one legacy subscription plan by UUID."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Subscription Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Individual Monthly\",\n  \"code\": \"INDIVIDUAL_MONTHLY\",\n  \"description\": \"Monthly individual mentorship plan\",\n  \"cost\": 4000,\n  \"currency\": \"KES\",\n  \"planAudience\": \"INDIVIDUAL\",\n  \"sessionsPerPeriod\": 1,\n  \"durationMonths\": 1,\n  \"yearlyCost\": 48000,\n  \"isActive\": true,\n  \"displayOrder\": 1,\n  \"features\": \"1 session per month\\nMentor matching\\nSession notes\",\n  \"minSeats\": 1,\n  \"defaultSeats\": 1,\n  \"maxSeats\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions/plans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans"
+              ]
+            },
+            "description": "Creates a legacy subscription plan."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Subscription Plan",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Individual Monthly Updated\",\n  \"description\": \"Updated description\",\n  \"cost\": 4500,\n  \"currency\": \"KES\",\n  \"planAudience\": \"INDIVIDUAL\",\n  \"sessionsPerPeriod\": 1,\n  \"durationMonths\": 1,\n  \"yearlyCost\": 54000,\n  \"isActive\": true,\n  \"displayOrder\": 2,\n  \"features\": \"Updated features\",\n  \"minSeats\": 1,\n  \"defaultSeats\": 1,\n  \"maxSeats\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions/plans/{{planId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans",
+                "{{planId}}"
+              ]
+            },
+            "description": "Updates a legacy subscription plan."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Subscription Plan",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions/plans/{{planId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans",
+                "{{planId}}"
+              ]
+            },
+            "description": "Soft-deletes/deactivates a legacy subscription plan."
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Subscription Plan Status",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions/plans/{{planId}}/toggle-status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans",
+                "{{planId}}",
+                "toggle-status"
+              ]
+            },
+            "description": "Toggles a legacy subscription plan between active and inactive."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

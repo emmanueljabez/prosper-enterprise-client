@@ -11,8 +11,14 @@ assert.doesNotMatch(
 
 assert.match(
   source,
-  /pm2 delete "\$id"/,
-  'Deployment should delete stale PM2 process ids to replace stale dev commands.',
+  /DEPLOY_TARGET_DIR="\$\{DEPLOY_TARGET_DIR:-\/opt\/prosper\/frontend\}"/,
+  'Deployment should default to the live systemd-served frontend directory.',
+)
+
+assert.match(
+  source,
+  /FRONTEND_SERVICE="\$\{FRONTEND_SERVICE:-prosper-frontend\}"/,
+  'Deployment should default to the live prosper-frontend systemd service.',
 )
 
 assert.match(
@@ -25,30 +31,6 @@ assert.match(
   source,
   /NODE_ENV=production/,
   'Deployment should start the server with NODE_ENV=production.',
-)
-
-assert.match(
-  source,
-  /stop_port_3000_listener/,
-  'Deployment should stop stale unmanaged processes that are still bound to port 3000.',
-)
-
-assert.match(
-  source,
-  /delete_stale_pm2_apps/,
-  'Deployment should remove stale PM2 processes for this app before starting production.',
-)
-
-assert.match(
-  source,
-  /pm2 jlist/,
-  'Deployment should inspect PM2 process metadata instead of only deleting by process name.',
-)
-
-assert.match(
-  source,
-  /lsof -ti tcp:3000|fuser -k 3000\/tcp/,
-  'Deployment should identify and clear the process serving port 3000 before PM2 starts.',
 )
 
 assert.match(
@@ -85,6 +67,24 @@ assert.match(
   source,
   /WebstormProjects|\/Users\//,
   'Deployment health check should reject local filesystem paths in HTML.',
+)
+
+assert.match(
+  source,
+  /systemctl restart "\$FRONTEND_SERVICE"/,
+  'Deployment should restart the live systemd frontend service.',
+)
+
+assert.doesNotMatch(
+  source,
+  /\/var\/www\/html\/prosper_enterprise/,
+  'Deployment should not default to the legacy PM2 document root.',
+)
+
+assert.doesNotMatch(
+  source,
+  /\bpm2\b/,
+  'Deployment should not manage the current frontend through PM2.',
 )
 
 console.log('Deploy script production start verified.')

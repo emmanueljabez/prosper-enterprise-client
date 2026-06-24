@@ -3,7 +3,8 @@ import { useAuthStore } from '@/store/modules/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useRouter } from '#app'
+import { computed } from 'vue'
+import { useRoute, useRouter } from '#app'
 import { useField, useForm } from 'vee-validate'
 import * as yup from 'yup'
 import { useToast } from '@/components/ui/toast'
@@ -14,6 +15,7 @@ import PublicSiteHeader from '@/components/landing/PublicSiteHeader.vue'
 const authStore = useAuthStore()
 const companyOnboardingStore = useCompanyOnboardingStore()
 const companySignupStore = useCompanySignupStore()
+const route = useRoute()
 const router = useRouter()
 const { toast } = useToast()
 
@@ -25,9 +27,47 @@ const passwordSchema = yup.string().required('Password field is required')
 const { value: email, errorMessage: emailError } = useField<string>('email', emailSchema)
 const { value: password, errorMessage: passwordError } = useField<string>('password', passwordSchema)
 
+const FREE_TRIAL_INTENT_KEY = 'prosper:free-trial-intent'
+
+const hasRouteFreeTrialIntent = computed(() =>
+  String(route.query.product || '').trim().toUpperCase() === 'FREE_TRIAL'
+  || String(route.query.trial || '').trim() === '1'
+)
+const signupLink = computed(() =>
+  hasRouteFreeTrialIntent.value
+    ? '/auth/signup?audience=mentee&trial=1&product=FREE_TRIAL'
+    : '/auth/signup'
+)
+
+const readStoredFreeTrialIntent = () => {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    const raw = localStorage.getItem(FREE_TRIAL_INTENT_KEY)
+    if (!raw) return false
+    const parsed = JSON.parse(raw)
+    return parsed?.product === 'FREE_TRIAL' || parsed?.trial === true
+  } catch {
+    return false
+  }
+}
+
+const clearStoredFreeTrialIntent = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(FREE_TRIAL_INTENT_KEY)
+  }
+}
+
 const login = handleSubmit(async (values) => {
   try {
-    const result = await authStore.login({ email: values.email, password: values.password }) as any
+    const hasFreeTrialIntent = hasRouteFreeTrialIntent.value || readStoredFreeTrialIntent()
+    const result = await authStore.login({
+      email: values.email,
+      password: values.password,
+      ...(hasFreeTrialIntent ? { audience: 'mentee', trial: true, product: 'FREE_TRIAL' } : {}),
+    }) as any
     if (authStore.loggedInUser) {
       const message = result.message || 'Login successful!'
       let role = result.profile.role
@@ -37,6 +77,11 @@ const login = handleSubmit(async (values) => {
         variant: 'success',
       })
       if(role === "mentee") {
+        if (hasFreeTrialIntent) {
+          clearStoredFreeTrialIntent()
+          router.push('/app/mentors')
+          return
+        }
         router.push('/app/dashboard')
       } else if (['company', 'company_admin', 'corporate_admin'].includes(String(role || '').toLowerCase())) {
         const companyId = authStore.loggedInUser?.companyId || result.profile?.company?.id || result.profile?.companyId || result.company?.companyId
@@ -202,7 +247,7 @@ const loginWithMicrosoft = async () => {
             </Button>
             <p class="text-xs text-[#6b7280]">
               Don't have an account?
-              <NuxtLink to="/auth/signup" class="font-medium text-[#027F63] hover:underline">
+              <NuxtLink :to="signupLink" class="font-medium text-[#027F63] hover:underline">
                 Register
               </NuxtLink>
             </p>

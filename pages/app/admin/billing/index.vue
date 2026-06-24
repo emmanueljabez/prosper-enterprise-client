@@ -219,7 +219,21 @@ const exportTransactionsCsv = () => {
   URL.revokeObjectURL(url)
 }
 
-const openTopUpDialog = () => {
+const routeToCompanyPlanSetup = async () => {
+  topUpDialogOpen.value = false
+  toast.info('Select a company plan to create your wallet first.')
+  await router.push({
+    path: '/app/admin/settings',
+    query: { tab: 'subscription' },
+  })
+}
+
+const openTopUpDialog = async () => {
+  if (!subscription.value?.planId) {
+    await routeToCompanyPlanSetup()
+    return
+  }
+
   const suggestedSessions = Number(autoRefill.value?.topUpSessions || subscription.value?.seatsPurchased || 100)
   topUpSessionCount.value = Math.max(1, suggestedSessions)
   topUpDialogOpen.value = true
@@ -265,7 +279,7 @@ const submitTopUp = async () => {
 
   const planId = subscription.value?.planId
   if (!planId) {
-    toast.error('No company plan found. Select a plan first from settings.')
+    await routeToCompanyPlanSetup()
     return
   }
 
@@ -377,7 +391,7 @@ onMounted(async () => {
 
         <Button
           class="h-10 gap-2 bg-primary px-4 text-sm text-white hover:bg-primary/90"
-          :disabled="isCreatingTopUpInvoice"
+          :disabled="isLoading || isCreatingTopUpInvoice"
           @click="openTopUpDialog"
         >
           <Wallet class="h-4 w-4" />

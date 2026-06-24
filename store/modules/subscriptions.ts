@@ -103,6 +103,20 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     return null
   }
 
+  const normalizePlans = (sourcePlans: SubscriptionPlan[] | null | undefined): SubscriptionPlan[] =>
+    (sourcePlans || []).map(plan => normalizePlan(plan) || plan)
+
+  const mergePlans = (incomingPlans: SubscriptionPlan[]) => {
+    incomingPlans.forEach((incomingPlan) => {
+      const index = plans.value.findIndex(plan => plan.id === incomingPlan.id)
+      if (index === -1) {
+        plans.value.push(incomingPlan)
+      } else {
+        plans.value[index] = incomingPlan
+      }
+    })
+  }
+
   const fetchPlans = async (audience?: 'INDIVIDUAL' | 'CORPORATE' | 'BOTH') => {
     isLoading.value = true
     error.value = null
@@ -111,13 +125,37 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
       const response = await subscriptionsApi.getPlans(audience)
 
       if (response.success) {
-        plans.value = (response.data || []).map(plan => normalizePlan(plan) || plan)
+        plans.value = normalizePlans(response.data)
       } else {
         error.value = response.message || 'Failed to fetch subscription plans'
       }
     } catch (err: any) {
       error.value = err.message || 'An error occurred while fetching plans'
       console.error('Error fetching plans:', err)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const fetchPlansForAudience = async (audience: 'INDIVIDUAL' | 'CORPORATE' | 'BOTH'): Promise<SubscriptionPlan[]> => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await subscriptionsApi.getPlans(audience)
+
+      if (response.success) {
+        const normalizedPlans = normalizePlans(response.data)
+        mergePlans(normalizedPlans)
+        return normalizedPlans
+      }
+
+      error.value = response.message || 'Failed to fetch subscription plans'
+      return []
+    } catch (err: any) {
+      error.value = err.message || 'An error occurred while fetching plans'
+      console.error('Error fetching plans:', err)
+      return []
     } finally {
       isLoading.value = false
     }
@@ -409,6 +447,7 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
 
     // Actions
     fetchPlans,
+    fetchPlansForAudience,
     fetchPlanById,
     fetchActiveSubscription,
     setSelectedPlan,

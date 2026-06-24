@@ -49,13 +49,13 @@
               Build structured, measurable mentorship programs that develop leaders, retain talent, and strengthen communities.
             </p>
             <div class="flex flex-wrap gap-4 items-center mt-6 sm:mt-8 max-lg:justify-center">
-              <button
+              <NuxtLink
+                :to="FREE_TRIAL_SIGNUP_PATH"
                 class="min-w-[150px] h-[40px] px-5 flex items-center justify-center bg-[#027F63] text-white font-medium text-sm rounded-[29px] hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-brand-green active:scale-[0.98]"
-                aria-label="Get in touch"
-                @click="scrollToImpactSection"
+                aria-label="Start free trial"
               >
-                Get in touch
-              </button>
+                Start free trial
+              </NuxtLink>
             </div>
           </div>
         </div>
@@ -336,11 +336,7 @@ import SocialFooter from '@/components/landing/SocialFooter.vue'
 
 definePageMeta({ layout: 'default' })
 
-const scrollToImpactSection = () => {
-  document
-    .getElementById('impact-section')
-    ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
+const FREE_TRIAL_SIGNUP_PATH = '/auth/signup?audience=mentee&trial=1&product=FREE_TRIAL'
 
 const FALLBACK_LOGOS = [
   { src: '/client-logos/safaricom.png', alt: 'Safaricom' },

@@ -43,6 +43,13 @@
         >
           {{ isAuthenticated ? 'Dashboard' : 'Login' }}
         </button>
+        <button
+          v-if="!isAuthenticated"
+          class="rounded-full bg-[#027F63] px-4 py-2 text-[12px] font-medium leading-normal text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#027F63]"
+          @click="go('/auth/signup')"
+        >
+          Sign Up
+        </button>
       </div>
 
       <Sheet v-model:open="navMenuOpen">
@@ -104,12 +111,6 @@
                 @click="goAndClose('/auth/login')"
               >
                 Sign In
-              </button>
-              <button
-                class="w-full rounded-[29px] border-2 border-brand-purple bg-brand-purple px-4 py-3 text-center text-sm font-medium text-white transition hover:bg-white hover:text-brand-purple"
-                @click="goAndClose('/auth/signup')"
-              >
-                Sign Up
               </button>
             </template>
           </div>

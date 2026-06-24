@@ -6,13 +6,19 @@ import { RoleManager } from '@/utils/roleManager'
 
 const PUBLIC_PATH_PREFIX = '/auth/'
 const PUBLIC_PAYMENT_PREFIX = '/payment/'
+const PUBLIC_APP_PATH_PREFIXES = ['/app/sessions/review/']
 const PUBLIC_PATHS = new Set(['/', '/landing', '/pricing'])
 
 console.log('Auth global middleware loaded')
 
 export default defineNuxtRouteMiddleware(async (to, from) => {
   // Skip public routes (including OAuth callbacks)
-  if (to.path.startsWith(PUBLIC_PATH_PREFIX) || to.path.startsWith(PUBLIC_PAYMENT_PREFIX) || PUBLIC_PATHS.has(to.path)) {
+  if (
+    to.path.startsWith(PUBLIC_PATH_PREFIX)
+    || to.path.startsWith(PUBLIC_PAYMENT_PREFIX)
+    || PUBLIC_APP_PATH_PREFIXES.some(prefix => to.path.startsWith(prefix))
+    || PUBLIC_PATHS.has(to.path)
+  ) {
     return
   }
 

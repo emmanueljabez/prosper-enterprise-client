@@ -23,7 +23,9 @@ assert.match(companyApiSource, /getCompanyOnboarding/, 'Company API should expos
 assert.match(companyApiSource, /updateCompanyOnboarding/, 'Company API should expose onboarding update.')
 assert.match(onboardingStoreSource, /saveOnboarding/, 'Onboarding store should persist setup details.')
 assert.match(onboardingStoreSource, /requiresOnboarding/, 'Onboarding store should expose a gate-friendly computed state.')
-assert.match(onboardingPageSource, /AuthSplitShell/, 'First-time company setup should use the shared auth shell.')
+assert.match(onboardingPageSource, /PublicSiteHeader/, 'First-time company setup should use the public auth page header.')
+assert.match(onboardingPageSource, /src="\/img_2\.jpg"/, 'First-time company setup should use the shared auth page background image.')
+assert.match(onboardingPageSource, /bg-\[#0f3f35\]\/60/, 'First-time company setup should use the shared auth page background overlay.')
 assert.match(layoutSource, /'\/app\/admin\/onboarding'/, 'The app layout should hide the sidebar for first-time company setup.')
 assert.match(onboardingPageSource, /setupSteps/, 'Onboarding should render a step-based wizard.')
 assert.match(onboardingPageSource, /currentStep/, 'Onboarding wizard should track the active setup step.')
@@ -63,7 +65,7 @@ assert.doesNotMatch(
 assert.doesNotMatch(
   onboardingPageSource,
   /lg:grid-cols-\[minmax\(0,1fr\),360px\]/,
-  'The onboarding form should span the available auth-shell column width.',
+  'The onboarding form should not use the previous split onboarding layout.',
 )
 
 for (const field of [

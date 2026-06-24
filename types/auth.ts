@@ -65,6 +65,7 @@ export interface User {
 }
 
 export interface RegistrationData {
+    email?: string | null
     firstName: string | null
     lastName: string | null
     password: string | null
@@ -72,6 +73,10 @@ export interface RegistrationData {
     phoneNumber: string | null
     emailAddress: string | null
     noOfEmployees: string | null
+    role?: string | null
+    product?: string | null
+    audience?: string | null
+    trial?: boolean | null
 }
 
 export interface AuthState {
@@ -89,6 +94,9 @@ export interface AuthState {
 export interface LoginData {
     email: string
     password: string
+    product?: string
+    audience?: string
+    trial?: boolean
 }
 
 export interface SSOLoginData {
