@@ -89,6 +89,12 @@ type BookingQuestionnaireResponses = {
 const DEFAULT_SESSION_DURATION_MINUTES = 60
 const FREE_TRIAL_SESSION_DURATION_MINUTES = 30
 const MAX_CONTEXT_DOCUMENT_SIZE_BYTES = 50 * 1024 * 1024
+const FALLBACK_MENTOR_SESSION_TOPICS = [
+  'General Career Guidance',
+  'Professional Development',
+  'Personal Growth',
+  'Other',
+]
 const CONTEXT_DOCUMENT_ACCEPT = [
   '.pdf',
   '.doc',
@@ -346,17 +352,18 @@ const normalizeMentorTopics = (value: unknown): string[] => {
 }
 
 const mentorTopicOptions = computed(() => {
-  const mergedSources = [
-    mentor.value?.expertiseAreas,
-    mentor.value?.expertise,
-    mentor.value?.mentorSpecializations,
-    mentor.value?.interests,
-    mentor.value?.topics,
-    mentor.value?.skills,
-  ]
+  const canonicalTopics = normalizeMentorTopics(mentor.value?.mentorSkillTopics)
+  if (canonicalTopics.length) {
+    return canonicalTopics
+  }
 
-  const topics = mergedSources.flatMap(source => normalizeMentorTopics(source))
-  return normalizeMentorTopics(topics)
+  const explicitTopics = normalizeMentorTopics(mentor.value?.topics)
+  if (explicitTopics.length) {
+    return explicitTopics
+  }
+
+  const fallbackTopics = normalizeMentorTopics(FALLBACK_MENTOR_SESSION_TOPICS)
+  return fallbackTopics
 })
 
 const toDateValue = (date: Date) => {
@@ -787,6 +794,8 @@ const loadMentor = async () => {
           expertise: mentorProfile.expertise || [],
           mentorSpecializations: mentorProfile.mentorProfile?.specializations || [],
           interests: mentorProfile.interests || [],
+          mentorSkillTopics: mentorProfile.mentorSkillTopics || mentorProfile.topics || [],
+          topics: mentorProfile.topics || mentorProfile.mentorSkillTopics || [],
           averageRating: 4.5,
           totalReviews: 0,
           totalSessions: 0,
@@ -822,6 +831,7 @@ const loadMentor = async () => {
         profileSummary: fb.biography,
         expertiseAreas: (fb.topics || []).map((t: any) => t.name),
         expertise: (fb.topics || []).map((t: any) => t.name),
+        topics: fb.topics || [],
         mentorSpecializations: [],
         interests: [],
         averageRating: 4.9,

@@ -764,6 +764,8 @@ export const useMentorsStore = defineStore('mentors', () => {
           isVerified: profile.isVerified,
           expertise: profile.expertise,
           interests: profile.interests,
+          mentorSkillTopics: profile.mentorSkillTopics || profile.topics || [],
+          topics: profile.topics || profile.mentorSkillTopics || [],
           industry: profile.industry,
           dob: profile.dob,
           gender: profile.gender,
@@ -844,6 +846,8 @@ export const useMentorsStore = defineStore('mentors', () => {
           isVerified: profile.isVerified,
           expertise: profile.expertise,
           interests: profile.interests,
+          mentorSkillTopics: profile.mentorSkillTopics || profile.topics || [],
+          topics: profile.topics || profile.mentorSkillTopics || [],
           industry: profile.industry,
           dob: profile.dob,
           gender: profile.gender,
@@ -1011,4 +1015,4 @@ export const useMentorsStore = defineStore('mentors', () => {
     // Mentor Availability actions
     getMentorAvailability
   }
-}) 
+})
