@@ -6,7 +6,7 @@ import { RoleManager } from '@/utils/roleManager'
 
 const PUBLIC_PATH_PREFIX = '/auth/'
 const PUBLIC_PAYMENT_PREFIX = '/payment/'
-const PUBLIC_APP_PATH_PREFIXES = ['/app/sessions/review/']
+const PUBLIC_APP_PATH_PREFIXES = ['/app/sessions/review/', '/app/sessions/proposals/']
 const PUBLIC_PATHS = new Set(['/', '/landing', '/pricing', '/forgot-password', '/reset-password'])
 
 console.log('Auth global middleware loaded')

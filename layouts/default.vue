@@ -40,9 +40,10 @@ const shouldShowSidebar = computed(() => {
     '/landing',
     '/pricing',
   ];
-  // Also hide sidebar for session review pages (dynamic routes)
+  // Also hide sidebar for public session workflow pages (dynamic routes)
   const isSessionReviewPage = route.path.startsWith('/app/sessions/review/');
-  return !hiddenRoutes.includes(route.path) && !isSessionReviewPage;
+  const isSessionProposalPage = route.path.startsWith('/app/sessions/proposals/');
+  return !hiddenRoutes.includes(route.path) && !isSessionReviewPage && !isSessionProposalPage;
 });
 
 onMounted(() => {

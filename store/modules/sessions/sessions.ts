@@ -99,6 +99,11 @@ interface ConfirmSessionPayload {
   scheduledStart?: string
 }
 
+interface CancelSessionPayload {
+  cancelledBy: 'MENTEE' | 'MENTOR' | 'ADMIN' | 'SYSTEM'
+  reason?: string | null
+}
+
 interface CreateSessionPayload {
   mentorId: string
   menteeId: string
@@ -432,6 +437,38 @@ export const useSessionsStore = defineStore('sessions', {
       } catch (err: any) {
         console.error('Error declining session:', err)
         const errorMessage = err.response?.data?.message || 'Failed to decline session. Please try again.'
+        this.error = errorMessage
+        toast.error(errorMessage)
+        throw err
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    async cancelSession(sessionId: string, payload: CancelSessionPayload) {
+      const toast = useAppToast()
+      this.isLoading = true
+      this.error = null
+
+      try {
+        const response = await sessionsApi.cancelSession(sessionId, payload)
+        const updatedSession = response.data?.data
+
+        if (updatedSession?.id) {
+          const sessionIndex = this.sessions.findIndex(session => session.id === updatedSession.id)
+          if (sessionIndex !== -1) {
+            this.sessions[sessionIndex] = {
+              ...this.sessions[sessionIndex],
+              ...updatedSession
+            }
+          }
+        }
+
+        toast.success('Session cancelled successfully')
+        return response.data
+      } catch (err: any) {
+        console.error('Error cancelling session:', err)
+        const errorMessage = err.response?.data?.message || 'Failed to cancel session. Please try again.'
         this.error = errorMessage
         toast.error(errorMessage)
         throw err
