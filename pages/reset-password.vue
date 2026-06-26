@@ -19,7 +19,7 @@ const router = useRouter()
 const route = useRoute()
 const { toast } = useToast()
 
-const accessToken = ref('')
+const resetToken = ref('')
 const resetError = ref<string | null>(null)
 const resetSuccess = ref(false)
 
@@ -37,9 +37,9 @@ const confirmPasswordSchema = yup.string()
 const { value: password, errorMessage: passwordError } = useField<string>('password', passwordSchema)
 const { value: confirmPassword, errorMessage: confirmPasswordError } = useField<string>('confirmPassword', confirmPasswordSchema)
 
-const canReset = computed(() => !!accessToken.value && !resetSuccess.value && !resetError.value)
+const canReset = computed(() => !!resetToken.value && !resetSuccess.value && !resetError.value)
 
-const parseRecoveryLink = () => {
+const parseResetLink = () => {
   if (typeof window === 'undefined') {
     return
   }
@@ -47,40 +47,50 @@ const parseRecoveryLink = () => {
   const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
   const hashParams = new URLSearchParams(hash)
 
-  const routeAccessToken = typeof route.query.access_token === 'string' ? route.query.access_token : ''
-  const routeType = typeof route.query.type === 'string' ? route.query.type : ''
+  const routeToken = typeof route.query.token === 'string' ? route.query.token : ''
   const routeErrorDescription = typeof route.query.error_description === 'string' ? route.query.error_description : ''
 
-  accessToken.value = hashParams.get('access_token') || routeAccessToken || ''
+  resetToken.value = routeToken || hashParams.get('token') || ''
 
-  const recoveryType = hashParams.get('type') || routeType
   const errorDescription = hashParams.get('error_description') || routeErrorDescription
 
   if (errorDescription) {
     resetError.value = decodeURIComponent(errorDescription)
-  } else if (!accessToken.value || (recoveryType && recoveryType !== 'recovery')) {
+  } else if (!resetToken.value) {
     resetError.value = 'Reset link is invalid or has expired.'
   } else {
     resetError.value = null
   }
 
-  const cleanPath = window.location.pathname + window.location.search
-    .replace(/([?&])(access_token|refresh_token|type|expires_in|expires_at|token_type|error|error_code|error_description|token_hash)=[^&]*/g, '')
-    .replace(/[?&]$/, '')
-  window.history.replaceState({}, document.title, cleanPath || '/reset-password')
+  const cleanUrl = new URL(window.location.href)
+  ;[
+    'token',
+    'access_token',
+    'refresh_token',
+    'type',
+    'expires_in',
+    'expires_at',
+    'token_type',
+    'error',
+    'error_code',
+    'error_description',
+    'token_hash',
+  ].forEach(param => cleanUrl.searchParams.delete(param))
+
+  window.history.replaceState({}, document.title, cleanUrl.pathname + cleanUrl.search || '/reset-password')
 }
 
 const submitReset = handleSubmit(async (values) => {
-  if (!accessToken.value) {
+  if (!resetToken.value) {
     resetError.value = 'Reset link is invalid or has expired.'
     return
   }
 
   try {
-    await authStore.resetPasswordWithRecoveryToken(accessToken.value, values.password)
+    await authStore.resetPasswordWithToken(resetToken.value, values.password)
     resetSuccess.value = true
     resetError.value = null
-    accessToken.value = ''
+    resetToken.value = ''
 
     toast({
       title: 'Password updated',
@@ -102,7 +112,7 @@ const goToLogin = async () => {
 }
 
 onMounted(() => {
-  parseRecoveryLink()
+  parseResetLink()
 })
 </script>
 
