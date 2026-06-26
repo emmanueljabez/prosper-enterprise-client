@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
 import { ValidationMessages, ValidationPatterns } from '@/utils/validation'
+import PublicSiteHeader from '@/components/landing/PublicSiteHeader.vue'
 
 definePageMeta({
   title: 'Reset Password',
@@ -117,96 +118,110 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="w-full lg:grid lg:min-h-[600px] lg:grid-cols-2 xl:min-h-[800px]">
-    <div class="hidden h-screen bg-muted lg:flex lg:items-center lg:justify-center">
-      <img
-        src="/images/prosper_mentor_logo.png"
-        alt="Prosper Mentor"
-        width="150"
-        height="150"
-        class="object-cover dark:brightness-[0.2] dark:grayscale"
-      >
-    </div>
+  <div class="relative min-h-screen overflow-hidden" style="font-family: 'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;">
+    <img
+      src="/img_2.jpg"
+      alt="ProsperMentor background"
+      class="absolute inset-0 h-full w-full object-cover"
+    >
+    <div class="absolute inset-0 bg-[#0f3f35]/60" />
 
-    <div class="flex items-center justify-center py-12">
-      <div class="mx-auto grid w-[380px] gap-8">
-        <div class="grid gap-2">
-          <p class="text-xl font-semibold">Reset password</p>
-          <p class="text-sm text-muted-foreground">
-            Set a new password for your account.
+    <PublicSiteHeader />
+
+    <main class="relative z-10 flex min-h-[calc(100vh-80px)] items-center justify-center px-4 py-8 sm:px-6">
+      <section class="w-full max-w-[460px] rounded-[28px] border border-white/30 bg-white/95 p-4 shadow-2xl sm:p-5">
+        <div class="space-y-2">
+          <h1 class="text-[24px] font-semibold leading-tight text-[#1f2937]">
+            Change your
+            <span class="text-[#027F63]">Password</span>
+          </h1>
+          <p class="text-[13px] leading-relaxed text-[#4b5563]">
+            Set a new password for your Prosper Mentor account.
           </p>
         </div>
 
         <div
           v-if="resetSuccess"
-          class="grid gap-4 rounded-xl border border-[#ead8e6] bg-white p-6 shadow-sm"
+          class="mt-4 grid gap-4 rounded-[18px] border border-[#d1e7df] bg-white p-5 shadow-sm"
         >
-          <p class="text-sm text-slate-700">
+          <p class="text-sm leading-relaxed text-[#1f2937]">
             Your password has been updated successfully.
           </p>
-          <Button class="w-full" style="background-color:#a03b93" @click="goToLogin">
+          <Button
+            class="h-10 w-full rounded-full bg-[#027F63] text-sm font-medium text-white hover:bg-[#046f58]"
+            @click="goToLogin"
+          >
             Go to login
           </Button>
         </div>
 
         <div
           v-else-if="resetError"
-          class="grid gap-4 rounded-xl border border-red-200 bg-red-50 p-6"
+          class="mt-4 grid gap-4 rounded-[18px] border border-red-200 bg-red-50 p-5"
         >
-          <p class="text-sm text-red-700">{{ resetError }}</p>
-          <div class="flex gap-3">
-            <Button as-child class="flex-1" style="background-color:#a03b93">
+          <p class="text-sm leading-relaxed text-red-700">{{ resetError }}</p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <Button as-child class="h-10 rounded-full bg-[#027F63] text-sm font-medium text-white hover:bg-[#046f58]">
               <NuxtLink to="/forgot-password">Request another link</NuxtLink>
             </Button>
-            <Button as-child variant="outline" class="flex-1">
+            <Button
+              as-child
+              variant="outline"
+              class="h-10 rounded-full border-[#d1d5db] text-sm text-[#4b5563] hover:bg-[#f9fafb]"
+            >
               <NuxtLink to="/auth/login">Back to login</NuxtLink>
             </Button>
           </div>
         </div>
 
-        <form v-else @submit="submitReset" class="grid gap-4">
+        <form v-else @submit="submitReset" class="mt-4 space-y-2.5">
           <div class="grid gap-2">
-            <Label for="password">New password</Label>
+            <Label for="password" class="text-xs font-medium text-[#6b7280]">New password</Label>
             <Input
               id="password"
               v-model="password"
               type="password"
               autocomplete="new-password"
-              :class="{ 'border-red-500': passwordError }"
+              :class="[
+                'h-11 rounded-[14px] border-[#d1d5db] bg-white px-3 text-sm text-[#111827]',
+                passwordError ? 'border-red-500 focus-visible:ring-red-200' : 'focus-visible:ring-[#027F63]/25'
+              ]"
               required
             />
-            <span class="text-red-500 text-sm">{{ passwordError }}</span>
+            <span v-if="passwordError" class="text-xs text-red-500">{{ passwordError }}</span>
           </div>
 
           <div class="grid gap-2">
-            <Label for="confirm-password">Confirm password</Label>
+            <Label for="confirm-password" class="text-xs font-medium text-[#6b7280]">Confirm password</Label>
             <Input
               id="confirm-password"
               v-model="confirmPassword"
               type="password"
               autocomplete="new-password"
-              :class="{ 'border-red-500': confirmPasswordError }"
+              :class="[
+                'h-11 rounded-[14px] border-[#d1d5db] bg-white px-3 text-sm text-[#111827]',
+                confirmPasswordError ? 'border-red-500 focus-visible:ring-red-200' : 'focus-visible:ring-[#027F63]/25'
+              ]"
               required
             />
-            <span class="text-red-500 text-sm">{{ confirmPasswordError }}</span>
+            <span v-if="confirmPasswordError" class="text-xs text-red-500">{{ confirmPasswordError }}</span>
           </div>
 
           <Button
             type="submit"
-            class="w-full"
+            class="h-10 w-full rounded-full bg-[#027F63] text-sm font-medium text-white hover:bg-[#046f58]"
             :disabled="isSubmitting || !canReset"
-            style="background-color:#a03b93"
           >
             {{ isSubmitting ? 'Updating password...' : 'Reset password' }}
           </Button>
         </form>
 
-        <div class="text-center text-sm">
-          <NuxtLink to="/auth/login" class="underline">
+        <div class="mt-4 text-center text-xs text-[#6b7280]">
+          <NuxtLink to="/auth/login" class="font-medium text-[#027F63] hover:underline">
             Back to login
           </NuxtLink>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   </div>
 </template>

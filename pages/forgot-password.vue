@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import PublicSiteHeader from '@/components/landing/PublicSiteHeader.vue'
 
 definePageMeta({
   title: 'Forgot Password',
@@ -57,77 +58,90 @@ const requestReset = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="w-full lg:grid lg:min-h-[600px] lg:grid-cols-2 xl:min-h-[800px]">
-    <div class="hidden h-screen bg-muted lg:flex lg:items-center lg:justify-center">
-      <img
-        src="/images/prosper_mentor_logo.png"
-        alt="Prosper Mentor"
-        width="150"
-        height="150"
-        class="object-cover dark:brightness-[0.2] dark:grayscale"
-      >
-    </div>
+  <div class="relative min-h-screen overflow-hidden" style="font-family: 'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;">
+    <img
+      src="/img_2.jpg"
+      alt="ProsperMentor background"
+      class="absolute inset-0 h-full w-full object-cover"
+    >
+    <div class="absolute inset-0 bg-[#0f3f35]/60" />
 
-    <div class="flex items-center justify-center py-12">
-      <div class="mx-auto grid w-[380px] gap-8">
-        <div class="grid gap-2">
-          <p class="text-xl font-semibold">Forgot password</p>
-          <p class="text-sm text-muted-foreground">
-            Enter your email address and we will send you a reset link.
+    <PublicSiteHeader />
+
+    <main class="relative z-10 flex min-h-[calc(100vh-80px)] items-center justify-center px-4 py-8 sm:px-6">
+      <section class="w-full max-w-[460px] rounded-[28px] border border-white/30 bg-white/95 p-4 shadow-2xl sm:p-5">
+        <div class="space-y-2">
+          <h1 class="text-[24px] font-semibold leading-tight text-[#1f2937]">
+            Reset your
+            <span class="text-[#027F63]">Password</span>
+          </h1>
+          <p class="text-[13px] leading-relaxed text-[#4b5563]">
+            Enter your email address and we will send you a secure link to set a new password.
           </p>
         </div>
 
         <div
           v-if="isSubmitted"
-          class="grid gap-4 rounded-xl border border-[#ead8e6] bg-white p-6 shadow-sm"
+          class="mt-4 grid gap-4 rounded-[18px] border border-[#d1e7df] bg-white p-5 shadow-sm"
         >
-          <p class="text-sm text-slate-700">
+          <p class="text-sm leading-relaxed text-[#1f2937]">
             If an account exists for <span class="font-medium">{{ submittedEmail }}</span>,
             a password reset link has been sent.
           </p>
-          <p class="text-sm text-muted-foreground">
+          <p class="text-[13px] leading-relaxed text-[#6b7280]">
             Open the email on the same device and follow the link to set a new password.
           </p>
-          <div class="flex gap-3">
-            <Button as-child class="flex-1" style="background-color:#a03b93">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <Button as-child class="h-10 rounded-full bg-[#027F63] text-sm font-medium text-white hover:bg-[#046f58]">
               <NuxtLink to="/auth/login">Back to login</NuxtLink>
             </Button>
-            <Button variant="outline" class="flex-1" @click="isSubmitted = false">
+            <Button
+              variant="outline"
+              class="h-10 rounded-full border-[#d1d5db] text-sm text-[#4b5563] hover:bg-[#f9fafb]"
+              @click="isSubmitted = false"
+            >
               Send again
             </Button>
           </div>
         </div>
 
-        <form v-else @submit="requestReset" class="grid gap-4">
+        <form v-else @submit="requestReset" class="mt-4 space-y-2.5">
           <Alert v-if="requestError" variant="destructive">
             <AlertDescription>{{ requestError }}</AlertDescription>
           </Alert>
 
           <div class="grid gap-2">
-            <Label for="email">Email</Label>
+            <Label for="email" class="text-xs font-medium text-[#6b7280]">Email</Label>
             <Input
               id="email"
               v-model="email"
               type="email"
               autocomplete="email"
-              :class="{ 'border-red-500': emailError }"
+              :class="[
+                'h-11 rounded-[14px] border-[#d1d5db] bg-white px-3 text-sm text-[#111827] placeholder:text-[#9ca3af]',
+                emailError ? 'border-red-500 focus-visible:ring-red-200' : 'focus-visible:ring-[#027F63]/25'
+              ]"
               required
             />
-            <span class="text-red-500 text-sm">{{ emailError }}</span>
+            <span v-if="emailError" class="text-xs text-red-500">{{ emailError }}</span>
           </div>
 
-          <Button type="submit" class="w-full" :disabled="isSubmitting" style="background-color:#a03b93">
+          <Button
+            type="submit"
+            class="h-10 w-full rounded-full bg-[#027F63] text-sm font-medium text-white hover:bg-[#046f58]"
+            :disabled="isSubmitting"
+          >
             {{ isSubmitting ? 'Sending...' : 'Send reset link' }}
           </Button>
         </form>
 
-        <div class="text-center text-sm">
+        <div class="mt-4 text-center text-xs text-[#6b7280]">
           Remembered your password?
-          <NuxtLink to="/auth/login" class="underline">
+          <NuxtLink to="/auth/login" class="font-medium text-[#027F63] hover:underline">
             Login
           </NuxtLink>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   </div>
 </template>
