@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
 import { ValidationMessages, ValidationPatterns } from '@/utils/validation'
 import PublicSiteHeader from '@/components/landing/PublicSiteHeader.vue'
+import { Eye, EyeOff } from 'lucide-vue-next'
 
 definePageMeta({
   title: 'Reset Password',
@@ -23,20 +24,25 @@ const { toast } = useToast()
 const resetToken = ref('')
 const resetError = ref<string | null>(null)
 const resetSuccess = ref(false)
+const showPassword = ref(false)
+const showConfirmPassword = ref(false)
 
-const { handleSubmit, isSubmitting } = useForm()
+const resetPasswordSchema = yup.object({
+  password: yup.string()
+    .required('Password field is required')
+    .min(8, ValidationMessages.minLength(8))
+    .matches(ValidationPatterns.password, ValidationMessages.password),
+  confirmPassword: yup.string()
+    .required('Confirm password field is required')
+    .oneOf([yup.ref('password')], "Passwords don't match"),
+})
 
-const passwordSchema = yup.string()
-  .required('Password field is required')
-  .min(8, ValidationMessages.minLength(8))
-  .matches(ValidationPatterns.password, ValidationMessages.password)
+const { handleSubmit, isSubmitting } = useForm({
+  validationSchema: resetPasswordSchema,
+})
 
-const confirmPasswordSchema = yup.string()
-  .required('Confirm password field is required')
-  .oneOf([yup.ref('password')], "Passwords don't match")
-
-const { value: password, errorMessage: passwordError } = useField<string>('password', passwordSchema)
-const { value: confirmPassword, errorMessage: confirmPasswordError } = useField<string>('confirmPassword', confirmPasswordSchema)
+const { value: password, errorMessage: passwordError } = useField<string>('password')
+const { value: confirmPassword, errorMessage: confirmPasswordError } = useField<string>('confirmPassword')
 
 const canReset = computed(() => !!resetToken.value && !resetSuccess.value && !resetError.value)
 
@@ -177,33 +183,57 @@ onMounted(() => {
         <form v-else @submit="submitReset" class="mt-4 space-y-2.5">
           <div class="grid gap-2">
             <Label for="password" class="text-xs font-medium text-[#6b7280]">New password</Label>
-            <Input
-              id="password"
-              v-model="password"
-              type="password"
-              autocomplete="new-password"
-              :class="[
-                'h-11 rounded-[14px] border-[#d1d5db] bg-white px-3 text-sm text-[#111827]',
-                passwordError ? 'border-red-500 focus-visible:ring-red-200' : 'focus-visible:ring-[#027F63]/25'
-              ]"
-              required
-            />
+            <div class="relative">
+              <Input
+                id="password"
+                v-model="password"
+                :type="showPassword ? 'text' : 'password'"
+                autocomplete="new-password"
+                :class="[
+                  'h-11 rounded-[14px] border-[#d1d5db] bg-white px-3 pr-11 text-sm text-[#111827]',
+                  passwordError ? 'border-red-500 focus-visible:ring-red-200' : 'focus-visible:ring-[#027F63]/25'
+                ]"
+                required
+              />
+              <button
+                type="button"
+                class="absolute right-3 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-[#6b7280] transition hover:bg-[#f3f4f6] hover:text-[#027F63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#027F63]/25"
+                :aria-label="showPassword ? 'Hide new password' : 'Show new password'"
+                :title="showPassword ? 'Hide new password' : 'Show new password'"
+                @click="showPassword = !showPassword"
+              >
+                <EyeOff v-if="showPassword" class="size-4" aria-hidden="true" />
+                <Eye v-else class="size-4" aria-hidden="true" />
+              </button>
+            </div>
             <span v-if="passwordError" class="text-xs text-red-500">{{ passwordError }}</span>
           </div>
 
           <div class="grid gap-2">
             <Label for="confirm-password" class="text-xs font-medium text-[#6b7280]">Confirm password</Label>
-            <Input
-              id="confirm-password"
-              v-model="confirmPassword"
-              type="password"
-              autocomplete="new-password"
-              :class="[
-                'h-11 rounded-[14px] border-[#d1d5db] bg-white px-3 text-sm text-[#111827]',
-                confirmPasswordError ? 'border-red-500 focus-visible:ring-red-200' : 'focus-visible:ring-[#027F63]/25'
-              ]"
-              required
-            />
+            <div class="relative">
+              <Input
+                id="confirm-password"
+                v-model="confirmPassword"
+                :type="showConfirmPassword ? 'text' : 'password'"
+                autocomplete="new-password"
+                :class="[
+                  'h-11 rounded-[14px] border-[#d1d5db] bg-white px-3 pr-11 text-sm text-[#111827]',
+                  confirmPasswordError ? 'border-red-500 focus-visible:ring-red-200' : 'focus-visible:ring-[#027F63]/25'
+                ]"
+                required
+              />
+              <button
+                type="button"
+                class="absolute right-3 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-[#6b7280] transition hover:bg-[#f3f4f6] hover:text-[#027F63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#027F63]/25"
+                :aria-label="showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'"
+                :title="showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'"
+                @click="showConfirmPassword = !showConfirmPassword"
+              >
+                <EyeOff v-if="showConfirmPassword" class="size-4" aria-hidden="true" />
+                <Eye v-else class="size-4" aria-hidden="true" />
+              </button>
+            </div>
             <span v-if="confirmPasswordError" class="text-xs text-red-500">{{ confirmPasswordError }}</span>
           </div>
 
