@@ -10,6 +10,9 @@
     <ClientOnly>
       <SessionWarning />
     </ClientOnly>
+    <ClientOnly>
+      <NautixWebChat />
+    </ClientOnly>
   </div>
 </template>
 
