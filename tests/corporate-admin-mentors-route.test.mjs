@@ -102,6 +102,24 @@ assert.match(
 
 assert.match(
   adminMentorsSource,
+  /InviteCompanyMentorDialog/,
+  'The company mentors workspace should expose mentor invite controls.',
+)
+
+assert.match(
+  adminMentorsSource,
+  /ImportCompanyMentorsDialog/,
+  'The company mentors workspace should expose mentor import controls.',
+)
+
+assert.match(
+  companyMentorsPanel,
+  /resendInvitation/,
+  'Pending company mentor invitations should support resend from the company tab.',
+)
+
+assert.match(
+  adminMentorsSource,
   /No company mentors yet[\s\S]*Add new/,
   'The company mentors empty state should offer an Add new action.',
 )
