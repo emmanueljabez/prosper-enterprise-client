@@ -29,6 +29,12 @@ assert.match(
 
 assert.match(
   sidebarSource,
+  /\.\.\.resolveStoredSidebarRoleNames\(\)/,
+  'Sidebar should resolve across both hydrated auth roles and persisted login-response roles.',
+)
+
+assert.match(
+  sidebarSource,
   /localStorage\.getItem\('role'\)/,
   'Sidebar should keep legacy stored role fallback for older sessions.',
 )

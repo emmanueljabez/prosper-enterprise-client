@@ -118,24 +118,101 @@ const normalizeFrontendRoleName = (roleName?: string): 'employee' | 'mentor' | '
   return 'employee'
 }
 
+const parseStoredJson = (key: string): any | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const storedValue = localStorage.getItem(key)
+  if (!storedValue) {
+    return null
+  }
+
+  try {
+    return JSON.parse(storedValue)
+  } catch {
+    return null
+  }
+}
+
+const normalizeRoleNames = (roles: unknown): string[] => {
+  const roleList = Array.isArray(roles) ? roles : [roles]
+
+  return roleList
+    .map((role: any) => {
+      if (typeof role === 'object' && role !== null) {
+        return String(role.name || role.id || '').trim().toLowerCase()
+      }
+
+      return String(role || '').trim().toLowerCase()
+    })
+    .filter(Boolean)
+}
+
+const storedRecordMatchesToken = (record: any, decoded?: JwtPayload): boolean => {
+  if (!record || !decoded) {
+    return true
+  }
+
+  const recordId = String(record.id || record.userId || record.sub || '').trim()
+  const tokenId = String(decoded.sub || '').trim()
+  if (recordId && tokenId && recordId !== tokenId) {
+    return false
+  }
+
+  const recordEmail = String(record.email || record.emailAddress || '').trim().toLowerCase()
+  const tokenEmail = String(decoded.email || '').trim().toLowerCase()
+  if (recordEmail && tokenEmail && recordEmail !== tokenEmail) {
+    return false
+  }
+
+  return true
+}
+
+const resolveStoredRoleNames = (decoded?: JwtPayload): string[] => {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  const parsedProfile = parseStoredJson('profile')
+  const parsedUser = parseStoredJson('loggedInUser')
+  const canUseProfile = storedRecordMatchesToken(parsedProfile, decoded)
+  const canUseUser = storedRecordMatchesToken(parsedUser, decoded)
+  const storedRoles = [
+    ...(canUseProfile ? [parsedProfile?.role] : []),
+    ...(canUseUser ? normalizeRoleNames(parsedUser?.roles) : []),
+    ...(canUseProfile || canUseUser ? [localStorage.getItem('role')] : []),
+  ]
+
+  return Array.from(new Set(normalizeRoleNames(storedRoles)))
+}
+
+const mapRoleNamesToFrontendRoles = (roleNames: unknown[]) => {
+  const mappedRoles = normalizeRoleNames(roleNames).map(roleName => {
+    const role = normalizeFrontendRoleName(roleName)
+    console.log('🔍 Auth Store: Mapping role:', roleName, 'to:', DEFAULT_ROLES[role]);
+    return DEFAULT_ROLES[role] || DEFAULT_ROLES.employee
+  })
+
+  return mappedRoles.length ? mappedRoles : [DEFAULT_ROLES.employee]
+}
+
 const resolveStoredCompanyId = () => {
   if (typeof window === 'undefined') {
     return undefined
   }
 
   try {
-    const storedProfile = localStorage.getItem('profile')
-    if (storedProfile) {
-      const parsedProfile = JSON.parse(storedProfile)
+    const parsedProfile = parseStoredJson('profile')
+    if (parsedProfile) {
       const profileCompanyId = parsedProfile?.companyId || parsedProfile?.company_id || parsedProfile?.company?.id
       if (profileCompanyId) {
         return profileCompanyId
       }
     }
 
-    const storedUser = localStorage.getItem('loggedInUser')
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser)
+    const parsedUser = parseStoredJson('loggedInUser')
+    if (parsedUser) {
       const userCompanyId = parsedUser?.companyId || parsedUser?.company_id || parsedUser?.company?.id
       if (userCompanyId) {
         return userCompanyId
@@ -210,11 +287,9 @@ export const useAuthStore = defineStore('auth', {
           // Remove expiration check - tokens never expire
           // Create a User object from the decoded token
           console.log('🔍 Auth Store: Raw roles from JWT:', decoded.roles);
-          const mappedRoles = decoded.roles?.map(roleName => {
-            const role = normalizeFrontendRoleName(roleName)
-            console.log('🔍 Auth Store: Mapping role:', roleName, 'to:', DEFAULT_ROLES[role]);
-            return DEFAULT_ROLES[role] || DEFAULT_ROLES.employee
-          }) || [DEFAULT_ROLES.employee]
+          const decodedRoleNames = normalizeRoleNames(decoded.roles)
+          const hydratedRoleNames = decodedRoleNames.length ? decodedRoleNames : resolveStoredRoleNames(decoded)
+          const mappedRoles = mapRoleNamesToFrontendRoles(hydratedRoleNames)
           
           console.log('🔍 Auth Store: Final mapped roles:', mappedRoles);
           
