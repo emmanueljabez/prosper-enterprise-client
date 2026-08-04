@@ -204,7 +204,7 @@ fi
 
 # Deploy on server
 echo "🔄 Deploying on server..."
-ssh_cmd "DEPLOY_TARGET_DIR='$DEPLOY_TARGET_DIR' FRONTEND_SERVICE='$FRONTEND_SERVICE' FRONTEND_HEALTH_URL='$FRONTEND_HEALTH_URL' bash -s" << 'EOF'
+remote_deploy_script="$(cat <<'REMOTE_DEPLOY_SCRIPT'
 set -euo pipefail
 
 cd "$DEPLOY_TARGET_DIR"
@@ -303,7 +303,9 @@ fi
 echo "🧹 Cleaning up..."
 rm deployment.tar.gz
 echo "✅ Server deployment completed!"
-EOF
+REMOTE_DEPLOY_SCRIPT
+)"
+printf '%s\n' "$remote_deploy_script" | ssh_cmd "DEPLOY_TARGET_DIR='$DEPLOY_TARGET_DIR' FRONTEND_SERVICE='$FRONTEND_SERVICE' FRONTEND_HEALTH_URL='$FRONTEND_HEALTH_URL' bash -s"
 
 echo "🎉 Deployment completed successfully!"
 echo "🌐 Your site should be updated at: https://enterprise.prospermentor.com"
