@@ -53,17 +53,17 @@ const resolveSidebarRoleFromRoleNames = (roleNames: unknown[]): SidebarRole | nu
   return null;
 };
 
-const resolveStoredSidebarRole = (): SidebarRole | null => {
-  if (typeof window === 'undefined') return null;
+const resolveStoredSidebarRoleNames = (): unknown[] => {
+  if (typeof window === 'undefined') return [];
 
   const parsedProfile = parseStoredJson('profile');
   const parsedUser = parseStoredJson('loggedInUser');
 
-  return resolveSidebarRoleFromRoleNames([
+  return [
     parsedProfile?.role,
     ...(Array.isArray(parsedUser?.roles) ? parsedUser.roles : []),
     localStorage.getItem('role'),
-  ]);
+  ];
 };
 
 export interface SidebarState {
@@ -85,8 +85,10 @@ export const useSidebarStore = defineStore('sidebar', {
     
     roleBasedNavigation: (state) => {
       const authStore = useAuthStore();
-      const role = resolveSidebarRoleFromRoleNames(authStore.loggedInUser?.roles || [])
-        || resolveStoredSidebarRole();
+      const role = resolveSidebarRoleFromRoleNames([
+        ...(authStore.loggedInUser?.roles || []),
+        ...resolveStoredSidebarRoleNames(),
+      ]);
       if (!role) return [];
       
       // Get role-specific navigation based on user's primary role
