@@ -7,6 +7,10 @@ const importDialogSource = readFileSync(new URL('../components/app/admin/mentors
 const visibilityDialogSource = readFileSync(new URL('../components/app/admin/mentors/EditCompanyMentorVisibilityDialog.vue', import.meta.url), 'utf8')
 
 assert.match(pageSource, /useCompanyMentorsStore/)
+assert.match(pageSource, /import CompanyMentorStatusBadge from '~\/components\/app\/admin\/mentors\/CompanyMentorStatusBadge\.vue'/)
+assert.match(pageSource, /import EditCompanyMentorVisibilityDialog from '~\/components\/app\/admin\/mentors\/EditCompanyMentorVisibilityDialog\.vue'/)
+assert.match(pageSource, /import ImportCompanyMentorsDialog from '~\/components\/app\/admin\/mentors\/ImportCompanyMentorsDialog\.vue'/)
+assert.match(pageSource, /import InviteCompanyMentorDialog from '~\/components\/app\/admin\/mentors\/InviteCompanyMentorDialog\.vue'/)
 assert.match(pageSource, /InviteCompanyMentorDialog/)
 assert.match(pageSource, /ImportCompanyMentorsDialog/)
 assert.match(pageSource, /EditCompanyMentorVisibilityDialog/)

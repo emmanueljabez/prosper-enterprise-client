@@ -12,6 +12,10 @@ import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
 import { Tabs, TabsContent } from '~/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~/components/ui/table'
+import CompanyMentorStatusBadge from '~/components/app/admin/mentors/CompanyMentorStatusBadge.vue'
+import EditCompanyMentorVisibilityDialog from '~/components/app/admin/mentors/EditCompanyMentorVisibilityDialog.vue'
+import ImportCompanyMentorsDialog from '~/components/app/admin/mentors/ImportCompanyMentorsDialog.vue'
+import InviteCompanyMentorDialog from '~/components/app/admin/mentors/InviteCompanyMentorDialog.vue'
 import type { CompanyMentorInvitation, CompanyMentorPoolMember } from '~/types/company-mentors'
 import {
   ArrowRight,
