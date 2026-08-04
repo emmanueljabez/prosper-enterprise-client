@@ -7,6 +7,8 @@ import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~/components/ui/table'
 import { useCompanyMentorsStore } from '~/store/modules/companyMentors'
+import { downloadCompanyMentorImportTemplate } from '~/utils/companyMentorImportTemplate'
+import { Download } from 'lucide-vue-next'
 
 const props = defineProps<{
   open: boolean
@@ -21,6 +23,7 @@ const emit = defineEmits<{
 const companyMentorsStore = useCompanyMentorsStore()
 const selectedFile = ref<File | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
+const templateDownloading = ref(false)
 
 const validation = computed(() => companyMentorsStore.importValidation)
 const rows = computed(() => validation.value?.rows || [])
@@ -36,6 +39,17 @@ watch(() => props.open, (isOpen) => {
 
 const closeDialog = () => {
   emit('update:open', false)
+}
+
+const downloadTemplate = async () => {
+  if (templateDownloading.value) return
+
+  templateDownloading.value = true
+  try {
+    await downloadCompanyMentorImportTemplate()
+  } finally {
+    templateDownloading.value = false
+  }
 }
 
 const handleFileChange = async (event: Event) => {
@@ -68,6 +82,22 @@ const confirmImport = async () => {
       </DialogHeader>
 
       <div class="space-y-4">
+        <div class="flex flex-col gap-3 rounded-md border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm text-muted-foreground">
+            Start from the Prosper template to keep columns aligned with import validation.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            class="shrink-0"
+            :disabled="templateDownloading"
+            @click="downloadTemplate"
+          >
+            <Download class="h-4 w-4" />
+            Download template
+          </Button>
+        </div>
+
         <Input
           ref="fileInput"
           type="file"
