@@ -96,24 +96,63 @@ const importDialogOpen = ref(false)
 const visibilityDialogOpen = ref(false)
 const selectedMember = ref<CompanyMentorPoolMember | null>(null)
 
+const companyAdminRoleNames = ['corporate_admin', 'company_admin', 'company']
+
+const parseStoredJson = (key: string): any | null => {
+  if (typeof window === 'undefined') return null
+
+  const rawValue = localStorage.getItem(key)
+  if (!rawValue) return null
+
+  try {
+    return JSON.parse(rawValue)
+  } catch {
+    return null
+  }
+}
+
 const companyId = computed(() => {
   if (typeof window !== 'undefined') {
-    const rawProfile = localStorage.getItem('profile')
-    if (rawProfile) {
-      try {
-        const parsedProfile = JSON.parse(rawProfile)
-        return parsedProfile?.company?.id || parsedProfile?.companyId || parsedProfile?.company_id || ''
-      } catch {
-        return authStore.loggedInUser?.companyId || ''
-      }
-    }
+    const parsedProfile = parseStoredJson('profile')
+    const parsedUser = parseStoredJson('loggedInUser')
+
+    return parsedProfile?.company?.id
+      || parsedProfile?.companyId
+      || parsedProfile?.company_id
+      || parsedUser?.company?.id
+      || parsedUser?.companyId
+      || parsedUser?.company_id
+      || authStore.loggedInUser?.companyId
+      || ''
   }
 
   return authStore.loggedInUser?.companyId || ''
 })
+const hasStoredCompanyMentorAdminAccess = () => {
+  if (typeof window === 'undefined') return false
+
+  const parsedProfile = parseStoredJson('profile')
+  const parsedUser = parseStoredJson('loggedInUser')
+  const storedRoleNames = [
+    localStorage.getItem('role'),
+    parsedProfile?.role,
+    ...(Array.isArray(parsedUser?.roles)
+      ? parsedUser.roles.map((role: any) => role?.name || role?.id || role)
+      : []),
+  ]
+    .map(role => String(role || '').toLowerCase())
+    .filter(Boolean)
+  const hasStoredAdminRole = storedRoleNames.some(role => companyAdminRoleNames.includes(role))
+  const hasStoredAdminPermission = Array.isArray(parsedUser?.roles)
+    ? parsedUser.roles.some((role: any) => role?.permissions?.some((permission: any) => permission?.id === 'admin:mentors'))
+    : false
+
+  return hasStoredAdminRole || hasStoredAdminPermission
+}
 const hasCompanyMentorAdminAccess = computed(() =>
   RoleManager.isCorporateAdmin(authStore.loggedInUser)
-  || RoleManager.hasPermission(authStore.loggedInUser, 'admin:mentors'),
+  || RoleManager.hasPermission(authStore.loggedInUser, 'admin:mentors')
+  || hasStoredCompanyMentorAdminAccess(),
 )
 const canManageCompanyMentors = computed(() => Boolean(companyId.value && hasCompanyMentorAdminAccess.value))
 
@@ -212,7 +251,7 @@ const loadMentors = async (page = 0) => {
 }
 
 const loadCompanyMentors = async () => {
-  if (!companyId.value) return
+  if (!canManageCompanyMentors.value) return
 
   await companyMentorsStore.loadMentorPool(companyId.value, {
     page: 0,
@@ -262,12 +301,12 @@ const openVisibilityDialog = (member: CompanyMentorPoolMember) => {
 }
 
 const resendInvitation = async (invitationId: string) => {
-  if (!companyId.value) return
+  if (!canManageCompanyMentors.value) return
   await companyMentorsStore.resendInvitation(companyId.value, invitationId)
 }
 
 const removeMembership = async (membershipId: string) => {
-  if (!companyId.value) return
+  if (!canManageCompanyMentors.value) return
   await companyMentorsStore.removeMembership(companyId.value, membershipId)
 }
 
@@ -293,7 +332,7 @@ const formatDate = (value?: string | null) => {
 }
 
 watch(activeMentorTab, (tab) => {
-  if (tab === 'company' && companyId.value && !companyMentorRows.value.length) {
+  if (tab === 'company' && canManageCompanyMentors.value && !companyMentorRows.value.length) {
     loadCompanyMentors()
   }
 })
@@ -602,7 +641,7 @@ onMounted(() => {
                       v-if="row.invitation"
                       variant="outline"
                       size="sm"
-                      :disabled="companyMentorsStore.isSubmitting"
+                      :disabled="companyMentorsStore.isSubmitting || !canManageCompanyMentors"
                       @click="resendInvitation(row.invitation.id)"
                     >
                       <Send class="h-4 w-4" />
@@ -612,6 +651,7 @@ onMounted(() => {
                       v-if="row.member"
                       variant="outline"
                       size="sm"
+                      :disabled="!canManageCompanyMentors"
                       @click="openVisibilityDialog(row.member)"
                     >
                       <Pencil class="h-4 w-4" />
@@ -621,7 +661,7 @@ onMounted(() => {
                       v-if="row.member"
                       variant="ghost"
                       size="sm"
-                      :disabled="companyMentorsStore.isSubmitting"
+                      :disabled="companyMentorsStore.isSubmitting || !canManageCompanyMentors"
                       @click="removeMembership(row.member.id)"
                     >
                       <Trash2 class="h-4 w-4" />
