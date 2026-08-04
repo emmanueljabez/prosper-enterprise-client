@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
+import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
@@ -18,6 +19,7 @@ const emit = defineEmits<{
 }>()
 
 const companyMentorsStore = useCompanyMentorsStore()
+const missingCompanyContextMessage = 'Company admin context is required before sending mentor invites'
 const tagsText = ref('')
 const form = reactive({
   email: '',
@@ -55,7 +57,10 @@ const closeDialog = () => {
 }
 
 const submitInvite = async () => {
-  if (!props.companyId || !form.email.trim() || !form.phone.trim()) return
+  if (!props.companyId) {
+    throw new Error('Company admin context is required before sending mentor invites')
+  }
+  if (!form.email.trim() || !form.phone.trim()) return
 
   await companyMentorsStore.inviteMentor(props.companyId, {
     email: form.email.trim(),
@@ -86,6 +91,10 @@ const submitInvite = async () => {
       </DialogHeader>
 
       <form class="grid gap-4" @submit.prevent="submitInvite">
+        <Alert v-if="!props.companyId" variant="destructive">
+          <AlertDescription>{{ missingCompanyContextMessage }}</AlertDescription>
+        </Alert>
+
         <div class="grid gap-4 md:grid-cols-2">
           <label class="grid gap-2 text-sm font-medium">
             Email
@@ -146,7 +155,7 @@ const submitInvite = async () => {
         <Button type="button" variant="outline" @click="closeDialog">Cancel</Button>
         <Button
           type="button"
-          :disabled="companyMentorsStore.isSubmitting || !form.email.trim() || !form.phone.trim()"
+          :disabled="companyMentorsStore.isSubmitting || !props.companyId || !form.email.trim() || !form.phone.trim()"
           @click="submitInvite"
         >
           Send invite

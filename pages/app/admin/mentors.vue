@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { useMentorsStore } from '@/store/modules/mentors'
 import { useCompanyMentorsStore } from '~/store/modules/companyMentors'
 import { useAuthStore } from '@/store/modules/auth'
+import { RoleManager } from '@/utils/roleManager'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -110,6 +111,11 @@ const companyId = computed(() => {
 
   return authStore.loggedInUser?.companyId || ''
 })
+const hasCompanyMentorAdminAccess = computed(() =>
+  RoleManager.isCorporateAdmin(authStore.loggedInUser)
+  || RoleManager.hasPermission(authStore.loggedInUser, 'admin:mentors'),
+)
+const canManageCompanyMentors = computed(() => Boolean(companyId.value && hasCompanyMentorAdminAccess.value))
 
 const normalizeArray = (value: unknown): string[] =>
   Array.isArray(value)
@@ -493,16 +499,23 @@ onMounted(() => {
               <h2 class="text-base font-semibold">Company Mentors</h2>
             </div>
             <div class="flex flex-wrap gap-2">
-              <Button variant="outline" @click="importDialogOpen = true">
+              <Button variant="outline" :disabled="!canManageCompanyMentors" @click="importDialogOpen = true">
                 <Upload class="h-4 w-4" />
                 Import
               </Button>
-              <Button @click="inviteDialogOpen = true">
+              <Button :disabled="!canManageCompanyMentors" @click="inviteDialogOpen = true">
                 <Plus class="h-4 w-4" />
                 Invite mentor
               </Button>
             </div>
           </div>
+
+          <Alert v-if="!canManageCompanyMentors" variant="destructive">
+            <AlertDescription>
+              Company admin access is required to invite or import company mentors.
+              Sign in with a company admin account linked to a company profile.
+            </AlertDescription>
+          </Alert>
 
           <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div class="rounded-md border p-3">
@@ -529,7 +542,7 @@ onMounted(() => {
 
           <div v-else-if="!companyMentorRows.length" class="rounded-lg border border-dashed p-8 text-center">
             <h3 class="text-lg font-medium">No company mentors yet</h3>
-            <Button class="mt-4" @click="inviteDialogOpen = true">
+            <Button class="mt-4" :disabled="!canManageCompanyMentors" @click="inviteDialogOpen = true">
               <Plus class="h-4 w-4" />
               Add new
             </Button>
