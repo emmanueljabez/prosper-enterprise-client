@@ -56,17 +56,28 @@ const formatTime = (date: string) => new Date(date).toLocaleTimeString('en-US', 
 })
 
 const formatDateTime = (date: string) => `${formatDate(date)} at ${formatTime(date)}`
+const unwrapApiData = (response: any) => response?.data || response
 
 const hasPendingProposal = computed(() => {
-  return session.value?.activeProposal?.status === 'PENDING_MENTEE_RESPONSE' &&
-    Array.isArray(session.value.activeProposal.slots) &&
-    session.value.activeProposal.slots.length > 0
+  return session.value?.activeProposal?.status === 'PENDING_MENTEE_RESPONSE'
 })
 
 const loadSession = async () => {
   isLoading.value = true
   try {
-    session.value = await sessionsStore.getSessionById(sessionId.value)
+    const loadedSession = unwrapApiData(await sessionsStore.getSessionById(sessionId.value))
+    const loadedProposal = loadedSession?.activeProposal
+      ? loadedSession.activeProposal
+      : unwrapApiData(await sessionsStore.getActiveProposal(sessionId.value))
+
+    session.value = {
+      ...loadedSession,
+      activeProposal: loadedProposal || null,
+    }
+
+    if (hasPendingProposal.value) {
+      await router.replace(`/app/sessions/proposals/${session.value.id}`)
+    }
   } catch (error) {
     console.error('Error loading session details:', error)
     toast.error('Failed to load session details')

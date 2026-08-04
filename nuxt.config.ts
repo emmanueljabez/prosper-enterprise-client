@@ -40,6 +40,7 @@ export default defineNuxtConfig({
       // mapboxToken: process.env.NUXT_PUBLIC_MAPBOX_TOKEN
       nodeEnv: process.env.NODE_ENV,
       googleMapsApiKey: process.env.NUXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+      nautixWebchatSiteKey: process.env.NUXT_PUBLIC_NAUTIX_WEBCHAT_SITE_KEY || '',
       // websocketUrl: process.env.NUXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8090/ws',
       // websocketProtocol: process.env.NUXT_PUBLIC_WEBSOCKET_PROTOCOL || 'restaurant-pos-protocol',
       // websocketReconnectInterval: process.env.NUXT_PUBLIC_WEBSOCKET_RECONNECT_INTERVAL || 3000,

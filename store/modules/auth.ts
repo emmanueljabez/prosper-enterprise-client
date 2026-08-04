@@ -772,11 +772,11 @@ export const useAuthStore = defineStore('auth', {
       })
     },
 
-    resetPasswordWithRecoveryToken(accessToken: string, password: string) {
+    resetPasswordWithToken(token: string, password: string) {
       this.loading = true
 
       return new Promise((resolve, reject) => {
-        jwt.resetPassword({ accessToken, password })
+        jwt.resetPassword({ token, password })
           .then((response) => {
             if (response && response.data) {
               resolve(response.data)

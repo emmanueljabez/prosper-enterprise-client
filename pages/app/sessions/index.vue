@@ -56,6 +56,7 @@ const selectedTab = ref<'all' | 'today' | 'upcoming' | 'past'>('upcoming')
 const selectedSession = ref(null)
 const showSessionDetails = ref(false)
 const completingSessionId = ref<string | null>(null)
+const cancellingSessionId = ref<string | null>(null)
 const respondingProposalId = ref<string | null>(null)
 const supportRequestingSessionId = ref<string | null>(null)
 const proposalResponses = ref<Record<string, string>>({})
@@ -307,9 +308,28 @@ const rescheduleSession = (session: any) => {
   toast.info('Reschedule feature coming soon!')
 }
 
-const cancelSession = (session: any) => {
-  // TODO: Implement cancel functionality
-  toast.info('Cancel feature coming soon!')
+const cancelSession = async (session: any) => {
+  const confirmed = window.confirm('Cancel this session? If it is before the scheduled start, any eligible session balance will be returned.')
+  if (!confirmed) return
+
+  const currentUserId = authStore.loggedInUser?.id || getMenteeId()
+  const cancelledBy = session.mentorId === currentUserId ? 'MENTOR' : 'MENTEE'
+
+  cancellingSessionId.value = session.id
+
+  try {
+    await sessionsStore.cancelSession(session.id, {
+      cancelledBy,
+      reason: cancelledBy === 'MENTEE' ? 'Cancelled by mentee' : 'Cancelled by mentor'
+    })
+
+    const menteeId = getMenteeId()
+    if (menteeId) {
+      await sessionsStore.changeFilter(menteeId, selectedTab.value)
+    }
+  } finally {
+    cancellingSessionId.value = null
+  }
 }
 
 const canMarkComplete = (session: any) => {
@@ -718,9 +738,10 @@ onMounted(async () => {
                     variant="outline"
                     size="sm"
                     @click="cancelSession(session)"
+                    :disabled="cancellingSessionId === session.id"
                     class="flex-1 text-red-600 hover:text-red-700"
                   >
-                    Cancel
+                    {{ cancellingSessionId === session.id ? 'Cancelling...' : 'Cancel' }}
                   </Button>
                 </div>
               </div>

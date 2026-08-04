@@ -5,6 +5,11 @@ interface ConfirmSessionPayload {
     scheduledStart?: string
 }
 
+interface CancelSessionPayload {
+    cancelledBy: 'MENTEE' | 'MENTOR' | 'ADMIN' | 'SYSTEM'
+    reason?: string | null
+}
+
 interface CreateSessionPayload {
     mentorId: string
     menteeId: string
@@ -109,6 +114,10 @@ export default {
         return axiosInstance.post(`/v1/sessions/${sessionId}/decline`, {
             reason: reason || 'Mentor declined the session request'
         })
+    },
+
+    cancelSession(sessionId: string, payload: CancelSessionPayload) {
+        return axiosInstance.post(`/v1/sessions/${sessionId}/cancel`, payload)
     },
 
     proposeAlternative(sessionId: string, payload: ProposeSessionAlternativePayload) {

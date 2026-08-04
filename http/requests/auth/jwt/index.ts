@@ -18,7 +18,7 @@ export default {
     },
 
     resetPassword(data: {
-        accessToken: string;
+        token: string;
         password: string;
     }) {
         return axiosInstance.post(`/auth/reset-password`, data)
