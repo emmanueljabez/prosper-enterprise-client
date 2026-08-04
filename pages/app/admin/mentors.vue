@@ -239,6 +239,8 @@ function fullInvitationName(invitation: CompanyMentorInvitation) {
 }
 
 const selectMentorTab = (tab: 'prosper' | 'company') => {
+  if (tab === 'company' && !hasCompanyMentorAdminAccess.value) return
+
   activeMentorTab.value = tab
 }
 
@@ -260,7 +262,10 @@ const loadCompanyMentors = async () => {
   })
 }
 
-const runSearch = () => activeMentorTab.value === 'company' ? loadCompanyMentors() : loadMentors(0)
+const runSearch = () =>
+  activeMentorTab.value === 'company' && hasCompanyMentorAdminAccess.value
+    ? loadCompanyMentors()
+    : loadMentors(0)
 
 const clearSearch = () => {
   searchTerm.value = ''
@@ -268,7 +273,7 @@ const clearSearch = () => {
 }
 
 const refreshActiveTab = () => {
-  if (activeMentorTab.value === 'company') {
+  if (activeMentorTab.value === 'company' && hasCompanyMentorAdminAccess.value) {
     loadCompanyMentors()
   } else {
     loadMentors(mentorProfilesPagination.value.currentPage || 0)
@@ -337,9 +342,21 @@ watch(activeMentorTab, (tab) => {
   }
 })
 
+watch(
+  hasCompanyMentorAdminAccess,
+  (hasAccess) => {
+    if (!hasAccess && activeMentorTab.value === 'company') {
+      activeMentorTab.value = 'prosper'
+    }
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
   loadMentors()
-  loadCompanyMentors()
+  if (hasCompanyMentorAdminAccess.value) {
+    loadCompanyMentors()
+  }
 })
 </script>
 
@@ -347,11 +364,11 @@ onMounted(() => {
   <div class="container mx-auto space-y-6 px-4 py-6">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div>
-        <p class="text-sm font-medium text-muted-foreground">Corporate Admin</p>
+        <p v-if="hasCompanyMentorAdminAccess" class="text-sm font-medium text-muted-foreground">Corporate Admin</p>
         <h1 class="text-2xl font-semibold tracking-tight">Mentoring</h1>
       </div>
 
-      <div class="flex flex-wrap gap-2">
+      <div v-if="hasCompanyMentorAdminAccess" class="flex flex-wrap gap-2">
         <Button variant="outline" @click="openProgramWorkspace">
           <Users class="h-4 w-4" />
           Company Programs
@@ -411,6 +428,7 @@ onMounted(() => {
               <span>{{ totalMentors.toLocaleString() }}</span>
             </button>
             <button
+              v-if="hasCompanyMentorAdminAccess"
               type="button"
               class="program-view-tab"
               :class="{ 'program-view-tab--active': activeMentorTab === 'company' }"
@@ -523,8 +541,12 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <Button variant="outline" class="w-full" @click="openMatchingWorkspace">
+                <Button v-if="hasCompanyMentorAdminAccess" variant="outline" class="w-full" @click="openMatchingWorkspace">
                   Review matches
+                  <ArrowRight class="h-4 w-4" />
+                </Button>
+                <Button v-else variant="outline" class="w-full" @click="router.push(`/app/mentors/${mentor.id}`)">
+                  View mentor
                   <ArrowRight class="h-4 w-4" />
                 </Button>
               </div>
@@ -532,17 +554,17 @@ onMounted(() => {
           </div>
         </TabsContent>
 
-        <TabsContent value="company" class="space-y-4">
+        <TabsContent value="company" v-if="hasCompanyMentorAdminAccess" class="space-y-4">
           <div class="mentor-section-heading">
             <div>
               <h2 class="text-base font-semibold">Company Mentors</h2>
             </div>
-            <div class="flex flex-wrap gap-2">
-              <Button variant="outline" :disabled="!canManageCompanyMentors" @click="importDialogOpen = true">
+            <div v-if="canManageCompanyMentors" class="flex flex-wrap gap-2">
+              <Button variant="outline" @click="importDialogOpen = true">
                 <Upload class="h-4 w-4" />
                 Import
               </Button>
-              <Button :disabled="!canManageCompanyMentors" @click="inviteDialogOpen = true">
+              <Button @click="inviteDialogOpen = true">
                 <Plus class="h-4 w-4" />
                 Invite mentor
               </Button>
@@ -581,7 +603,7 @@ onMounted(() => {
 
           <div v-else-if="!companyMentorRows.length" class="rounded-lg border border-dashed p-8 text-center">
             <h3 class="text-lg font-medium">No company mentors yet</h3>
-            <Button class="mt-4" :disabled="!canManageCompanyMentors" @click="inviteDialogOpen = true">
+            <Button v-if="canManageCompanyMentors" class="mt-4" @click="inviteDialogOpen = true">
               <Plus class="h-4 w-4" />
               Add new
             </Button>
@@ -693,16 +715,19 @@ onMounted(() => {
     </section>
 
     <InviteCompanyMentorDialog
+      v-if="hasCompanyMentorAdminAccess"
       v-model:open="inviteDialogOpen"
       :company-id="companyId"
       @submitted="loadCompanyMentors"
     />
     <ImportCompanyMentorsDialog
+      v-if="hasCompanyMentorAdminAccess"
       v-model:open="importDialogOpen"
       :company-id="companyId"
       @submitted="loadCompanyMentors"
     />
     <EditCompanyMentorVisibilityDialog
+      v-if="hasCompanyMentorAdminAccess"
       v-model:open="visibilityDialogOpen"
       :company-id="companyId"
       :member="selectedMember"
