@@ -29,5 +29,8 @@ assert.match(templateSource, /COMPANY_PRIVATE/)
 assert.match(templateSource, /PROGRAM_RESTRICTED/)
 assert.match(templateSource, /PUBLIC_REQUESTED/)
 assert.match(templateSource, /prosper-company-mentor-import-template\.xlsx/)
+assert.match(templateSource, /createObjectURL/)
+assert.match(templateSource, /revokeObjectURL/)
+assert.doesNotMatch(templateSource, /\.writeFile\(/)
 
 console.log('Company mentor import template verified.')

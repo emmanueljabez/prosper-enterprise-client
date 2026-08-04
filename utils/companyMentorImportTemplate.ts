@@ -85,5 +85,21 @@ export async function downloadCompanyMentorImportTemplate(
 
   xlsx.utils.book_append_sheet(workbook, mentorsSheet, 'Mentors')
   xlsx.utils.book_append_sheet(workbook, instructionsSheet, 'Instructions')
-  xlsx.writeFile(workbook, filename, { compression: true })
+
+  const workbookBuffer = xlsx.write(workbook, {
+    bookType: 'xlsx',
+    type: 'array',
+    compression: true,
+  })
+  const blob = new Blob([workbookBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const objectUrl = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 0)
 }
