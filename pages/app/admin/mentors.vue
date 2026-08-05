@@ -12,7 +12,6 @@ import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
 import { Tabs, TabsContent } from '~/components/ui/tabs'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~/components/ui/table'
 import CompanyMentorStatusBadge from '~/components/app/admin/mentors/CompanyMentorStatusBadge.vue'
 import EditCompanyMentorVisibilityDialog from '~/components/app/admin/mentors/EditCompanyMentorVisibilityDialog.vue'
 import ImportCompanyMentorsDialog from '~/components/app/admin/mentors/ImportCompanyMentorsDialog.vue'
@@ -597,8 +596,16 @@ onMounted(() => {
             </div>
           </section>
 
-          <div v-if="companyMentorsLoading" class="flex flex-col gap-3">
-            <Skeleton v-for="row in 5" :key="row" class="h-16 w-full rounded-lg" />
+          <div v-if="companyMentorsLoading" class="prosper-mentor-card-grid">
+            <div v-for="row in 4" :key="row" class="rounded-lg border bg-background p-4">
+              <Skeleton class="aspect-[4/3] w-full rounded-md" />
+              <div class="mt-4 space-y-3">
+                <Skeleton class="h-5 w-2/3" />
+                <Skeleton class="h-4 w-full" />
+                <Skeleton class="h-4 w-4/5" />
+                <Skeleton class="h-10 w-full" />
+              </div>
+            </div>
           </div>
 
           <div v-else-if="!companyMentorRows.length" class="rounded-lg border border-dashed p-8 text-center">
@@ -609,91 +616,100 @@ onMounted(() => {
             </Button>
           </div>
 
-          <Table v-else>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Mentor</TableHead>
-                <TableHead>Visibility</TableHead>
-                <TableHead>Enrollment</TableHead>
-                <TableHead>Delivery</TableHead>
-                <TableHead>Public approval</TableHead>
-                <TableHead class="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-for="row in companyMentorRows" :key="`${row.rowType}-${row.id}`">
-                <TableCell>
-                  <div>
-                    <p class="font-medium">{{ row.name }}</p>
-                    <p class="text-xs text-muted-foreground">{{ row.email }}</p>
-                    <p class="text-xs text-muted-foreground">{{ row.title || row.department || formatTags(row.tags) }}</p>
-                  </div>
-                </TableCell>
-                <TableCell>
+          <div v-else class="prosper-mentor-card-grid">
+            <article
+              v-for="row in companyMentorRows"
+              :key="`${row.rowType}-${row.id}`"
+              class="flex h-full flex-col overflow-hidden rounded-lg border bg-background transition hover:border-[#d8b6d2] hover:shadow-sm"
+            >
+              <div class="relative aspect-[4/3] bg-[#f6edf4]">
+                <div class="flex h-full w-full items-center justify-center text-3xl font-semibold text-[#a03b93]">
+                  {{ initials(row.name) }}
+                </div>
+              </div>
+
+              <div class="flex flex-1 flex-col gap-3 p-4">
+                <div>
+                  <h3 class="text-sm font-semibold leading-snug text-[#a03b93]">{{ row.name }}</h3>
+                  <p class="mt-1 text-xs text-muted-foreground">{{ row.title || row.department || 'Company mentor' }}</p>
+                  <p class="mt-1 truncate text-xs text-muted-foreground">{{ row.email }}</p>
+                </div>
+
+                <p class="line-clamp-2 text-xs leading-5 text-muted-foreground">
+                  {{ formatTags(row.tags) }}
+                </p>
+
+                <div class="flex flex-wrap gap-2">
                   <CompanyMentorStatusBadge :status="row.visibility" type="visibility" />
-                </TableCell>
-                <TableCell>
-                  <div v-if="row.invitation" class="space-y-1">
+                  <template v-if="row.invitation">
                     <CompanyMentorStatusBadge :status="row.invitation.status" type="invitation" />
-                    <p class="text-xs text-muted-foreground">Expires {{ formatDate(row.invitation.invitationTokenExpiresAt) }}</p>
-                  </div>
-                  <div v-else-if="row.member" class="space-y-1">
+                  </template>
+                  <template v-else-if="row.member">
                     <CompanyMentorStatusBadge :status="row.member.membershipStatus" type="membership" />
                     <CompanyMentorStatusBadge :status="row.member.companyBookable" type="bookability" />
+                  </template>
+                </div>
+
+                <div class="mt-auto grid grid-cols-2 gap-2 text-xs">
+                  <div class="rounded-md bg-muted px-3 py-2">
+                    <span class="block text-muted-foreground">Delivery</span>
+                    <span v-if="row.invitation" class="mt-1 flex flex-wrap gap-1">
+                      <CompanyMentorStatusBadge :status="row.invitation.emailDeliveryStatus" type="delivery" />
+                      <CompanyMentorStatusBadge :status="row.invitation.whatsappDeliveryStatus" type="delivery" />
+                    </span>
+                    <span v-else class="font-semibold text-foreground">Accepted</span>
                   </div>
-                </TableCell>
-                <TableCell>
-                  <div v-if="row.invitation" class="flex flex-col gap-1">
-                    <CompanyMentorStatusBadge :status="row.invitation.emailDeliveryStatus" type="delivery" />
-                    <CompanyMentorStatusBadge :status="row.invitation.whatsappDeliveryStatus" type="delivery" />
+                  <div class="rounded-md bg-muted px-3 py-2">
+                    <span class="block text-muted-foreground">Approval</span>
+                    <CompanyMentorStatusBadge
+                      v-if="row.member"
+                      class="mt-1"
+                      :status="row.member.publicApprovalStatus"
+                      type="approval"
+                    />
+                    <span v-else class="font-semibold text-foreground">Pending signup</span>
                   </div>
-                  <span v-else class="text-sm text-muted-foreground">Accepted</span>
-                </TableCell>
-                <TableCell>
-                  <CompanyMentorStatusBadge
+                </div>
+
+                <p v-if="row.invitation" class="text-xs text-muted-foreground">
+                  Expires {{ formatDate(row.invitation.invitationTokenExpiresAt) }}
+                </p>
+
+                <div class="flex flex-wrap gap-2">
+                  <Button
+                    v-if="row.invitation"
+                    variant="outline"
+                    class="flex-1"
+                    :disabled="companyMentorsStore.isSubmitting || !canManageCompanyMentors"
+                    @click="resendInvitation(row.invitation.id)"
+                  >
+                    <Send class="h-4 w-4" />
+                    Resend
+                  </Button>
+                  <Button
                     v-if="row.member"
-                    :status="row.member.publicApprovalStatus"
-                    type="approval"
-                  />
-                  <span v-else class="text-sm text-muted-foreground">Pending signup</span>
-                </TableCell>
-                <TableCell class="text-right">
-                  <div class="flex justify-end gap-2">
-                    <Button
-                      v-if="row.invitation"
-                      variant="outline"
-                      size="sm"
-                      :disabled="companyMentorsStore.isSubmitting || !canManageCompanyMentors"
-                      @click="resendInvitation(row.invitation.id)"
-                    >
-                      <Send class="h-4 w-4" />
-                      Resend
-                    </Button>
-                    <Button
-                      v-if="row.member"
-                      variant="outline"
-                      size="sm"
-                      :disabled="!canManageCompanyMentors"
-                      @click="openVisibilityDialog(row.member)"
-                    >
-                      <Pencil class="h-4 w-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      v-if="row.member"
-                      variant="ghost"
-                      size="sm"
-                      :disabled="companyMentorsStore.isSubmitting || !canManageCompanyMentors"
-                      @click="removeMembership(row.member.id)"
-                    >
-                      <Trash2 class="h-4 w-4" />
-                      Remove
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+                    variant="outline"
+                    class="flex-1"
+                    :disabled="!canManageCompanyMentors"
+                    @click="openVisibilityDialog(row.member)"
+                  >
+                    <Pencil class="h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    v-if="row.member"
+                    variant="ghost"
+                    class="flex-1"
+                    :disabled="companyMentorsStore.isSubmitting || !canManageCompanyMentors"
+                    @click="removeMembership(row.member.id)"
+                  >
+                    <Trash2 class="h-4 w-4" />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            </article>
+          </div>
         </TabsContent>
 
         <div v-if="showPagination" class="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -828,7 +844,7 @@ onMounted(() => {
 .prosper-mentor-card-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 
 @media (min-width: 768px) {

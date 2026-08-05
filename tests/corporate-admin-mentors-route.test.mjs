@@ -96,8 +96,20 @@ assert.match(
 
 assert.match(
   companyMentorsPanel,
+  /prosper-mentor-card-grid/,
+  'Company mentors should use the same card grid layout as Prosper mentors.',
+)
+
+assert.match(
+  adminMentorsSource,
+  /grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(220px,\s*1fr\)\)/,
+  'Mentor card grids should keep fixed card columns when only one company mentor exists.',
+)
+
+assert.doesNotMatch(
+  companyMentorsPanel,
   /<Table(?:\s|>)/,
-  'Company mentors can keep the operational table layout.',
+  'Company mentors should not render as an operations table.',
 )
 
 assert.match(
