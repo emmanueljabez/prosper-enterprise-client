@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, watch } from 'vue'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Button } from '~/components/ui/button'
@@ -20,14 +20,9 @@ const emit = defineEmits<{
 
 const companyMentorsStore = useCompanyMentorsStore()
 const missingCompanyContextMessage = 'Company admin context is required before sending mentor invites'
-const tagsText = ref('')
 const form = reactive({
   email: '',
   phone: '',
-  firstName: '',
-  lastName: '',
-  title: '',
-  department: '',
   defaultVisibility: 'COMPANY_PRIVATE' as CompanyMentorVisibilityMode,
 })
 
@@ -40,12 +35,7 @@ const visibilityOptions: Array<{ value: CompanyMentorVisibilityMode; label: stri
 const resetForm = () => {
   form.email = ''
   form.phone = ''
-  form.firstName = ''
-  form.lastName = ''
-  form.title = ''
-  form.department = ''
   form.defaultVisibility = 'COMPANY_PRIVATE'
-  tagsText.value = ''
 }
 
 watch(() => props.open, (isOpen) => {
@@ -65,15 +55,7 @@ const submitInvite = async () => {
   await companyMentorsStore.inviteMentor(props.companyId, {
     email: form.email.trim(),
     phone: form.phone.trim(),
-    firstName: form.firstName.trim() || null,
-    lastName: form.lastName.trim() || null,
-    title: form.title.trim() || null,
-    department: form.department.trim() || null,
     defaultVisibility: form.defaultVisibility,
-    tags: tagsText.value
-      .split(',')
-      .map(tag => tag.trim())
-      .filter(Boolean),
   })
   emit('submitted')
   closeDialog()
@@ -82,7 +64,7 @@ const submitInvite = async () => {
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="sm:max-w-2xl">
+    <DialogContent class="sm:max-w-lg">
       <DialogHeader>
         <DialogTitle>Invite company mentor</DialogTitle>
         <DialogDescription>
@@ -105,32 +87,7 @@ const submitInvite = async () => {
             Phone
             <Input v-model="form.phone" type="tel" placeholder="+254720482575" required />
           </label>
-
-          <label class="grid gap-2 text-sm font-medium">
-            First name
-            <Input v-model="form.firstName" placeholder="Maya" />
-          </label>
-
-          <label class="grid gap-2 text-sm font-medium">
-            Last name
-            <Input v-model="form.lastName" placeholder="Otieno" />
-          </label>
-
-          <label class="grid gap-2 text-sm font-medium">
-            Title
-            <Input v-model="form.title" placeholder="Engineering Lead" />
-          </label>
-
-          <label class="grid gap-2 text-sm font-medium">
-            Department
-            <Input v-model="form.department" placeholder="Engineering" />
-          </label>
         </div>
-
-        <label class="grid gap-2 text-sm font-medium">
-          Tags
-          <Input v-model="tagsText" placeholder="leadership, engineering, africa" />
-        </label>
 
         <label class="grid gap-2 text-sm font-medium">
           Visibility
