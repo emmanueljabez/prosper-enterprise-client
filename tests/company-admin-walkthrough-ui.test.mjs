@@ -103,4 +103,43 @@ for (const anchor of [
   assert.match(dashboardSource, new RegExp(anchor), `Dashboard should expose ${anchor} walkthrough anchor.`)
 }
 
+const employeesSource = readFileSync(new URL('../pages/app/admin/employees.vue', import.meta.url), 'utf8')
+const programsSource = readFileSync(new URL('../pages/app/admin/programs/index.vue', import.meta.url), 'utf8')
+const matchesSource = readFileSync(new URL('../pages/app/admin/matches.vue', import.meta.url), 'utf8')
+const analyticsSource = readFileSync(new URL('../pages/app/admin/analytics.vue', import.meta.url), 'utf8')
+
+for (const anchor of [
+  'admin-employees-header',
+  'admin-employees-import',
+  'admin-employees-invite',
+  'admin-employees-allocation',
+]) {
+  assert.match(employeesSource, new RegExp(anchor), `Mentees page should expose ${anchor}.`)
+}
+
+for (const anchor of [
+  'admin-programs-header',
+  'admin-programs-create',
+  'admin-programs-list',
+]) {
+  assert.match(programsSource, new RegExp(anchor), `Programs page should expose ${anchor}.`)
+}
+
+for (const anchor of [
+  'admin-matches-header',
+  'admin-matches-program-selector',
+  'admin-matches-mentor-pool',
+  'admin-matches-assignments',
+]) {
+  assert.match(matchesSource, new RegExp(anchor), `Matches page should expose ${anchor}.`)
+}
+
+for (const anchor of [
+  'admin-analytics-header',
+  'admin-analytics-filters',
+  'admin-analytics-summary',
+]) {
+  assert.match(analyticsSource, new RegExp(anchor), `Analytics page should expose ${anchor}.`)
+}
+
 console.log('Company admin walkthrough UI components verified.')

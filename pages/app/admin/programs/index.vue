@@ -222,7 +222,7 @@ onMounted(() => {
 
 <template>
   <div class="container mx-auto space-y-6 px-4 py-6">
-    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between" data-walkthrough="admin-programs-header">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight">Company Programs</h1>
         <p class="text-sm text-muted-foreground">
@@ -231,7 +231,7 @@ onMounted(() => {
       </div>
 
       <div class="flex gap-2">
-        <Button @click="navigateTo('/app/admin/programs/new')">
+        <Button data-walkthrough="admin-programs-create" @click="navigateTo('/app/admin/programs/new')">
           <Plus class="mr-2 h-4 w-4" />
           New Company Program
         </Button>
@@ -327,7 +327,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <TabsContent value="company" class="space-y-4">
+          <TabsContent value="company" class="space-y-4" data-walkthrough="admin-programs-list">
             <div class="program-filter-row">
               <Select v-model="filters.status" @update:model-value="loadPrograms">
                 <SelectTrigger>
