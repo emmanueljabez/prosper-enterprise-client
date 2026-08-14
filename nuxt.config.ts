@@ -57,7 +57,8 @@ export default defineNuxtConfig({
     '@nuxtjs/tailwindcss',
     'shadcn-nuxt',
     '@vee-validate/nuxt',
-    '@pinia/nuxt'
+    '@pinia/nuxt',
+    'v-onboarding/nuxt'
   ],
   shadcn: {
     prefix: '',
