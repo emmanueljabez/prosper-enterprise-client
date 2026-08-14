@@ -63,4 +63,24 @@ assert.doesNotMatch(
   'Company admin walkthrough should not send admins into marketplace-first language.',
 )
 
+const sidebarSource = readFileSync(new URL('../layouts/components/sidebar.vue', import.meta.url), 'utf8')
+
+assert.match(
+  sidebarSource,
+  /CompanyAdminWalkthrough/,
+  'Corporate app layout should mount the company admin walkthrough client component.',
+)
+
+for (const anchor of [
+  'admin-sidebar-wallet',
+  'admin-nav-dashboard',
+  'admin-nav-mentees',
+  'admin-nav-programs',
+  'admin-nav-billing',
+  'admin-nav-mentors',
+  'admin-nav-sessions',
+]) {
+  assert.match(sidebarSource, new RegExp(anchor), `Sidebar should expose ${anchor} walkthrough anchor.`)
+}
+
 console.log('Company admin walkthrough UI components verified.')

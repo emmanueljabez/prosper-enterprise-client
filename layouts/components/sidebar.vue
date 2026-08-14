@@ -9,6 +9,7 @@ import companySubscriptionsApi, {
   type CompanySubscriptionSummary,
 } from '@/http/requests/app/companySubscriptions'
 import Navbar from '@/layouts/components/navbar.vue'
+import CompanyAdminWalkthrough from '@/components/app/admin/onboarding/CompanyAdminWalkthrough.client.vue'
 
 import {
   Sidebar,
@@ -29,6 +30,19 @@ const navigation = computed(() => sidebarStore.roleBasedNavigation)
 const navigationGroups = computed(() =>
   navigation.value.filter(item => Boolean(item.children?.length)),
 )
+const navWalkthroughAnchorByUrl: Record<string, string> = {
+  '/app/admin': 'admin-nav-dashboard',
+  '/app/admin/employees': 'admin-nav-mentees',
+  '/app/admin/programs': 'admin-nav-programs',
+  '/app/admin/billing': 'admin-nav-billing',
+  '/app/admin/mentors': 'admin-nav-mentors',
+  '/app/admin/sessions': 'admin-nav-sessions',
+  '/app/admin/matches': 'admin-nav-matches',
+  '/app/admin/analytics': 'admin-nav-analytics',
+}
+
+const getNavWalkthroughAnchor = (url?: string) =>
+  url ? navWalkthroughAnchorByUrl[url] : undefined
 
 const isPosPage = computed(() => route.path.includes('/app/inventory/pos'))
 const CORPORATE_ROLE_NAMES = new Set(['corporate_admin', 'company_admin', 'company'])
@@ -281,7 +295,7 @@ watch(
             />
           </section>
 
-          <section v-if="showWalletCard" class="wallet-card">
+          <section v-if="showWalletCard" class="wallet-card" data-walkthrough="admin-sidebar-wallet">
             <p class="wallet-label">SESSION WALLET</p>
             <p class="wallet-balance">{{ formatNumber(walletAvailableSessions) }} Sessions</p>
             <p class="wallet-metrics">
@@ -307,6 +321,7 @@ watch(
                       :to="subItem.url"
                       class="nav-link"
                       :class="{ 'nav-link-active': subItem.isActive }"
+                      :data-walkthrough="getNavWalkthroughAnchor(subItem.url)"
                       @click="() => sidebarStore.setActiveRoute(subItem.url ?? '')"
                     >
                       <component :is="subItem.icon" class="nav-icon" />
@@ -329,6 +344,7 @@ watch(
           </div>
         </header>
         <div class="flex-1">
+          <CompanyAdminWalkthrough v-if="showWalletCard" />
           <NuxtPage />
         </div>
       </SidebarInset>
