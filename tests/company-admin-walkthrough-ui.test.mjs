@@ -83,4 +83,24 @@ for (const anchor of [
   assert.match(sidebarSource, new RegExp(anchor), `Sidebar should expose ${anchor} walkthrough anchor.`)
 }
 
+const dashboardSource = readFileSync(new URL('../pages/app/admin/index.vue', import.meta.url), 'utf8')
+
+assert.match(
+  dashboardSource,
+  /CompanyAdminChecklist/,
+  'Corporate admin dashboard should render the company setup checklist.',
+)
+
+for (const anchor of [
+  'admin-dashboard-header',
+  'admin-dashboard-filters',
+  'admin-dashboard-kpis',
+  'admin-dashboard-wallet',
+  'admin-dashboard-employee-onboarding',
+  'admin-dashboard-program-funnel',
+  'admin-dashboard-analytics',
+]) {
+  assert.match(dashboardSource, new RegExp(anchor), `Dashboard should expose ${anchor} walkthrough anchor.`)
+}
+
 console.log('Company admin walkthrough UI components verified.')
