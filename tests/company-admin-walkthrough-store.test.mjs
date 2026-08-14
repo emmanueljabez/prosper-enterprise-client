@@ -9,6 +9,7 @@ assert.equal(existsSync(storeUrl), true, 'Walkthrough progress should live in a 
 
 const typesSource = readFileSync(typesUrl, 'utf8')
 const storeSource = readFileSync(storeUrl, 'utf8')
+const companyRequestsSource = readFileSync(new URL('../http/requests/app/company.ts', import.meta.url), 'utf8')
 
 for (const taskId of [
   'review_dashboard',
@@ -36,13 +37,31 @@ assert.match(
 assert.match(
   storeSource,
   /localStorage\.getItem|localStorage\.setItem/,
-  'MVP walkthrough progress should persist in localStorage.',
+  'Walkthrough progress should keep localStorage as a browser cache/fallback.',
 )
 
 assert.match(
   storeSource,
   /companyId[\s\S]*userId|userId[\s\S]*companyId/,
-  'Walkthrough storage should be scoped to both company and user.',
+  'Walkthrough cache should be scoped to both company and user.',
+)
+
+assert.match(
+  storeSource,
+  /companyApi.*getWalkthroughProgress|companyApi.*updateWalkthroughProgress/,
+  'Walkthrough progress should sync through the company request module.',
+)
+
+assert.match(
+  companyRequestsSource,
+  /getWalkthroughProgress[\s\S]*\/v1\/companies\/\$\{companyId\}\/walkthrough-progress/,
+  'Company requests should expose a backend read path for walkthrough progress.',
+)
+
+assert.match(
+  companyRequestsSource,
+  /updateWalkthroughProgress[\s\S]*axiosInstance\.put\(`\/v1\/companies\/\$\{companyId\}\/walkthrough-progress`/,
+  'Company requests should expose a backend write path for walkthrough progress.',
 )
 
 assert.match(
@@ -61,12 +80,6 @@ assert.match(
   storeSource,
   /startTour/,
   'Walkthrough store should expose a route-local tour start action.',
-)
-
-assert.doesNotMatch(
-  storeSource,
-  /axios|http\/requests/,
-  'MVP walkthrough progress should not add a backend request path.',
 )
 
 console.log('Company admin walkthrough store verified.')

@@ -62,6 +62,31 @@ export interface CompanyOnboardingResponse {
     data: CompanyOnboardingStatus | null
 }
 
+export interface CompanyWalkthroughProgressRecord {
+    companyId: string
+    profileId: string
+    version: string
+    introDismissed: boolean
+    completedTaskIds: string[]
+    completedTourIds: string[]
+    lastSeenAt?: string | null
+    createdAt?: string | null
+    updatedAt?: string | null
+}
+
+export interface CompanyWalkthroughProgressResponse {
+    success: boolean
+    message: string
+    data: CompanyWalkthroughProgressRecord | null
+}
+
+export interface UpdateCompanyWalkthroughProgressPayload {
+    version: string
+    introDismissed: boolean
+    completedTaskIds: string[]
+    completedTourIds: string[]
+}
+
 export interface UpdateCompanyOnboardingPayload {
     industry: string
     companySizeBand: string
@@ -256,6 +281,19 @@ export default {
         payload: UpdateCompanyOnboardingPayload
     ): Promise<{ data: CompanyOnboardingResponse }> {
         return axiosInstance.put(`/v1/companies/${companyId}/onboarding`, payload)
+    },
+
+    getWalkthroughProgress(companyId: string, version: string): Promise<{ data: CompanyWalkthroughProgressResponse }> {
+        return axiosInstance.get(`/v1/companies/${companyId}/walkthrough-progress`, {
+            params: { version }
+        })
+    },
+
+    updateWalkthroughProgress(
+        companyId: string,
+        payload: UpdateCompanyWalkthroughProgressPayload
+    ): Promise<{ data: CompanyWalkthroughProgressResponse }> {
+        return axiosInstance.put(`/v1/companies/${companyId}/walkthrough-progress`, payload)
     },
 
     getCompanyProfiles(params: ProfilesQueryParams) {
