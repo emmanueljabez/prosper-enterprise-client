@@ -1,5 +1,9 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import companyApi, {
+  type CompanyWalkthroughProgressRecord,
+  type UpdateCompanyWalkthroughProgressPayload,
+} from '@/http/requests/app/company'
 import {
   COMPANY_ADMIN_WALKTHROUGH_TASKS,
   COMPANY_ADMIN_WALKTHROUGH_VERSION,
@@ -23,10 +27,51 @@ const createEmptyProgress = (companyId: string, userId: string): CompanyWalkthro
 
 const uniqueValues = <T extends string>(values: T[]) => [...new Set(values)]
 
+const resolveProgressUserId = (
+  source: Partial<CompanyWalkthroughProgress> | CompanyWalkthroughProgressRecord | null | undefined,
+  fallbackUserId: string,
+) => {
+  if (source && 'profileId' in source && source.profileId) {
+    return source.profileId
+  }
+
+  if (source && 'userId' in source && source.userId) {
+    return source.userId
+  }
+
+  return fallbackUserId
+}
+
+const normalizeProgress = (
+  companyId: string,
+  userId: string,
+  source?: Partial<CompanyWalkthroughProgress> | CompanyWalkthroughProgressRecord | null,
+): CompanyWalkthroughProgress => ({
+  ...createEmptyProgress(companyId, userId),
+  ...(source || {}),
+  version: COMPANY_ADMIN_WALKTHROUGH_VERSION,
+  companyId: String(source?.companyId || companyId),
+  userId: String(resolveProgressUserId(source, userId)),
+  introDismissed: Boolean(source?.introDismissed),
+  completedTaskIds: uniqueValues((source?.completedTaskIds || []) as CompanyWalkthroughTaskId[]),
+  completedTourIds: uniqueValues((source?.completedTourIds || []) as CompanyWalkthroughTourId[]),
+  lastSeenAt: source?.lastSeenAt || null,
+})
+
+const toUpdatePayload = (source: CompanyWalkthroughProgress): UpdateCompanyWalkthroughProgressPayload => ({
+  version: COMPANY_ADMIN_WALKTHROUGH_VERSION,
+  introDismissed: source.introDismissed,
+  completedTaskIds: source.completedTaskIds,
+  completedTourIds: source.completedTourIds,
+})
+
 export const useCompanyWalkthroughStore = defineStore('company-walkthrough', () => {
   const progress = ref<CompanyWalkthroughProgress | null>(null)
   const activeTourId = ref<CompanyWalkthroughTourId | null>(null)
   const isLoaded = ref(false)
+  const syncError = ref<string | null>(null)
+  let loadPromise: Promise<CompanyWalkthroughProgress | null> | null = null
+  let loadKey: string | null = null
 
   const tasks = computed(() => COMPANY_ADMIN_WALKTHROUGH_TASKS)
   const completedTaskIds = computed(() => new Set(progress.value?.completedTaskIds || []))
@@ -44,7 +89,7 @@ export const useCompanyWalkthroughStore = defineStore('company-walkthrough', () 
     !completedTourIds.value.has('admin-dashboard-overview'),
   )
 
-  const saveProgress = () => {
+  const cacheProgress = () => {
     if (!progress.value || typeof window === 'undefined') return
     progress.value.lastSeenAt = new Date().toISOString()
     localStorage.setItem(
@@ -53,7 +98,46 @@ export const useCompanyWalkthroughStore = defineStore('company-walkthrough', () 
     )
   }
 
-  const loadProgress = (companyId: string, userId: string) => {
+  const syncProgress = async () => {
+    if (!progress.value) return
+
+    const snapshot = {
+      ...progress.value,
+      completedTaskIds: [...progress.value.completedTaskIds],
+      completedTourIds: [...progress.value.completedTourIds],
+    }
+
+    try {
+      const response = await companyApi.updateWalkthroughProgress(snapshot.companyId, toUpdatePayload(snapshot))
+      if (response.data.success && response.data.data) {
+        progress.value = normalizeProgress(snapshot.companyId, snapshot.userId, response.data.data)
+        cacheProgress()
+      }
+      syncError.value = null
+    } catch (error: any) {
+      syncError.value = error?.message || 'Unable to sync walkthrough progress.'
+    }
+  }
+
+  const saveProgress = () => {
+    cacheProgress()
+    void syncProgress()
+  }
+
+  const readCachedProgress = (companyId: string, userId: string) => {
+    if (typeof window === 'undefined') return null
+
+    const storedValue = localStorage.getItem(buildStorageKey(companyId, userId))
+    if (!storedValue) return null
+
+    try {
+      return normalizeProgress(companyId, userId, JSON.parse(storedValue) as Partial<CompanyWalkthroughProgress>)
+    } catch {
+      return null
+    }
+  }
+
+  const loadProgress = async (companyId: string, userId: string) => {
     if (!companyId || !userId || typeof window === 'undefined') {
       progress.value = companyId && userId ? createEmptyProgress(companyId, userId) : null
       isLoaded.value = true
@@ -61,33 +145,35 @@ export const useCompanyWalkthroughStore = defineStore('company-walkthrough', () 
     }
 
     const storageKey = buildStorageKey(companyId, userId)
-    const storedValue = localStorage.getItem(storageKey)
-
-    if (!storedValue) {
-      progress.value = createEmptyProgress(companyId, userId)
-      isLoaded.value = true
-      saveProgress()
-      return progress.value
+    if (loadPromise && loadKey === storageKey) {
+      return loadPromise
     }
 
-    try {
-      const parsed = JSON.parse(storedValue) as Partial<CompanyWalkthroughProgress>
-      progress.value = {
-        ...createEmptyProgress(companyId, userId),
-        ...parsed,
-        version: COMPANY_ADMIN_WALKTHROUGH_VERSION,
-        companyId,
-        userId,
-        completedTaskIds: uniqueValues((parsed.completedTaskIds || []) as CompanyWalkthroughTaskId[]),
-        completedTourIds: uniqueValues((parsed.completedTourIds || []) as CompanyWalkthroughTourId[]),
+    loadKey = storageKey
+    isLoaded.value = false
+
+    loadPromise = (async () => {
+      progress.value = readCachedProgress(companyId, userId) || createEmptyProgress(companyId, userId)
+
+      try {
+        const response = await companyApi.getWalkthroughProgress(companyId, COMPANY_ADMIN_WALKTHROUGH_VERSION)
+        if (response.data.success && response.data.data) {
+          progress.value = normalizeProgress(companyId, userId, response.data.data)
+          syncError.value = null
+        }
+      } catch (error: any) {
+        syncError.value = error?.message || 'Unable to load walkthrough progress.'
+      } finally {
+        cacheProgress()
+        isLoaded.value = true
+        loadPromise = null
+        loadKey = null
       }
-    } catch {
-      progress.value = createEmptyProgress(companyId, userId)
-      saveProgress()
-    }
 
-    isLoaded.value = true
-    return progress.value
+      return progress.value
+    })()
+
+    return loadPromise
   }
 
   const markTaskComplete = (taskId: CompanyWalkthroughTaskId) => {
@@ -101,7 +187,9 @@ export const useCompanyWalkthroughStore = defineStore('company-walkthrough', () 
     const task = tasks.value.find(item => item.tourId === tourId)
     progress.value.completedTourIds = uniqueValues([...progress.value.completedTourIds, tourId])
     progress.value.introDismissed = true
-    if (task) markTaskComplete(task.id)
+    if (task) {
+      progress.value.completedTaskIds = uniqueValues([...progress.value.completedTaskIds, task.id])
+    }
     saveProgress()
     activeTourId.value = null
   }
@@ -131,6 +219,7 @@ export const useCompanyWalkthroughStore = defineStore('company-walkthrough', () 
     progress,
     activeTourId,
     isLoaded,
+    syncError,
     tasks,
     completedTasks,
     pendingTasks,
