@@ -101,7 +101,7 @@ onMounted(() => {
 
 <template>
   <div class="container mx-auto space-y-6 px-4 py-6">
-    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between" data-walkthrough="admin-analytics-header">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight">Review Analytics</h1>
         <p class="text-sm text-muted-foreground">
@@ -109,7 +109,7 @@ onMounted(() => {
         </p>
       </div>
 
-      <div class="flex gap-2">
+      <div class="flex gap-2" data-walkthrough="admin-analytics-filters">
         <Button variant="outline" @click="navigateTo('/app/admin/trust')">
           <ShieldAlert class="mr-2 h-4 w-4" />
           Open Trust Queue
@@ -129,7 +129,7 @@ onMounted(() => {
       <AlertDescription>{{ error }}</AlertDescription>
     </Alert>
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4" data-walkthrough="admin-analytics-summary">
       <Card>
         <CardHeader class="pb-2">
           <CardDescription>Review Cycles</CardDescription>

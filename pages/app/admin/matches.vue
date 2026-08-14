@@ -207,7 +207,7 @@ watch(participants, () => {
 
 <template>
   <div class="container mx-auto space-y-6 px-4 py-6">
-    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between" data-walkthrough="admin-matches-header">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight">Mentor Matches</h1>
         <p class="text-sm text-muted-foreground">
@@ -254,7 +254,7 @@ watch(participants, () => {
       </Card>
     </div>
 
-    <Card>
+    <Card data-walkthrough="admin-matches-program-selector">
       <CardHeader>
         <CardTitle>Program Context</CardTitle>
         <CardDescription>Select the company program you want to assign mentors for.</CardDescription>
@@ -292,7 +292,7 @@ watch(participants, () => {
     </Card>
 
     <div class="grid gap-6 xl:grid-cols-[1fr,1.35fr]">
-      <Card>
+      <Card data-walkthrough="admin-matches-mentor-pool">
         <CardHeader>
           <CardTitle>Mentor Pool</CardTitle>
           <CardDescription>Available mentors for this company program.</CardDescription>
@@ -343,7 +343,7 @@ watch(participants, () => {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-walkthrough="admin-matches-assignments">
         <CardHeader>
           <CardTitle>Assignment Workspace</CardTitle>
           <CardDescription>Assign mentors to employees one by one and override when needed.</CardDescription>

@@ -27,6 +27,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 import ActivityFeed from '@/components/ui/dashboard/ActivityFeed.vue'
+import CompanyAdminChecklist from '@/components/app/admin/onboarding/CompanyAdminChecklist.vue'
 import KpiSummaryCard from '@/components/ui/dashboard/KpiSummaryCard.vue'
 import LineChart from '@/components/ui/chart-line/LineChart.vue'
 import BarChart from '@/components/ui/chart-bar/BarChart.vue'
@@ -1364,7 +1365,7 @@ onMounted(() => {
 
 <template>
   <div class="corporate-admin-dashboard container mx-auto space-y-5 px-4 py-5">
-    <div class="space-y-3">
+    <div class="space-y-3" data-walkthrough="admin-dashboard-header">
       <div class="space-y-1">
         <h1 class="text-xl font-semibold tracking-[-0.01em] text-[#1f2430] md:text-2xl">Corporate Admin Dashboard</h1>
         <p class="text-sm text-[#687386]">
@@ -1375,7 +1376,7 @@ onMounted(() => {
         </p>
       </div>
 
-      <div class="dashboard-filter-shell">
+      <div class="dashboard-filter-shell" data-walkthrough="admin-dashboard-filters">
         <div class="flex flex-wrap items-end gap-2.5">
           <div class="w-full min-w-[170px] sm:w-auto">
             <p class="mb-1 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8f5f82]">Range</p>
@@ -1464,6 +1465,8 @@ onMounted(() => {
       </Alert>
     </div>
 
+    <CompanyAdminChecklist />
+
     <div v-if="isLoading && !hasLoadedData" class="space-y-6">
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Skeleton v-for="index in 6" :key="`kpi-${index}`" class="h-36 w-full" />
@@ -1476,7 +1479,7 @@ onMounted(() => {
 
     <template v-else>
       <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-walkthrough="admin-dashboard-kpis">
           <KpiSummaryCard
             v-for="kpi in topKpis"
             :key="kpi.id"
@@ -1493,7 +1496,7 @@ onMounted(() => {
           />
         </div>
 
-        <Card class="dashboard-card">
+        <Card class="dashboard-card" data-walkthrough="admin-dashboard-wallet">
           <CardHeader class="space-y-2 p-4 pb-2">
             <div class="flex items-start justify-between gap-3">
               <div>
@@ -1638,7 +1641,7 @@ onMounted(() => {
           </CardContent>
         </Card>
 
-        <Card class="dashboard-card">
+        <Card class="dashboard-card" data-walkthrough="admin-dashboard-employee-onboarding">
           <CardHeader class="dashboard-card__header">
             <div class="flex items-center justify-between gap-3">
               <CardTitle class="dashboard-section-title">Employee Onboarding</CardTitle>
@@ -1691,7 +1694,7 @@ onMounted(() => {
       </div>
 
       <div class="grid gap-5 xl:grid-cols-[1.4fr_0.6fr]">
-        <Card class="dashboard-card">
+        <Card class="dashboard-card" data-walkthrough="admin-dashboard-analytics">
           <CardHeader class="dashboard-card__header">
             <CardTitle class="dashboard-section-title">
               <TrendingUp class="h-5 w-5 text-[#9a4884]" />
@@ -1752,7 +1755,7 @@ onMounted(() => {
       </div>
 
       <div class="grid gap-5 xl:grid-cols-2">
-        <Card class="dashboard-card">
+        <Card class="dashboard-card" data-walkthrough="admin-dashboard-program-funnel">
           <CardHeader class="dashboard-card__header">
             <CardTitle class="dashboard-section-title">
               <UserPlus class="h-5 w-5 text-[#9a4884]" />

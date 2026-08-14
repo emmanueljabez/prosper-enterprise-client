@@ -581,7 +581,7 @@ watch(employeeProfileIds, async () => {
 <template>
   <div class="container mx-auto space-y-6 px-4 py-6">
     <div class="space-y-5">
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between" data-walkthrough="admin-employees-header">
         <div>
           <h1 class="text-3xl font-bold tracking-tight text-slate-900">Employee Management</h1>
           <p class="mt-1 text-base text-muted-foreground">
@@ -590,11 +590,11 @@ watch(employeeProfileIds, async () => {
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-          <Button class="bg-[#8f1f75] text-white hover:bg-[#7b1a65]" @click="addEmployeeDialogOpen = true">
+          <Button class="bg-[#8f1f75] text-white hover:bg-[#7b1a65]" data-walkthrough="admin-employees-invite" @click="addEmployeeDialogOpen = true">
             <UserPlus class="mr-2 h-4 w-4" />
             Invite Employee
           </Button>
-          <Button variant="outline" @click="router.push('/app/admin/users/import')">
+          <Button variant="outline" data-walkthrough="admin-employees-import" @click="router.push('/app/admin/users/import')">
             <Upload class="mr-2 h-4 w-4" />
             Import
           </Button>
@@ -707,7 +707,7 @@ watch(employeeProfileIds, async () => {
     </div>
 
     <div v-show="workspaceTab === 'directory'" class="space-y-4">
-      <Card class="border-[#ead4df]">
+      <Card class="border-[#ead4df]" data-walkthrough="admin-employees-allocation">
         <CardContent class="space-y-4 p-5">
           <div class="flex flex-wrap items-center gap-3">
             <div class="w-full min-w-[220px] sm:w-[240px]">
