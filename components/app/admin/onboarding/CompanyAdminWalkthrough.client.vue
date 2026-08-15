@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, X } from 'lucide-vue-next'
 import {
   VOnboardingStep,
@@ -12,12 +12,14 @@ import {
 import { useAuthStore } from '@/store/modules/auth'
 import { useCompanyWalkthroughStore } from '@/store/modules/company-walkthrough'
 import type { CompanyWalkthroughTourId } from '@/types/company-walkthrough'
+import { resolveNextCompanyWalkthroughTask } from '@/utils/company-walkthrough-progression'
 import { Button } from '@/components/ui/button'
 
 const authStore = useAuthStore()
 const walkthroughStore = useCompanyWalkthroughStore()
-const { activeTourId, isLoaded, shouldAutostartIntro } = storeToRefs(walkthroughStore)
+const { activeTourId, isLoaded, progress, shouldAutostartIntro, tasks } = storeToRefs(walkthroughStore)
 const route = useRoute()
+const router = useRouter()
 
 const wrapper = ref<InstanceType<typeof VOnboardingWrapper> | null>(null)
 const { start } = useVOnboarding(wrapper)
@@ -257,12 +259,34 @@ const startEligibleTour = async () => {
   lastStartedTourId.value = tourId
 }
 
-const finishActiveTour = (exit: () => void) => {
+const startNextPendingTask = async (finishedTourId: CompanyWalkthroughTourId) => {
+  const nextTask = resolveNextCompanyWalkthroughTask(
+    tasks.value,
+    progress.value?.completedTaskIds || [],
+    finishedTourId,
+  )
+
+  if (!nextTask) {
+    return
+  }
+
+  if (route.path !== nextTask.route) {
+    await router.push(nextTask.route)
+  }
+
+  walkthroughStore.startTour(nextTask.tourId)
+}
+
+const finishActiveTour = async (exit: () => void) => {
   const tourId = activeTourId.value
   exit()
 
   if (tourId) {
     walkthroughStore.completeTour(tourId)
+    lastStartedTourId.value = null
+    await nextTick()
+    await startNextPendingTask(tourId)
+    return
   }
 
   lastStartedTourId.value = null
