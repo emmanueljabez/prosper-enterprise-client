@@ -76,19 +76,58 @@ run_with_ssh_retries() {
     return "$status"
 }
 
-ssh_cmd() {
+ssh_once() {
     if [ -n "${DEPLOY_PASSWORD:-}" ] && [ -n "$SSHPASS_BIN" ]; then
-        run_with_ssh_retries "$SSHPASS_BIN" -p "$DEPLOY_PASSWORD" ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_SERVER" "$@"
+        "$SSHPASS_BIN" -p "$DEPLOY_PASSWORD" ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_SERVER" "$@"
     else
-        run_with_ssh_retries ssh "$DEPLOY_USER@$DEPLOY_SERVER" "$@"
+        ssh "$DEPLOY_USER@$DEPLOY_SERVER" "$@"
     fi
 }
 
-scp_cmd() {
+scp_once() {
     if [ -n "${DEPLOY_PASSWORD:-}" ] && [ -n "$SSHPASS_BIN" ]; then
-        run_with_ssh_retries "$SSHPASS_BIN" -p "$DEPLOY_PASSWORD" scp -O "${SSH_OPTS[@]}" "$@"
+        "$SSHPASS_BIN" -p "$DEPLOY_PASSWORD" scp -O "${SSH_OPTS[@]}" "$@"
     else
-        run_with_ssh_retries scp -O "$@"
+        scp -O "$@"
+    fi
+}
+
+ssh_cmd() {
+    run_with_ssh_retries ssh_once "$@"
+}
+
+scp_cmd() {
+    run_with_ssh_retries scp_once "$@"
+}
+
+ssh_script() {
+    local script="$1"
+    shift
+    local attempt=1
+    local status=0
+
+    while [ "$attempt" -le "$SSH_RETRIES" ]; do
+        if printf '%s\n' "$script" | ssh_once "$@"; then
+            return 0
+        fi
+        status=$?
+
+        if [ "$status" -ne 255 ] || [ "$attempt" -eq "$SSH_RETRIES" ]; then
+            return "$status"
+        fi
+
+        echo "⚠️  SSH transport failed while running remote script (attempt $attempt/$SSH_RETRIES). Retrying in ${SSH_RETRY_DELAY}s..."
+        sleep "$SSH_RETRY_DELAY"
+        attempt=$((attempt + 1))
+    done
+
+    return "$status"
+}
+
+run_remote_deploy() {
+    if ! ssh_script "$remote_deploy_script" "DEPLOY_TARGET_DIR='$DEPLOY_TARGET_DIR' FRONTEND_SERVICE='$FRONTEND_SERVICE' FRONTEND_HEALTH_URL='$FRONTEND_HEALTH_URL' bash -s"; then
+        echo "❌ Remote deployment failed!"
+        exit 1
     fi
 }
 
@@ -330,7 +369,7 @@ rm deployment.tar.gz
 echo "✅ Server deployment completed!"
 REMOTE_DEPLOY_SCRIPT
 )"
-printf '%s\n' "$remote_deploy_script" | ssh_cmd "DEPLOY_TARGET_DIR='$DEPLOY_TARGET_DIR' FRONTEND_SERVICE='$FRONTEND_SERVICE' FRONTEND_HEALTH_URL='$FRONTEND_HEALTH_URL' bash -s"
+run_remote_deploy
 
 echo "🎉 Deployment completed successfully!"
 echo "🌐 Your site should be updated at: https://enterprise.prospermentor.com"

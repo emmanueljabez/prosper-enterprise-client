@@ -11,25 +11,31 @@ assert.match(
 
 assert.match(
   deployScript,
-  /printf '%s\\n' "\$remote_deploy_script" \| ssh_cmd "DEPLOY_TARGET_DIR='\$DEPLOY_TARGET_DIR'/,
-  'The remote deployment script should be piped into SSH instead of attached to ssh_cmd as a heredoc.',
-)
-
-assert.match(
-  deployScript,
   /run_with_ssh_retries\(\)/,
   'The deploy script should retry transient SSH transport failures.',
 )
 
 assert.match(
   deployScript,
-  /run_with_ssh_retries "\$SSHPASS_BIN" -p "\$DEPLOY_PASSWORD" ssh/,
-  'Password-based SSH commands should run through the SSH retry wrapper.',
+  /ssh_once\(\)/,
+  'The deploy script should separate one-shot SSH execution from retry orchestration.',
 )
 
 assert.match(
   deployScript,
-  /run_with_ssh_retries "\$SSHPASS_BIN" -p "\$DEPLOY_PASSWORD" scp -O/,
+  /ssh_script\(\)/,
+  'The deploy script should retry remote scripts by re-sending stdin on every attempt.',
+)
+
+assert.match(
+  deployScript,
+  /printf '%s\\n' "\$script" \| ssh_once "\$@"/,
+  'Remote script retries should pipe a fresh copy of the script into each SSH attempt.',
+)
+
+assert.match(
+  deployScript,
+  /run_with_ssh_retries scp_once/,
   'Password-based SCP uploads should run through the SSH retry wrapper.',
 )
 
@@ -37,6 +43,18 @@ assert.match(
   deployScript,
   /"\$status" -ne 255/,
   'The SSH retry wrapper should retry only SSH transport failures.',
+)
+
+assert.doesNotMatch(
+  deployScript,
+  /printf '%s\\n' "\$remote_deploy_script" \| ssh_cmd/,
+  'Remote deploy script execution should not use the generic ssh_cmd retry wrapper because it can consume stdin before retrying.',
+)
+
+assert.match(
+  deployScript,
+  /ssh_script "\$remote_deploy_script" "DEPLOY_TARGET_DIR='\$DEPLOY_TARGET_DIR'/,
+  'The remote deploy block should use the stdin-aware SSH script runner.',
 )
 
 assert.doesNotMatch(
