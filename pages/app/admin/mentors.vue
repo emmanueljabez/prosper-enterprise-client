@@ -22,7 +22,6 @@ import {
   BadgeCheck,
   ChevronLeft,
   ChevronRight,
-  GitBranch,
   Pencil,
   Plus,
   RefreshCw,
@@ -295,10 +294,6 @@ const openMatchingWorkspace = () => {
   router.push('/app/admin/matches')
 }
 
-const openProgramWorkspace = () => {
-  router.push('/app/admin/programs')
-}
-
 const openVisibilityDialog = (member: CompanyMentorPoolMember) => {
   selectedMember.value = member
   visibilityDialogOpen.value = true
@@ -365,17 +360,6 @@ onMounted(() => {
       <div>
         <p v-if="hasCompanyMentorAdminAccess" class="text-sm font-medium text-muted-foreground">Corporate Admin</p>
         <h1 class="text-2xl font-semibold tracking-tight">Mentoring</h1>
-      </div>
-
-      <div v-if="hasCompanyMentorAdminAccess" class="flex flex-wrap gap-2">
-        <Button variant="outline" @click="openProgramWorkspace">
-          <Users class="h-4 w-4" />
-          Company Programs
-        </Button>
-        <Button @click="openMatchingWorkspace">
-          <GitBranch class="h-4 w-4" />
-          Mentor Matching
-        </Button>
       </div>
     </div>
 
@@ -791,23 +775,23 @@ onMounted(() => {
   gap: 4px;
   width: fit-content;
   border: 1px solid #ead2e4;
-  border-radius: 18px;
+  border-radius: 14px;
   background: #fff;
-  padding: 6px;
+  padding: 4px;
 }
 
 .program-view-tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  border-radius: 13px;
+  gap: 6px;
+  min-height: 36px;
+  border-radius: 10px;
   color: #6b5b6a;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1;
-  padding: 0 18px;
+  padding: 0 12px;
   transition: background-color 0.2s ease, color 0.2s ease;
   white-space: nowrap;
 }
@@ -816,13 +800,13 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 26px;
-  height: 24px;
+  min-width: 22px;
+  height: 20px;
   border-radius: 999px;
   background: #f6edf4;
   color: #8a337f;
-  font-size: 12px;
-  padding: 0 8px;
+  font-size: 11px;
+  padding: 0 6px;
 }
 
 .program-view-tab--active {

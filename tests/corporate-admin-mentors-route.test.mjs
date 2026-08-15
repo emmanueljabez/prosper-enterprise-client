@@ -58,6 +58,24 @@ assert.match(
   'The admin mentors page should reuse the admin programs segmented tab control.',
 )
 
+assert.doesNotMatch(
+  adminMentorsSource,
+  /<Button[^>]*@click="openProgramWorkspace"[\s\S]*?Company Programs[\s\S]*?<\/Button>/,
+  'The admin mentors page should not show a Company Programs shortcut button.',
+)
+
+assert.doesNotMatch(
+  adminMentorsSource,
+  /<Button[^>]*@click="openMatchingWorkspace"[\s\S]*?Mentor Matching[\s\S]*?<\/Button>/,
+  'The admin mentors page should not show a Mentor Matching shortcut button.',
+)
+
+assert.match(
+  adminMentorsSource,
+  /\.program-view-tab\s*\{[\s\S]*?min-height:\s*36px;[\s\S]*?font-size:\s*13px;[\s\S]*?padding:\s*0 12px;/,
+  'The admin mentors segmented tabs should use compact button sizing.',
+)
+
 assert.match(
   adminMentorsSource,
   /Prosper Mentors[\s\S]*totalMentors/,

@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs'
 const pageSource = readFileSync(new URL('../pages/app/admin/mentors.vue', import.meta.url), 'utf8')
 const companyTabButton = pageSource.match(/<button[\s\S]*?Company Mentors[\s\S]*?<\/button>/)?.[0] || ''
 const companyMentorsPanel = pageSource.match(/<TabsContent\s+value="company"[\s\S]*?<\/TabsContent>/)?.[0] || ''
-const adminShortcutActions = pageSource.match(/<div\s+v-if="hasCompanyMentorAdminAccess"[\s\S]*?Mentor Matching[\s\S]*?<\/div>/)?.[0] || ''
 const prosperMentorActionBlock = pageSource.match(/<Button\s+v-if="hasCompanyMentorAdminAccess"[\s\S]*?Review matches[\s\S]*?<\/Button>[\s\S]*?<Button\s+v-else[\s\S]*?View mentor[\s\S]*?<\/Button>/)?.[0] || ''
 
 assert.match(
@@ -13,9 +12,10 @@ assert.match(
   'The corporate admin eyebrow should not render for mentee or mentor users.',
 )
 
-assert.ok(
-  adminShortcutActions.includes('Company Programs') && adminShortcutActions.includes('Mentor Matching'),
-  'Company Programs and Mentor Matching shortcuts should be hidden behind hasCompanyMentorAdminAccess.',
+assert.doesNotMatch(
+  pageSource,
+  /<Button[^>]*@click="openProgramWorkspace"[\s\S]*?Company Programs[\s\S]*?<\/Button>|<Button[^>]*@click="openMatchingWorkspace"[\s\S]*?Mentor Matching[\s\S]*?<\/Button>/,
+  'Company Programs and Mentor Matching shortcuts should not render on the admin mentors page.',
 )
 
 assert.match(
