@@ -51,19 +51,44 @@ SSH_OPTS=(
     -o ConnectTimeout=30
 )
 
+SSH_RETRIES="${DEPLOY_SSH_RETRIES:-3}"
+SSH_RETRY_DELAY="${DEPLOY_SSH_RETRY_DELAY:-5}"
+
+run_with_ssh_retries() {
+    local attempt=1
+    local status=0
+
+    while [ "$attempt" -le "$SSH_RETRIES" ]; do
+        if "$@"; then
+            return 0
+        fi
+        status=$?
+
+        if [ "$status" -ne 255 ] || [ "$attempt" -eq "$SSH_RETRIES" ]; then
+            return "$status"
+        fi
+
+        echo "⚠️  SSH transport failed (attempt $attempt/$SSH_RETRIES). Retrying in ${SSH_RETRY_DELAY}s..."
+        sleep "$SSH_RETRY_DELAY"
+        attempt=$((attempt + 1))
+    done
+
+    return "$status"
+}
+
 ssh_cmd() {
     if [ -n "${DEPLOY_PASSWORD:-}" ] && [ -n "$SSHPASS_BIN" ]; then
-        "$SSHPASS_BIN" -p "$DEPLOY_PASSWORD" ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_SERVER" "$@"
+        run_with_ssh_retries "$SSHPASS_BIN" -p "$DEPLOY_PASSWORD" ssh "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_SERVER" "$@"
     else
-        ssh "$DEPLOY_USER@$DEPLOY_SERVER" "$@"
+        run_with_ssh_retries ssh "$DEPLOY_USER@$DEPLOY_SERVER" "$@"
     fi
 }
 
 scp_cmd() {
     if [ -n "${DEPLOY_PASSWORD:-}" ] && [ -n "$SSHPASS_BIN" ]; then
-        "$SSHPASS_BIN" -p "$DEPLOY_PASSWORD" scp -O "${SSH_OPTS[@]}" "$@"
+        run_with_ssh_retries "$SSHPASS_BIN" -p "$DEPLOY_PASSWORD" scp -O "${SSH_OPTS[@]}" "$@"
     else
-        scp -O "$@"
+        run_with_ssh_retries scp -O "$@"
     fi
 }
 
