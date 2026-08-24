@@ -38,6 +38,7 @@ export const ALL_PERMISSIONS: Permission[] = [
   // Admin permissions
   createPermission('admin:users', 'Manage Users', 'Manage organization users', 'admin', 'users'),
   createPermission('admin:programs', 'Manage Programs', 'Manage company mentorship programs and matches', 'admin', 'programs'),
+  createPermission('admin:program-cohorts', 'Manage Program Cohorts', 'Manage company program cohorts, intake, circles, and cohort delivery', 'admin', 'program_cohorts'),
   createPermission('admin:mentors', 'Manage Mentors', 'Manage mentor marketplace', 'admin', 'mentors'),
   createPermission('admin:reports', 'View Reports', 'Access comprehensive reports', 'admin', 'reports'),
   createPermission('admin:company', 'Manage Company', 'Manage company settings', 'admin', 'company'),

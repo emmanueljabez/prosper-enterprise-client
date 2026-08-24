@@ -109,6 +109,7 @@ export interface CompanyProgramRecord {
   templateProgramName?: string | null
   catalogJourneySummary?: string | null
   catalogProgramCount?: number | null
+  cohortCount?: number | null
   catalogStages?: CompanyProgramCatalogStageRecord[] | null
   journeyTemplateId?: string | null
   journeyTemplateName?: string | null

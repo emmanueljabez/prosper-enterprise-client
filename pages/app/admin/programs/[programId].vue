@@ -7,6 +7,7 @@ import { useCompanyStore } from '@/store/modules/company'
 import { useCompanyProgramsStore } from '@/store/modules/company-programs'
 import type { CompanyProgramParticipantStatus, CompanyProgramStatus } from '@/http/requests/app/companyPrograms'
 import { useAppToast } from '@/composables/services/toastService'
+import CompanyProgramCohortList from '@/components/app/admin/cohorts/CompanyProgramCohortList.vue'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -88,7 +89,7 @@ const companyId = computed(() => {
 })
 
 const programId = computed(() => String(route.params.programId || ''))
-const activeTab = ref(['employees', 'matching', 'journey'].includes(String(route.query.tab)) ? String(route.query.tab) : 'overview')
+const activeTab = ref(['cohorts', 'employees', 'matching', 'journey'].includes(String(route.query.tab)) ? String(route.query.tab) : 'overview')
 const employeeSearch = ref('')
 const participantSearch = ref('')
 const participantStatus = ref<CompanyProgramParticipantStatus | 'ALL'>('ALL')
@@ -550,6 +551,10 @@ watch(showEnrollEmployeesDialog, isOpen => {
               No lifecycle actions available
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem @click="activeTab = 'cohorts'">
+              <Layers3 class="mr-2 h-4 w-4" />
+              Manage cohorts
+            </DropdownMenuItem>
             <DropdownMenuItem @click="activeTab = 'employees'">
               <Users class="mr-2 h-4 w-4" />
               Manage employees
@@ -648,6 +653,15 @@ watch(showEnrollEmployeesDialog, isOpen => {
             >
               Overview
               <span>4</span>
+            </button>
+            <button
+              type="button"
+              class="program-view-tab"
+              :class="{ 'program-view-tab--active': activeTab === 'cohorts' }"
+              @click="activeTab = 'cohorts'"
+            >
+              Cohorts
+              <span>{{ selectedProgram?.cohortCount || 0 }}</span>
             </button>
             <button
               type="button"
@@ -833,6 +847,10 @@ watch(showEnrollEmployeesDialog, isOpen => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="cohorts" class="space-y-4">
+          <CompanyProgramCohortList :program-id="programId" />
         </TabsContent>
 
         <TabsContent value="employees" class="space-y-4">
