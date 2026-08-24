@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 
-const detailUrl = new URL('../pages/app/admin/programs/[programId].vue', import.meta.url)
+const detailUrl = new URL('../pages/app/admin/programs/[programId]/index.vue', import.meta.url)
 const listUrl = new URL('../components/app/admin/cohorts/CompanyProgramCohortList.vue', import.meta.url)
 const editorUrl = new URL('../components/app/admin/cohorts/CompanyProgramCohortEditorDialog.vue', import.meta.url)
 const roleManagerUrl = new URL('../utils/roleManager.ts', import.meta.url)

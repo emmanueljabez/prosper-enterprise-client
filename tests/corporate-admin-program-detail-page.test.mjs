@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 const listSource = readFileSync(new URL('../pages/app/admin/programs/index.vue', import.meta.url), 'utf8')
 const storeSource = readFileSync(new URL('../store/modules/company-programs.ts', import.meta.url), 'utf8')
 const roleManagerSource = readFileSync(new URL('../utils/roleManager.ts', import.meta.url), 'utf8')
-const detailUrl = new URL('../pages/app/admin/programs/[programId].vue', import.meta.url)
+const detailUrl = new URL('../pages/app/admin/programs/[programId]/index.vue', import.meta.url)
 const editUrl = new URL('../pages/app/admin/programs/[programId]/edit.vue', import.meta.url)
 
 assert.ok(existsSync(detailUrl), 'Company program detail page should exist at /app/admin/programs/:programId.')
