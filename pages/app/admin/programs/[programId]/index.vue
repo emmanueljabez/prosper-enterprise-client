@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
 import { useCompanyStore } from '@/store/modules/company'
+import { useCompanyProgramCohortsStore } from '@/store/modules/company-program-cohorts'
 import { useCompanyProgramsStore } from '@/store/modules/company-programs'
 import type { CompanyProgramParticipantStatus, CompanyProgramStatus } from '@/http/requests/app/companyPrograms'
 import { useAppToast } from '@/composables/services/toastService'
@@ -52,10 +53,12 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const companyStore = useCompanyStore()
+const companyProgramCohortsStore = useCompanyProgramCohortsStore()
 const companyProgramsStore = useCompanyProgramsStore()
 const toast = useAppToast()
 
 const { profiles, profilesLoading } = storeToRefs(companyStore)
+const { cohorts } = storeToRefs(companyProgramCohortsStore)
 const {
   selectedProgram,
   selectedProgramLoading,
@@ -108,6 +111,10 @@ const unassignedCount = computed(() => Math.max(participants.value.length - assi
 const activeParticipantCount = computed(() => participants.value.filter(participant => participant.status === 'ACTIVE').length)
 const completedParticipantCount = computed(() => participants.value.filter(participant => participant.status === 'COMPLETED').length)
 const programCatalogStages = computed(() => selectedProgram.value?.catalogStages || [])
+const cohortTabCount = computed(() => {
+  const loadedCohorts = cohorts.value.filter(cohort => cohort.companyProgramId === programId.value)
+  return loadedCohorts.length || selectedProgram.value?.cohortCount || 0
+})
 const programHasLifecycleActions = computed(() =>
   canLaunch(selectedProgram.value?.status)
   || canPause(selectedProgram.value?.status)
@@ -661,7 +668,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
               @click="activeTab = 'cohorts'"
             >
               Cohorts
-              <span>{{ selectedProgram?.cohortCount || 0 }}</span>
+              <span>{{ cohortTabCount }}</span>
             </button>
             <button
               type="button"
