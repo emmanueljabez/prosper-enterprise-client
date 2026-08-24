@@ -4,6 +4,7 @@ import {
   Calendar,
   User,
   BookOpen,
+  CircleDot,
   Target,
   Users,
   GitBranch,
@@ -30,6 +31,12 @@ export const employeeNavigation: NavigationItem[] = [
         title: 'My Programs',
         icon: BookOpen,
         url: '/app/employee/programs',
+        permission: 'mentors:view'
+      },
+      {
+        title: 'My Cohort & Circle',
+        icon: CircleDot,
+        url: '/app/employee/cohorts',
         permission: 'mentors:view'
       },
       {

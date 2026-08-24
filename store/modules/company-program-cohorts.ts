@@ -31,6 +31,7 @@ interface CompanyProgramCohortsState {
   dashboard: CohortDashboardRecord | null
   employeeCohorts: EmployeeCompanyProgramCohortRecord[]
   selectedEmployeeCohort: EmployeeCompanyProgramCohortRecord | null
+  employeeCircles: CommonInterestCircleRecord[]
   joinPreview: CohortSelfJoinRecord | null
 }
 
@@ -51,6 +52,7 @@ export const useCompanyProgramCohortsStore = defineStore('company-program-cohort
     dashboard: null,
     employeeCohorts: [],
     selectedEmployeeCohort: null,
+    employeeCircles: [],
     joinPreview: null,
   }),
 
@@ -394,6 +396,25 @@ export const useCompanyProgramCohortsStore = defineStore('company-program-cohort
         return response.data
       } catch (error: any) {
         this.error = errorMessage(error, 'Failed to load employee cohort')
+        throw error
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    async loadEmployeeCohortCircles(cohortId: string) {
+      this.isLoading = true
+      this.error = null
+
+      try {
+        const response = await companyProgramCohortsApi.getMyCohortCircles(cohortId)
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to load cohort circles')
+        }
+        this.employeeCircles = response.data.circles
+        return response.data.circles
+      } catch (error: any) {
+        this.error = errorMessage(error, 'Failed to load cohort circles')
         throw error
       } finally {
         this.isLoading = false

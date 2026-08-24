@@ -196,6 +196,8 @@ export class RoleManager {
       '/app/admin/billing/*': ['admin:billing'],
       '/app/admin/branding': ['admin:branding'],
       '/app/admin/trust': ['admin:settings'],
+      '/app/employee/cohorts': ['mentors:view'],
+      '/app/employee/cohorts/*': ['mentors:view'],
       '/app/employee/programs': ['mentors:view'],
       '/app/employee/programs/*': ['mentors:view'],
       '/app/employee/journey': ['sessions:view'],
