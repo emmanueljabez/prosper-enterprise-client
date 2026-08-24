@@ -254,6 +254,21 @@ export interface CohortSelfJoinPayload {
   interestTags?: string[]
 }
 
+export interface CohortRosterParticipantPayload {
+  profileId?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+  phone?: string | null
+  chapter?: string | null
+  region?: string | null
+  interestTags?: string[]
+}
+
+export interface AddCohortRosterParticipantsPayload {
+  participants: CohortRosterParticipantPayload[]
+}
+
 export interface ResolveDuplicatePayload {
   profileId: string
   duplicateStatus: CohortDuplicateStatus
@@ -375,6 +390,11 @@ const companyProgramCohortsApi = {
 
   async getParticipants(cohortId: string): Promise<ApiEnvelope<ParticipantsData>> {
     const response = await api.get(`/v1/company-program-cohorts/${cohortId}/participants`)
+    return response.data
+  },
+
+  async addRosterParticipants(cohortId: string, payload: AddCohortRosterParticipantsPayload): Promise<ApiEnvelope<ParticipantsData>> {
+    const response = await api.post(`/v1/company-program-cohorts/${cohortId}/participants`, payload)
     return response.data
   },
 

@@ -2,10 +2,12 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
+import Papa from 'papaparse'
 import { useCompanyProgramCohortsStore } from '@/store/modules/company-program-cohorts'
 import type {
   CircleSuggestionRecord,
   CohortParticipantStatus,
+  CohortRosterParticipantPayload,
   CompanyProgramCohortJoinRequestRecord,
   CompanyProgramCohortParticipantRecord,
   CompanyProgramCohortRecord,
@@ -26,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~
 import { Skeleton } from '~/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~/components/ui/table'
 import { Tabs, TabsContent } from '~/components/ui/tabs'
+import { Textarea } from '~/components/ui/textarea'
 import {
   ArrowLeft,
   CalendarRange,
@@ -39,6 +42,7 @@ import {
   ShieldAlert,
   Shuffle,
   Ticket,
+  Upload,
   UserCheck,
   UserMinus,
   UserPlus,
@@ -84,8 +88,10 @@ const programId = computed(() => String(route.params.programId || ''))
 const cohortId = computed(() => String(route.params.cohortId || ''))
 const activeTab = ref(['participants', 'plenary', 'circles', 'matching'].includes(String(route.query.tab)) ? String(route.query.tab) : 'overview')
 const editDialogOpen = ref(false)
+const isRosterDialogOpen = ref(false)
 const isCreateCircleDialogOpen = ref(false)
 const addMenteesCircleId = ref<string | null>(null)
+const rosterCsv = ref('')
 const membershipTargetCircleId = reactive<Record<string, string>>({})
 const newCircle = reactive<CircleFormModel>({
   name: '',
@@ -126,9 +132,25 @@ const placedParticipantIds = computed(() => {
   return ids
 })
 
-const unplacedParticipants = computed(() =>
-  activeParticipants.value.filter(participant => !placedParticipantIds.value.has(participant.id)),
+const circleEligibleParticipants = computed(() =>
+  activeParticipants.value.filter(participant =>
+    ['PLENARY_ATTENDED', 'PLACED_IN_CIRCLE', 'ELIGIBLE_FOR_MATCHING', 'MATCHED', 'ACTIVE', 'COMPLETED'].includes(participant.status),
+  ),
 )
+
+const unplacedParticipants = computed(() =>
+  circleEligibleParticipants.value.filter(participant => !placedParticipantIds.value.has(participant.id)),
+)
+
+const unplacedParticipantsEmptyCopy = computed(() => {
+  if (!activeParticipants.value.length) {
+    return 'No active mentees are in this cohort yet. Add participants or share the join code.'
+  }
+  if (!circleEligibleParticipants.value.length) {
+    return 'No mentees are ready for circle placement yet. Confirm intake and plenary attendance first.'
+  }
+  return 'Every circle-ready participant is placed.'
+})
 
 const addMenteesCircle = computed(() =>
   circles.value.find(circle => circle.id === addMenteesCircleId.value) || null,
@@ -202,6 +224,97 @@ const splitTags = (value: string) =>
     .split(',')
     .map(tag => tag.trim())
     .filter(Boolean)
+
+const normalizeRosterHeader = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+
+const rosterHeaderAliases: Record<string, keyof CohortRosterParticipantPayload | 'name'> = {
+  profileid: 'profileId',
+  profiled: 'profileId',
+  name: 'name',
+  fullname: 'name',
+  firstname: 'firstName',
+  givenname: 'firstName',
+  lastname: 'lastName',
+  surname: 'lastName',
+  email: 'email',
+  emailaddress: 'email',
+  phone: 'phone',
+  phonenumber: 'phone',
+  mobile: 'phone',
+  chapter: 'chapter',
+  region: 'region',
+  interesttags: 'interestTags',
+  interests: 'interestTags',
+  tags: 'interestTags',
+}
+
+const rosterDefaultColumns: Array<keyof CohortRosterParticipantPayload> = [
+  'firstName',
+  'lastName',
+  'email',
+  'phone',
+  'chapter',
+  'region',
+  'interestTags',
+]
+
+const optionalString = (value?: string | null) => {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
+const splitRosterTags = (value?: string | null) =>
+  (value || '')
+    .split(/[;,|]/)
+    .map(tag => tag.trim())
+    .filter(Boolean)
+
+const applyRosterValue = (row: CohortRosterParticipantPayload, key: keyof CohortRosterParticipantPayload | 'name', value: string) => {
+  const trimmed = optionalString(value)
+  if (!trimmed) return
+
+  if (key === 'name') {
+    const [firstName, ...lastNameParts] = trimmed.split(/\s+/)
+    if (!row.firstName && firstName) row.firstName = firstName
+    if (!row.lastName && lastNameParts.length) row.lastName = lastNameParts.join(' ')
+    return
+  }
+
+  if (key === 'interestTags') {
+    row.interestTags = splitRosterTags(trimmed)
+    return
+  }
+
+  row[key] = trimmed as any
+}
+
+const parseRosterCsv = (value: string): CohortRosterParticipantPayload[] => {
+  const parsedRows = Papa.parse<string[]>(value, { skipEmptyLines: 'greedy' }).data
+    .map(row => row.map(cell => String(cell || '').trim()))
+    .filter(row => row.some(Boolean))
+
+  if (!parsedRows.length) return []
+
+  const firstRow = parsedRows[0]
+  const hasHeader = firstRow.some(cell => Boolean(rosterHeaderAliases[normalizeRosterHeader(cell)]))
+  const headers = hasHeader ? firstRow : rosterDefaultColumns
+  const dataRows = hasHeader ? parsedRows.slice(1) : parsedRows
+
+  return dataRows
+    .map((cells) => {
+      const row: CohortRosterParticipantPayload = {}
+      cells.forEach((cell, index) => {
+        const key = hasHeader
+          ? rosterHeaderAliases[normalizeRosterHeader(String(headers[index] || ''))]
+          : headers[index]
+        if (key) applyRosterValue(row, key, cell)
+      })
+      return row
+    })
+    .filter(row => Boolean(row.profileId || row.email || row.phone || row.firstName || row.lastName))
+}
+
+const rosterPreviewRows = computed(() => parseRosterCsv(rosterCsv.value))
 
 const participantName = (participant?: CompanyProgramCohortParticipantRecord | null) =>
   participant?.profileName || participant?.profileEmail || participant?.profilePhone || 'Cohort participant'
@@ -281,6 +394,56 @@ const closeIntake = async () => {
     await loadDashboard()
   } catch (intakeError: any) {
     toast.error(intakeError?.response?.data?.message || intakeError?.message || 'Failed to close cohort intake')
+  }
+}
+
+const openRosterDialog = () => {
+  isRosterDialogOpen.value = true
+}
+
+const closeRosterDialog = () => {
+  isRosterDialogOpen.value = false
+  rosterCsv.value = ''
+}
+
+const handleRosterFileUpload = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  rosterCsv.value = await file.text()
+  input.value = ''
+}
+
+const submitRosterParticipants = async () => {
+  if (!cohortId.value) return
+
+  const rows = parseRosterCsv(rosterCsv.value)
+  if (!rows.length) {
+    toast.error('Add at least one participant row before uploading the roster.')
+    return
+  }
+
+  const missingContact = rows.find(row => !row.profileId && !row.email && !row.phone)
+  if (missingContact) {
+    toast.error('Each roster row needs an email or phone number.')
+    return
+  }
+
+  try {
+    const participants = await cohortsStore.addRosterParticipants(cohortId.value, {
+      participants: rows.map(row => ({
+        ...row,
+        chapter: row.chapter || selectedCohort.value?.chapter || null,
+        region: row.region || selectedCohort.value?.region || null,
+      })),
+    })
+    toast.success(`${participants.length} participant${participants.length === 1 ? '' : 's'} added for review.`)
+    closeRosterDialog()
+    activeTab.value = 'participants'
+    await refreshAfterMutation()
+  } catch (rosterError: any) {
+    toast.error(rosterError?.response?.data?.message || rosterError?.message || 'Failed to upload cohort roster')
   }
 }
 
@@ -528,7 +691,7 @@ const finalizeCircles = async () => {
 
 const canOpenIntake = computed(() => ['DRAFT', 'INTAKE_CLOSED'].includes(String(selectedCohort.value?.status || '')))
 const canCloseIntake = computed(() => selectedCohort.value?.status === 'INTAKE_OPEN')
-const canFinalizeCircles = computed(() => Boolean(circles.value.length) && !unplacedParticipants.value.length)
+const canFinalizeCircles = computed(() => Boolean(circles.value.length) && Boolean(circleEligibleParticipants.value.length) && !unplacedParticipants.value.length)
 
 watch(cohortId, async () => {
   await loadWorkspace()
@@ -568,6 +731,10 @@ watch(activeTab, value => {
         <Button variant="outline" :disabled="isLoading" @click="loadWorkspace">
           <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoading }" />
           Refresh
+        </Button>
+        <Button variant="outline" :disabled="isSaving" @click="openRosterDialog">
+          <UserPlus class="mr-2 h-4 w-4" />
+          Add participants
         </Button>
         <Button variant="outline" :disabled="!selectedCohort || isSaving" @click="editDialogOpen = true">
           <Pencil class="mr-2 h-4 w-4" />
@@ -804,9 +971,15 @@ watch(activeTab, value => {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Intake Review</CardTitle>
-              <CardDescription>Confirm self-join requests, reject ineligible requests, and resolve duplicate reviews.</CardDescription>
+            <CardHeader class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Intake Review</CardTitle>
+                <CardDescription>Confirm uploaded roster rows and self-join requests before plenary and circles.</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" :disabled="isSaving" @click="openRosterDialog">
+                <Upload class="mr-2 h-4 w-4" />
+                Upload roster
+              </Button>
             </CardHeader>
             <CardContent class="space-y-4">
               <div v-if="isLoading" class="space-y-3">
@@ -814,7 +987,11 @@ watch(activeTab, value => {
                 <Skeleton class="h-12 w-full" />
               </div>
               <div v-else-if="!participants.length" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                No participants are attached to this cohort yet.
+                <p>No participants are attached to this cohort yet.</p>
+                <Button class="mt-4" variant="outline" :disabled="isSaving" @click="openRosterDialog">
+                  <UserPlus class="mr-2 h-4 w-4" />
+                  Add participants
+                </Button>
               </div>
               <Table v-else>
                 <TableHeader>
@@ -984,7 +1161,18 @@ watch(activeTab, value => {
                 </CardHeader>
                 <CardContent class="space-y-3">
                   <div v-if="!unplacedParticipants.length" class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    Every active participant is placed.
+                    <p>{{ unplacedParticipantsEmptyCopy }}</p>
+                    <Button
+                      v-if="!activeParticipants.length"
+                      class="mt-4"
+                      variant="outline"
+                      size="sm"
+                      :disabled="isSaving"
+                      @click="openRosterDialog"
+                    >
+                      <UserPlus class="mr-2 h-4 w-4" />
+                      Add participants
+                    </Button>
                   </div>
                   <div v-for="participant in unplacedParticipants" v-else :key="participant.id" class="rounded-lg border p-3">
                     <div class="font-medium">{{ participantName(participant) }}</div>
@@ -1136,6 +1324,41 @@ watch(activeTab, value => {
       @saved="refreshAfterMutation"
     />
 
+    <Dialog v-model:open="isRosterDialogOpen">
+      <DialogContent class="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Upload roster</DialogTitle>
+          <DialogDescription>Add participants to this cohort as pending intake records.</DialogDescription>
+        </DialogHeader>
+        <div class="space-y-4">
+          <div class="grid gap-2">
+            <label class="text-sm font-medium">CSV file</label>
+            <Input type="file" accept=".csv,text/csv" :disabled="isSaving" @change="handleRosterFileUpload" />
+          </div>
+          <div class="grid gap-2">
+            <label class="text-sm font-medium">Roster rows</label>
+            <Textarea
+              v-model="rosterCsv"
+              class="min-h-48 font-mono text-xs"
+              placeholder="firstName,lastName,email,phone,chapter,region,interestTags&#10;Amina,Otieno,amina@example.com,+254712000000,Nairobi,Kenya,&quot;STEM; Career readiness&quot;"
+            />
+          </div>
+          <div class="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
+            {{ rosterPreviewRows.length }} row{{ rosterPreviewRows.length === 1 ? '' : 's' }} ready for upload.
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" :disabled="isSaving" @click="closeRosterDialog">
+            Cancel
+          </Button>
+          <Button :disabled="isSaving || !rosterPreviewRows.length" @click="submitRosterParticipants">
+            <Upload class="mr-2 h-4 w-4" :class="{ 'animate-spin': isSaving }" />
+            Upload roster
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <Dialog v-model:open="isCreateCircleDialogOpen">
       <DialogContent class="sm:max-w-2xl">
         <DialogHeader>
@@ -1192,7 +1415,7 @@ watch(activeTab, value => {
         </DialogHeader>
         <div class="space-y-3">
           <div v-if="!unplacedParticipants.length" class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Every active mentee is already placed in a circle.
+            {{ unplacedParticipantsEmptyCopy }}
           </div>
           <div v-for="participant in unplacedParticipants" v-else :key="participant.id" class="rounded-lg border p-3">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
