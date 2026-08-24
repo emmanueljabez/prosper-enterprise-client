@@ -180,6 +180,7 @@ export const PERMISSIONS = {
     // Admin permissions
     MANAGE_USERS: 'admin:users',
     MANAGE_PROGRAMS: 'admin:programs',
+    MANAGE_PROGRAM_COHORTS: 'admin:program-cohorts',
     MANAGE_MENTORS: 'admin:mentors',
     VIEW_REPORTS: 'admin:reports',
     MANAGE_COMPANY: 'admin:company',
