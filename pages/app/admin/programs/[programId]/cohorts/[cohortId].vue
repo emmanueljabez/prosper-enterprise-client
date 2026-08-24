@@ -6,6 +6,7 @@ import { useCompanyProgramCohortsStore } from '@/store/modules/company-program-c
 import type {
   CircleSuggestionRecord,
   CohortParticipantStatus,
+  CompanyProgramCohortJoinRequestRecord,
   CompanyProgramCohortParticipantRecord,
   CompanyProgramCohortRecord,
   CompanyProgramCohortStatus,
@@ -68,6 +69,7 @@ const toast = useAppToast()
 const {
   selectedCohort,
   participants,
+  joinRequests,
   circles,
   suggestions,
   dashboard,
@@ -100,6 +102,9 @@ const reviewParticipants = computed(() =>
   participants.value.filter(participant =>
     ['PENDING', 'CONFIRMED'].includes(participant.status) || participant.duplicateStatus === 'POSSIBLE_DUPLICATE',
   ),
+)
+const activeJoinRequests = computed(() =>
+  joinRequests.value.filter(joinRequest => ['PENDING', 'DUPLICATE_REVIEW'].includes(joinRequest.status)),
 )
 
 const plenaryParticipants = computed(() =>
@@ -174,7 +179,8 @@ const formatDate = (value?: string | null) => {
 
 const formatPercent = (value?: number | null) => {
   if (value === null || value === undefined) return '0%'
-  return `${Math.round(Number(value) * 100)}%`
+  const normalized = value > 1 ? value : value * 100
+  return `${Math.round(normalized)}%`
 }
 
 const toIsoOrNull = (value: string) => value ? new Date(value).toISOString() : null
@@ -206,6 +212,11 @@ const loadParticipants = async () => {
   await cohortsStore.loadParticipants(cohortId.value)
 }
 
+const loadJoinRequests = async () => {
+  if (!cohortId.value) return
+  await cohortsStore.loadJoinRequests(cohortId.value)
+}
+
 const loadCircles = async () => {
   if (!cohortId.value) return
   await cohortsStore.loadCircles(cohortId.value)
@@ -223,6 +234,7 @@ const loadWorkspace = async () => {
     await Promise.all([
       loadCohort(),
       loadParticipants(),
+      loadJoinRequests(),
       loadCircles(),
       loadDashboard(),
     ])
@@ -235,6 +247,7 @@ const refreshAfterMutation = async () => {
   await Promise.all([
     loadCohort(),
     loadParticipants(),
+    loadJoinRequests(),
     loadCircles(),
     loadDashboard(),
   ])
@@ -300,6 +313,36 @@ const resolveDuplicate = async (participant: CompanyProgramCohortParticipantReco
     await loadDashboard()
   } catch (duplicateError: any) {
     toast.error(duplicateError?.response?.data?.message || duplicateError?.message || 'Failed to resolve duplicate review')
+  }
+}
+
+const joinRequestName = (joinRequest: CompanyProgramCohortJoinRequestRecord) =>
+  [joinRequest.submittedFirstName, joinRequest.submittedLastName].filter(Boolean).join(' ').trim()
+  || joinRequest.submittedEmail
+  || 'Self-join request'
+
+const confirmJoinRequest = async (joinRequest: CompanyProgramCohortJoinRequestRecord) => {
+  if (!joinRequest.matchedProfileId) {
+    toast.error('A matched profile is required before confirming this join request.')
+    return
+  }
+
+  try {
+    await cohortsStore.confirmJoinRequest(joinRequest.id, { profileId: joinRequest.matchedProfileId })
+    toast.success('Join request confirmed.')
+    await refreshAfterMutation()
+  } catch (joinRequestError: any) {
+    toast.error(joinRequestError?.response?.data?.message || joinRequestError?.message || 'Failed to confirm join request')
+  }
+}
+
+const rejectJoinRequest = async (joinRequest: CompanyProgramCohortJoinRequestRecord) => {
+  try {
+    await cohortsStore.rejectJoinRequest(joinRequest.id)
+    toast.success('Join request rejected.')
+    await refreshAfterMutation()
+  } catch (joinRequestError: any) {
+    toast.error(joinRequestError?.response?.data?.message || joinRequestError?.message || 'Failed to reject join request')
   }
 }
 
@@ -560,7 +603,7 @@ watch(activeTab, value => {
             @click="activeTab = 'participants'"
           >
             Intake
-            <span>{{ reviewParticipants.length }}</span>
+            <span>{{ reviewParticipants.length + activeJoinRequests.length }}</span>
           </button>
           <button
             type="button"
@@ -663,6 +706,69 @@ watch(activeTab, value => {
         </TabsContent>
 
         <TabsContent value="participants" class="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Self-join requests</CardTitle>
+              <CardDescription>Review employees who joined this cohort with the shared code.</CardDescription>
+            </CardHeader>
+            <CardContent class="space-y-4">
+              <div v-if="!activeJoinRequests.length" class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                No pending self-join requests.
+              </div>
+              <Table v-else>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Request</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Matched profile</TableHead>
+                    <TableHead>Interests</TableHead>
+                    <TableHead class="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow v-for="joinRequest in activeJoinRequests" :key="joinRequest.id">
+                    <TableCell>
+                      <div class="space-y-1">
+                        <div class="font-medium">{{ joinRequestName(joinRequest) }}</div>
+                        <div class="text-xs text-muted-foreground">
+                          {{ joinRequest.submittedEmail || joinRequest.submittedPhone || 'Self-join intake' }}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge :variant="joinRequest.status === 'DUPLICATE_REVIEW' ? 'destructive' : 'secondary'">
+                        {{ statusLabel(joinRequest.status) }}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span class="text-sm">{{ joinRequest.matchedProfileName || joinRequest.matchedProfileId || 'Profile match required' }}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div class="flex flex-wrap gap-1">
+                        <span v-for="tag in joinRequest.interestTags" :key="tag" class="mini-tag">{{ tag }}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell class="text-right">
+                      <div class="flex flex-wrap justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          :disabled="isSaving || !joinRequest.matchedProfileId"
+                          @click="confirmJoinRequest(joinRequest)"
+                        >
+                          Confirm matched profile
+                        </Button>
+                        <Button size="sm" variant="ghost" :disabled="isSaving" @click="rejectJoinRequest(joinRequest)">
+                          Reject
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Intake Review</CardTitle>

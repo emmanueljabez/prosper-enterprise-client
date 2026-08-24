@@ -68,6 +68,11 @@ const submitSelfJoin = async () => {
     return
   }
 
+  if (!joinForm.firstName.trim() || !joinForm.lastName.trim()) {
+    toast.error('First and last name are required')
+    return
+  }
+
   try {
     await cohortsStore.submitSelfJoin(code, {
       email: joinForm.email.trim(),

@@ -76,6 +76,26 @@ export interface CompanyProgramCohortParticipantRecord {
   updatedAt?: string | null
 }
 
+export interface CompanyProgramCohortJoinRequestRecord {
+  id: string
+  cohortId: string
+  companyProgramId?: string | null
+  submittedEmail: string
+  submittedPhone?: string | null
+  submittedFirstName?: string | null
+  submittedLastName?: string | null
+  submittedChapter?: string | null
+  submittedRegion?: string | null
+  interestTags: string[]
+  matchedProfileId?: string | null
+  matchedProfileName?: string | null
+  status: CohortJoinRequestStatus
+  reviewedByUserId?: string | null
+  reviewedAt?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
 export interface CohortSelfJoinRecord {
   joinRequestId?: string | null
   cohortId: string
@@ -239,6 +259,10 @@ export interface ResolveDuplicatePayload {
   duplicateStatus: CohortDuplicateStatus
 }
 
+export interface ConfirmJoinRequestPayload {
+  profileId: string
+}
+
 export interface RecordPlenaryAttendancePayload {
   status?: PlenaryAttendanceStatus | null
   attendanceSource?: PlenaryAttendanceSource | null
@@ -280,6 +304,12 @@ export interface CohortsData {
 export interface ParticipantsData {
   cohortId: string
   participants: CompanyProgramCohortParticipantRecord[]
+  count: number
+}
+
+export interface JoinRequestsData {
+  cohortId: string
+  joinRequests: CompanyProgramCohortJoinRequestRecord[]
   count: number
 }
 
@@ -345,6 +375,21 @@ const companyProgramCohortsApi = {
 
   async getParticipants(cohortId: string): Promise<ApiEnvelope<ParticipantsData>> {
     const response = await api.get(`/v1/company-program-cohorts/${cohortId}/participants`)
+    return response.data
+  },
+
+  async getJoinRequests(cohortId: string): Promise<ApiEnvelope<JoinRequestsData>> {
+    const response = await api.get(`/v1/company-program-cohorts/${cohortId}/join-requests`)
+    return response.data
+  },
+
+  async confirmJoinRequest(joinRequestId: string, payload: ConfirmJoinRequestPayload): Promise<ApiEnvelope<CompanyProgramCohortParticipantRecord>> {
+    const response = await api.post(`/v1/company-program-cohort-join-requests/${joinRequestId}/confirm`, payload)
+    return response.data
+  },
+
+  async rejectJoinRequest(joinRequestId: string): Promise<ApiEnvelope<CompanyProgramCohortParticipantRecord>> {
+    const response = await api.post(`/v1/company-program-cohort-join-requests/${joinRequestId}/reject`)
     return response.data
   },
 

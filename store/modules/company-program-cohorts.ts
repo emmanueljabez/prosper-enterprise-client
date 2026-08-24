@@ -5,6 +5,8 @@ import companyProgramCohortsApi, {
   type CohortSelfJoinPayload,
   type CohortSelfJoinRecord,
   type CommonInterestCircleRecord,
+  type ConfirmJoinRequestPayload,
+  type CompanyProgramCohortJoinRequestRecord,
   type CompanyProgramCohortParticipantRecord,
   type CompanyProgramCohortRecord,
   type CreateCirclePayload,
@@ -26,6 +28,7 @@ interface CompanyProgramCohortsState {
   cohorts: CompanyProgramCohortRecord[]
   selectedCohort: CompanyProgramCohortRecord | null
   participants: CompanyProgramCohortParticipantRecord[]
+  joinRequests: CompanyProgramCohortJoinRequestRecord[]
   circles: CommonInterestCircleRecord[]
   suggestions: CircleSuggestionResultRecord | null
   dashboard: CohortDashboardRecord | null
@@ -47,6 +50,7 @@ export const useCompanyProgramCohortsStore = defineStore('company-program-cohort
     cohorts: [],
     selectedCohort: null,
     participants: [],
+    joinRequests: [],
     circles: [],
     suggestions: null,
     dashboard: null,
@@ -206,6 +210,67 @@ export const useCompanyProgramCohortsStore = defineStore('company-program-cohort
         () => companyProgramCohortsApi.confirmParticipant(participantId),
         'Failed to confirm cohort participant',
       )
+    },
+
+    async loadJoinRequests(cohortId: string) {
+      this.isLoading = true
+      this.error = null
+
+      try {
+        const response = await companyProgramCohortsApi.getJoinRequests(cohortId)
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to load cohort join requests')
+        }
+        this.joinRequests = response.data.joinRequests
+        return response.data.joinRequests
+      } catch (error: any) {
+        this.error = errorMessage(error, 'Failed to load cohort join requests')
+        throw error
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    async confirmJoinRequest(joinRequestId: string, payload: ConfirmJoinRequestPayload) {
+      this.isSaving = true
+      this.error = null
+
+      try {
+        const response = await companyProgramCohortsApi.confirmJoinRequest(joinRequestId, payload)
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to confirm cohort join request')
+        }
+        this.joinRequests = this.joinRequests.filter(joinRequest => joinRequest.id !== joinRequestId)
+        this.upsertParticipant(response.data)
+        return response.data
+      } catch (error: any) {
+        this.error = errorMessage(error, 'Failed to confirm cohort join request')
+        throw error
+      } finally {
+        this.isSaving = false
+      }
+    },
+
+    async rejectJoinRequest(joinRequestId: string) {
+      this.isSaving = true
+      this.error = null
+
+      try {
+        const response = await companyProgramCohortsApi.rejectJoinRequest(joinRequestId)
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to reject cohort join request')
+        }
+        this.joinRequests = this.joinRequests.filter(joinRequest => joinRequest.id !== joinRequestId)
+        if (response.data) {
+          this.upsertParticipant(response.data)
+        }
+        return response.data
+      } catch (error: any) {
+        this.error = errorMessage(error, 'Failed to reject cohort join request')
+        throw error
+      } finally {
+        this.isSaving = false
+      }
     },
 
     async rejectParticipant(participantId: string) {
