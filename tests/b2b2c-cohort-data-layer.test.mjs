@@ -24,11 +24,17 @@ for (const endpoint of [
   assert.ok(requestSource.includes(endpoint), `Request module should define ${endpoint}.`)
 }
 
+assert.match(requestSource, /export interface CohortRosterParticipantPayload/, 'Request module should type cohort roster participant rows.')
+assert.match(requestSource, /export interface AddCohortRosterParticipantsPayload/, 'Request module should type cohort roster upload payloads.')
+assert.match(requestSource, /async addRosterParticipants\(cohortId: string, payload: AddCohortRosterParticipantsPayload\)/, 'Request module should POST roster participants to a cohort.')
+assert.match(requestSource, /api\.post\(`\/v1\/company-program-cohorts\/\$\{cohortId\}\/participants`, payload\)/, 'Roster upload should use the cohort participants collection POST endpoint.')
+
 for (const action of [
   'loadCohorts',
   'loadCohort',
   'createCohort',
   'loadParticipants',
+  'addRosterParticipants',
   'loadJoinRequests',
   'confirmParticipant',
   'confirmJoinRequest',

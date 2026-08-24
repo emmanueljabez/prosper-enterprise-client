@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import companyProgramCohortsApi, {
+  type AddCohortRosterParticipantsPayload,
   type CircleSuggestionResultRecord,
   type CohortDashboardRecord,
   type CohortSelfJoinPayload,
@@ -202,6 +203,27 @@ export const useCompanyProgramCohortsStore = defineStore('company-program-cohort
         throw error
       } finally {
         this.isLoading = false
+      }
+    },
+
+    async addRosterParticipants(cohortId: string, payload: AddCohortRosterParticipantsPayload) {
+      this.isSaving = true
+      this.error = null
+
+      try {
+        const response = await companyProgramCohortsApi.addRosterParticipants(cohortId, payload)
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to add cohort roster participants')
+        }
+        for (const participant of response.data.participants || []) {
+          this.upsertParticipant(participant)
+        }
+        return response.data.participants
+      } catch (error: any) {
+        this.error = errorMessage(error, 'Failed to add cohort roster participants')
+        throw error
+      } finally {
+        this.isSaving = false
       }
     },
 
