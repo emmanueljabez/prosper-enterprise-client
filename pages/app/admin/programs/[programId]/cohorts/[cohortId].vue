@@ -20,6 +20,7 @@ import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Skeleton } from '~/components/ui/skeleton'
@@ -40,6 +41,7 @@ import {
   Ticket,
   UserCheck,
   UserMinus,
+  UserPlus,
   Users,
   XCircle,
 } from 'lucide-vue-next'
@@ -82,7 +84,8 @@ const programId = computed(() => String(route.params.programId || ''))
 const cohortId = computed(() => String(route.params.cohortId || ''))
 const activeTab = ref(['participants', 'plenary', 'circles', 'matching'].includes(String(route.query.tab)) ? String(route.query.tab) : 'overview')
 const editDialogOpen = ref(false)
-const placementCircleByParticipant = reactive<Record<string, string>>({})
+const isCreateCircleDialogOpen = ref(false)
+const addMenteesCircleId = ref<string | null>(null)
 const membershipTargetCircleId = reactive<Record<string, string>>({})
 const newCircle = reactive<CircleFormModel>({
   name: '',
@@ -125,6 +128,10 @@ const placedParticipantIds = computed(() => {
 
 const unplacedParticipants = computed(() =>
   activeParticipants.value.filter(participant => !placedParticipantIds.value.has(participant.id)),
+)
+
+const addMenteesCircle = computed(() =>
+  circles.value.find(circle => circle.id === addMenteesCircleId.value) || null,
 )
 
 const circleCapacityLabel = (cohort?: CompanyProgramCohortRecord | null) =>
@@ -381,6 +388,31 @@ const resetCircleForm = () => {
   newCircle.nextSessionAt = ''
 }
 
+const openCreateCircleDialog = () => {
+  resetCircleForm()
+  isCreateCircleDialogOpen.value = true
+}
+
+const closeCreateCircleDialog = () => {
+  isCreateCircleDialogOpen.value = false
+  resetCircleForm()
+}
+
+const openAddMenteesDialog = (circleId: string) => {
+  addMenteesCircleId.value = circleId
+}
+
+const closeAddMenteesDialog = () => {
+  addMenteesCircleId.value = null
+}
+
+const addMenteesDialogOpen = computed({
+  get: () => Boolean(addMenteesCircle.value),
+  set: (open: boolean) => {
+    if (!open) closeAddMenteesDialog()
+  },
+})
+
 const createCircle = async () => {
   if (!cohortId.value) return
 
@@ -400,6 +432,7 @@ const createCircle = async () => {
       nextSessionAt: toIsoOrNull(newCircle.nextSessionAt),
     })
     resetCircleForm()
+    isCreateCircleDialogOpen.value = false
     toast.success('Circle created.')
     await refreshAfterMutation()
   } catch (circleError: any) {
@@ -433,10 +466,9 @@ const createCircleFromSuggestion = async (suggestion: CircleSuggestionRecord) =>
   }
 }
 
-const placeParticipant = async (participant: CompanyProgramCohortParticipantRecord) => {
-  const circleId = placementCircleByParticipant[participant.id]
+const placeParticipantInCircle = async (circleId: string, participant: CompanyProgramCohortParticipantRecord) => {
   if (!circleId) {
-    toast.error('Choose a circle before placing this participant')
+    toast.error('Choose a circle before adding this mentee')
     return
   }
 
@@ -445,11 +477,13 @@ const placeParticipant = async (participant: CompanyProgramCohortParticipantReco
       cohortParticipantId: participant.id,
       placementSource: 'ADMIN_PLACED',
     })
-    placementCircleByParticipant[participant.id] = ''
-    toast.success('Participant placed in circle.')
+    toast.success('Mentee added to circle.')
     await refreshAfterMutation()
+    if (!unplacedParticipants.value.length) {
+      closeAddMenteesDialog()
+    }
   } catch (placementError: any) {
-    toast.error(placementError?.response?.data?.message || placementError?.message || 'Failed to place participant')
+    toast.error(placementError?.response?.data?.message || placementError?.message || 'Failed to add mentee to circle')
   }
 }
 
@@ -920,6 +954,10 @@ watch(activeTab, value => {
               <p class="text-sm text-muted-foreground">Group attendees into common-interest circles of {{ circleCapacityLabel(selectedCohort) }}.</p>
             </div>
             <div class="flex flex-wrap gap-2">
+              <Button variant="outline" :disabled="isSaving" @click="openCreateCircleDialog">
+                <CircleDot class="mr-2 h-4 w-4" />
+                Create circle
+              </Button>
               <Button variant="outline" :disabled="isSaving || isLoading" @click="suggestCircles">
                 <Shuffle class="mr-2 h-4 w-4" />
                 Refresh suggestions
@@ -942,76 +980,20 @@ watch(activeTab, value => {
               <Card>
                 <CardHeader>
                   <CardTitle>Unplaced participants</CardTitle>
-                  <CardDescription>Place each attendee into a circle after plenary attendance is confirmed.</CardDescription>
+                  <CardDescription>Use Add mentees on a circle to place each attendee after plenary attendance is confirmed.</CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-3">
                   <div v-if="!unplacedParticipants.length" class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
                     Every active participant is placed.
                   </div>
                   <div v-for="participant in unplacedParticipants" v-else :key="participant.id" class="rounded-lg border p-3">
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <div class="font-medium">{{ participantName(participant) }}</div>
-                        <div class="mt-1 flex flex-wrap gap-1">
-                          <span v-for="tag in participant.interestTags" :key="tag" class="mini-tag">{{ tag }}</span>
-                        </div>
-                      </div>
-                      <div class="grid min-w-[260px] gap-2 sm:grid-cols-[1fr,auto]">
-                        <Select v-model="placementCircleByParticipant[participant.id]" :disabled="!circles.length">
-                          <SelectTrigger>
-                            <SelectValue placeholder="Choose circle" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem v-for="circle in circles" :key="circle.id" :value="circle.id">
-                              {{ circle.name }}
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button size="sm" :disabled="isSaving || !placementCircleByParticipant[participant.id]" @click="placeParticipant(participant)">
-                          Place
-                        </Button>
-                      </div>
+                    <div class="font-medium">{{ participantName(participant) }}</div>
+                    <div class="text-xs text-muted-foreground">{{ participant.profileEmail || participant.profilePhone || '-' }}</div>
+                    <div class="mt-2 flex flex-wrap gap-1">
+                      <span v-for="tag in participant.interestTags" :key="tag" class="mini-tag">{{ tag }}</span>
+                      <span v-if="!participant.interestTags?.length" class="text-xs text-muted-foreground">No interest tags</span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Create Circle</CardTitle>
-                  <CardDescription>Add a new common-interest circle manually.</CardDescription>
-                </CardHeader>
-                <CardContent class="space-y-4">
-                  <div class="grid gap-3 md:grid-cols-2">
-                    <div class="grid gap-2">
-                      <label class="text-sm font-medium">Circle name</label>
-                      <Input v-model="newCircle.name" placeholder="STEM Risers" />
-                    </div>
-                    <div class="grid gap-2">
-                      <label class="text-sm font-medium">Theme</label>
-                      <Input v-model="newCircle.theme" placeholder="STEM" />
-                    </div>
-                    <div class="grid gap-2">
-                      <label class="text-sm font-medium">Min size</label>
-                      <Input v-model="newCircle.minSize" type="number" min="1" />
-                    </div>
-                    <div class="grid gap-2">
-                      <label class="text-sm font-medium">Max size</label>
-                      <Input v-model="newCircle.maxSize" type="number" min="1" />
-                    </div>
-                  </div>
-                  <div class="grid gap-2">
-                    <label class="text-sm font-medium">Interest tags</label>
-                    <Input v-model="newCircle.interestTags" placeholder="STEM, career readiness" />
-                  </div>
-                  <div class="grid gap-2">
-                    <label class="text-sm font-medium">Next session</label>
-                    <Input v-model="newCircle.nextSessionAt" type="datetime-local" />
-                  </div>
-                  <Button :disabled="isSaving" @click="createCircle">
-                    <CircleDot class="mr-2 h-4 w-4" />
-                    Create circle
-                  </Button>
                 </CardContent>
               </Card>
             </div>
@@ -1060,9 +1042,15 @@ watch(activeTab, value => {
                           {{ circle.memberCount || 0 }} members | {{ circle.theme || 'No theme set' }}
                         </div>
                       </div>
-                      <Badge :variant="circle.memberCount < (circle.minSize || selectedCohort?.circleMinSize || 5) ? 'outline' : 'secondary'">
-                        {{ circle.memberCount || 0 }} / {{ circle.minSize || selectedCohort?.circleMinSize || 5 }}-{{ circle.maxSize || selectedCohort?.circleMaxSize || 10 }}
-                      </Badge>
+                      <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                        <Badge :variant="circle.memberCount < (circle.minSize || selectedCohort?.circleMinSize || 5) ? 'outline' : 'secondary'">
+                          {{ circle.memberCount || 0 }} / {{ circle.minSize || selectedCohort?.circleMinSize || 5 }}-{{ circle.maxSize || selectedCohort?.circleMaxSize || 10 }}
+                        </Badge>
+                        <Button size="sm" variant="outline" :disabled="isSaving || !unplacedParticipants.length" @click="openAddMenteesDialog(circle.id)">
+                          <UserPlus class="mr-2 h-4 w-4" />
+                          Add mentees
+                        </Button>
+                      </div>
                     </div>
 
                     <div class="mt-3 space-y-2">
@@ -1147,6 +1135,89 @@ watch(activeTab, value => {
       :cohort="selectedCohort"
       @saved="refreshAfterMutation"
     />
+
+    <Dialog v-model:open="isCreateCircleDialogOpen">
+      <DialogContent class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Create circle</DialogTitle>
+          <DialogDescription>Add a new common-interest circle manually.</DialogDescription>
+        </DialogHeader>
+        <div class="space-y-4">
+          <div class="grid gap-3 md:grid-cols-2">
+            <div class="grid gap-2">
+              <label class="text-sm font-medium">Circle name</label>
+              <Input v-model="newCircle.name" placeholder="STEM Risers" />
+            </div>
+            <div class="grid gap-2">
+              <label class="text-sm font-medium">Theme</label>
+              <Input v-model="newCircle.theme" placeholder="STEM" />
+            </div>
+            <div class="grid gap-2">
+              <label class="text-sm font-medium">Min size</label>
+              <Input v-model="newCircle.minSize" type="number" min="1" />
+            </div>
+            <div class="grid gap-2">
+              <label class="text-sm font-medium">Max size</label>
+              <Input v-model="newCircle.maxSize" type="number" min="1" />
+            </div>
+          </div>
+          <div class="grid gap-2">
+            <label class="text-sm font-medium">Interest tags</label>
+            <Input v-model="newCircle.interestTags" placeholder="STEM, career readiness" />
+          </div>
+          <div class="grid gap-2">
+            <label class="text-sm font-medium">Next session</label>
+            <Input v-model="newCircle.nextSessionAt" type="datetime-local" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" :disabled="isSaving" @click="closeCreateCircleDialog">
+            Cancel
+          </Button>
+          <Button :disabled="isSaving" @click="createCircle">
+            <CircleDot class="mr-2 h-4 w-4" />
+            Create circle
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="addMenteesDialogOpen">
+      <DialogContent v-if="addMenteesCircle" class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Add mentees</DialogTitle>
+          <DialogDescription>
+            Add unplaced mentees to {{ addMenteesCircle.name }}.
+          </DialogDescription>
+        </DialogHeader>
+        <div class="space-y-3">
+          <div v-if="!unplacedParticipants.length" class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            Every active mentee is already placed in a circle.
+          </div>
+          <div v-for="participant in unplacedParticipants" v-else :key="participant.id" class="rounded-lg border p-3">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div class="font-medium">{{ participantName(participant) }}</div>
+                <div class="text-xs text-muted-foreground">{{ participant.profileEmail || participant.profilePhone || '-' }}</div>
+                <div class="mt-2 flex flex-wrap gap-1">
+                  <span v-for="tag in participant.interestTags" :key="tag" class="mini-tag">{{ tag }}</span>
+                  <span v-if="!participant.interestTags?.length" class="text-xs text-muted-foreground">No interest tags</span>
+                </div>
+              </div>
+              <Button size="sm" :disabled="isSaving" @click="placeParticipantInCircle(addMenteesCircle.id, participant)">
+                <UserPlus class="mr-2 h-4 w-4" />
+                Add
+              </Button>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="closeAddMenteesDialog">
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
