@@ -63,6 +63,7 @@ const completedTaskIds = computed(() => new Set(progress.value?.completedTaskIds
 const completedCount = computed(() => completedTasks.value.length)
 const totalCount = computed(() => tasks.value.length)
 const isChecklistComplete = computed(() => completedCount.value === totalCount.value)
+const shouldShowChecklist = computed(() => !isChecklistComplete.value || !progress.value?.introDismissed)
 
 const loadProgress = () => {
   if (!companyId.value || !userId.value) {
@@ -103,7 +104,7 @@ watch([companyId, userId], loadProgress)
 </script>
 
 <template>
-  <Card class="dashboard-card border-[#e7d9e4] bg-[#fffafe]" data-walkthrough="admin-dashboard-checklist">
+  <Card v-if="shouldShowChecklist" class="dashboard-card border-[#e7d9e4] bg-[#fffafe]" data-walkthrough="admin-dashboard-checklist">
     <CardHeader class="space-y-3 p-4 pb-2">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="space-y-1">

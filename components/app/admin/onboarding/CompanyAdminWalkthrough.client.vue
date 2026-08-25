@@ -12,6 +12,7 @@ import {
 import { useAuthStore } from '@/store/modules/auth'
 import { useCompanyWalkthroughStore } from '@/store/modules/company-walkthrough'
 import type { CompanyWalkthroughTourId } from '@/types/company-walkthrough'
+import { releaseCompanyWalkthroughInteractionLock } from '@/utils/company-walkthrough-dom'
 import { resolveNextCompanyWalkthroughTask } from '@/utils/company-walkthrough-progression'
 import { Button } from '@/components/ui/button'
 
@@ -267,7 +268,7 @@ const startNextPendingTask = async (finishedTourId: CompanyWalkthroughTourId) =>
   )
 
   if (!nextTask) {
-    return
+    return false
   }
 
   if (route.path !== nextTask.route) {
@@ -275,6 +276,28 @@ const startNextPendingTask = async (finishedTourId: CompanyWalkthroughTourId) =>
   }
 
   walkthroughStore.startTour(nextTask.tourId)
+  return true
+}
+
+const releaseInteractionLockWhenIdle = () => {
+  if (typeof window === 'undefined') {
+    releaseCompanyWalkthroughInteractionLock()
+    return
+  }
+
+  const release = () => {
+    if (!activeTourId.value) {
+      releaseCompanyWalkthroughInteractionLock()
+    }
+  }
+
+  if (typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(release)
+  } else {
+    window.setTimeout(release, 0)
+  }
+
+  window.setTimeout(release, 250)
 }
 
 const finishActiveTour = async (exit: () => void) => {
@@ -285,11 +308,15 @@ const finishActiveTour = async (exit: () => void) => {
     walkthroughStore.completeTour(tourId)
     lastStartedTourId.value = null
     await nextTick()
-    await startNextPendingTask(tourId)
+    const startedNextTask = await startNextPendingTask(tourId)
+    if (!startedNextTask) {
+      releaseInteractionLockWhenIdle()
+    }
     return
   }
 
   lastStartedTourId.value = null
+  releaseInteractionLockWhenIdle()
 }
 
 const skipActiveTour = (exit: () => void) => {
@@ -297,6 +324,7 @@ const skipActiveTour = (exit: () => void) => {
   walkthroughStore.dismissIntro()
   walkthroughStore.clearActiveTour()
   lastStartedTourId.value = null
+  releaseInteractionLockWhenIdle()
 }
 
 onMounted(() => {
