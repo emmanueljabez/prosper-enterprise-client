@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 
-const pageUrl = new URL('../pages/app/admin/programs/[programId]/cohorts/[cohortId].vue', import.meta.url)
+const pageUrl = new URL('../pages/app/admin/cohorts/[cohortId].vue', import.meta.url)
 
 assert.equal(existsSync(pageUrl), true, 'Admin cohort workspace route should exist.')
 
 const pageSource = readFileSync(pageUrl, 'utf8')
 
-assert.match(pageSource, /permissions:\s*\['admin:programs'\]/, 'Cohort workspace should stay under company program admin access.')
+assert.match(pageSource, /permissions:\s*\['admin:program-cohorts'\]/, 'Cohort workspace should use cohort admin access.')
 assert.match(pageSource, /loadCohort/, 'Workspace should load the selected cohort.')
 assert.match(pageSource, /loadParticipants/, 'Workspace should load cohort participants.')
 assert.match(pageSource, /loadJoinRequests/, 'Workspace should load cohort join requests.')

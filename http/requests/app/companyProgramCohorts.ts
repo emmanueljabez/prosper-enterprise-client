@@ -317,6 +317,12 @@ export interface CohortsData {
   count: number
 }
 
+export interface CompanyCohortsData {
+  companyId: string
+  cohorts: CompanyProgramCohortRecord[]
+  count: number
+}
+
 export interface ParticipantsData {
   cohortId: string
   participants: CompanyProgramCohortParticipantRecord[]
@@ -349,6 +355,11 @@ export interface EmployeeCohortsData {
 }
 
 const companyProgramCohortsApi = {
+  async getCompanyCohorts(companyId: string): Promise<ApiEnvelope<CompanyCohortsData>> {
+    const response = await api.get(`/v1/companies/${companyId}/program-cohorts`)
+    return response.data
+  },
+
   async getCohorts(companyProgramId: string): Promise<ApiEnvelope<CohortsData>> {
     const response = await api.get(`/v1/company-programs/${companyProgramId}/cohorts`)
     return response.data

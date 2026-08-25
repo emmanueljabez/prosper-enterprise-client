@@ -179,6 +179,8 @@ export class RoleManager {
       '/app/admin/activity': ['admin:dashboard:view'],
       '/app/admin/programs': ['admin:programs'],
       '/app/admin/programs/*': ['admin:programs'],
+      '/app/admin/cohorts': ['admin:program-cohorts'],
+      '/app/admin/cohorts/*': ['admin:program-cohorts'],
       '/app/admin/journey-templates': ['admin:programs'],
       '/app/admin/employees': ['admin:users'],
       '/app/admin/employees/*': ['admin:users'],

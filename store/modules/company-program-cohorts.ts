@@ -62,6 +62,25 @@ export const useCompanyProgramCohortsStore = defineStore('company-program-cohort
   }),
 
   actions: {
+    async loadCompanyCohorts(companyId: string) {
+      this.isLoading = true
+      this.error = null
+
+      try {
+        const response = await companyProgramCohortsApi.getCompanyCohorts(companyId)
+        if (!response.success || !response.data) {
+          throw new Error(response.message || 'Failed to load company cohorts')
+        }
+        this.cohorts = response.data.cohorts
+        return response.data.cohorts
+      } catch (error: any) {
+        this.error = errorMessage(error, 'Failed to load company cohorts')
+        throw error
+      } finally {
+        this.isLoading = false
+      }
+    },
+
     async loadCohorts(companyProgramId: string) {
       this.isLoading = true
       this.error = null

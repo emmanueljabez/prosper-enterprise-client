@@ -36,8 +36,7 @@ const loadCohorts = async () => {
 }
 
 const openCohort = (cohort: CompanyProgramCohortRecord) => {
-  const programId = props.programId
-  navigateTo(`/app/admin/programs/${programId}/cohorts/${cohort.id}`)
+  navigateTo(`/app/admin/cohorts/${cohort.id}`)
 }
 
 const statusTone = (status: CompanyProgramCohortStatus) => ({
@@ -211,7 +210,7 @@ watch(() => props.programId, async programId => {
 
           <div class="flex items-center justify-between border-t pt-3 text-sm">
             <span class="text-muted-foreground">
-              {{ cohort.unplacedCount || 0 }} unplaced · {{ cohort.matchedCount || 0 }} matched
+              {{ cohort.unplacedCount || 0 }} unplaced | {{ cohort.matchedCount || 0 }} matched
             </span>
             <span class="inline-flex items-center font-medium text-primary">
               Open workspace
