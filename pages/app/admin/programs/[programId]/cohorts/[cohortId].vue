@@ -3,7 +3,10 @@ import { computed, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
+import { useCompanyProgramsStore } from '@/store/modules/company-programs'
 import { useCompanyProgramCohortsStore } from '@/store/modules/company-program-cohorts'
+import type { CompanyProgramParticipantRecord } from '@/http/requests/app/companyPrograms'
 import type {
   CircleSuggestionRecord,
   CohortParticipantStatus,
@@ -22,6 +25,7 @@ import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
+import { Checkbox } from '~/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
@@ -70,6 +74,7 @@ type CircleFormModel = {
 const route = useRoute()
 const router = useRouter()
 const cohortsStore = useCompanyProgramCohortsStore()
+const companyProgramsStore = useCompanyProgramsStore()
 const toast = useAppToast()
 
 const {
@@ -84,6 +89,12 @@ const {
   error,
 } = storeToRefs(cohortsStore)
 
+const {
+  participants: programRosterParticipants,
+  participantsLoading: programRosterLoading,
+  participantsError: programRosterError,
+} = storeToRefs(companyProgramsStore)
+
 const programId = computed(() => String(route.params.programId || ''))
 const cohortId = computed(() => String(route.params.cohortId || ''))
 const activeTab = ref(['participants', 'plenary', 'circles', 'matching'].includes(String(route.query.tab)) ? String(route.query.tab) : 'overview')
@@ -91,7 +102,9 @@ const editDialogOpen = ref(false)
 const isRosterDialogOpen = ref(false)
 const isCreateCircleDialogOpen = ref(false)
 const addMenteesCircleId = ref<string | null>(null)
+const rosterEntryMode = ref<'program' | 'upload'>('program')
 const rosterCsv = ref('')
+const selectedProgramParticipantIds = ref<string[]>([])
 const membershipTargetCircleId = reactive<Record<string, string>>({})
 const newCircle = reactive<CircleFormModel>({
   name: '',
@@ -134,7 +147,7 @@ const placedParticipantIds = computed(() => {
 
 const circleEligibleParticipants = computed(() =>
   activeParticipants.value.filter(participant =>
-    ['PLENARY_ATTENDED', 'PLACED_IN_CIRCLE', 'ELIGIBLE_FOR_MATCHING', 'MATCHED', 'ACTIVE', 'COMPLETED'].includes(participant.status),
+    ['CONFIRMED', 'PLENARY_ATTENDED', 'PLACED_IN_CIRCLE', 'ELIGIBLE_FOR_MATCHING', 'MATCHED', 'ACTIVE', 'COMPLETED'].includes(participant.status),
   ),
 )
 
@@ -147,10 +160,32 @@ const unplacedParticipantsEmptyCopy = computed(() => {
     return 'No active mentees are in this cohort yet. Add participants or share the join code.'
   }
   if (!circleEligibleParticipants.value.length) {
-    return 'No mentees are ready for circle placement yet. Confirm intake and plenary attendance first.'
+    return 'No mentees are ready for circle placement yet. Confirm intake first.'
   }
   return 'Every circle-ready participant is placed.'
 })
+
+const cohortParticipantProfileIds = computed(() => {
+  const ids = new Set<string>()
+  participants.value.forEach((participant) => {
+    if (participant.profileId) ids.add(participant.profileId)
+  })
+  return ids
+})
+
+const availableProgramRosterParticipants = computed(() =>
+  programRosterParticipants.value.filter(participant =>
+    participant.profileId
+    && participant.status !== 'WITHDRAWN'
+    && !cohortParticipantProfileIds.value.has(participant.profileId),
+  ),
+)
+
+const selectedProgramParticipants = computed(() =>
+  availableProgramRosterParticipants.value.filter(participant =>
+    selectedProgramParticipantIds.value.includes(participant.id),
+  ),
+)
 
 const addMenteesCircle = computed(() =>
   circles.value.find(circle => circle.id === addMenteesCircleId.value) || null,
@@ -288,8 +323,8 @@ const applyRosterValue = (row: CohortRosterParticipantPayload, key: keyof Cohort
   row[key] = trimmed as any
 }
 
-const parseRosterCsv = (value: string): CohortRosterParticipantPayload[] => {
-  const parsedRows = Papa.parse<string[]>(value, { skipEmptyLines: 'greedy' }).data
+const parseRosterRows = (rawRows: unknown[][]): CohortRosterParticipantPayload[] => {
+  const parsedRows = rawRows
     .map(row => row.map(cell => String(cell || '').trim()))
     .filter(row => row.some(Boolean))
 
@@ -312,6 +347,45 @@ const parseRosterCsv = (value: string): CohortRosterParticipantPayload[] => {
       return row
     })
     .filter(row => Boolean(row.profileId || row.email || row.phone || row.firstName || row.lastName))
+}
+
+const parseRosterCsv = (value: string): CohortRosterParticipantPayload[] => {
+  const rows = Papa.parse<string[]>(value, { skipEmptyLines: 'greedy' }).data
+  return parseRosterRows(rows)
+}
+
+const csvCell = (value: unknown) => {
+  const text = String(value ?? '')
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+const rowsToCsv = (rows: unknown[][]) =>
+  rows.map(row => row.map(csvCell).join(',')).join('\n')
+
+const parseRosterWorkbook = async (file: File): Promise<string> => {
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' })
+  const sheetName = workbook.SheetNames[0]
+  if (!sheetName) return ''
+
+  const worksheet = workbook.Sheets[sheetName]
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+    header: 1,
+    blankrows: false,
+    defval: '',
+  })
+
+  return rowsToCsv(rows)
+}
+
+const downloadRosterTemplate = () => {
+  const rows = [
+    rosterDefaultColumns,
+    ['Amina', 'Otieno', 'amina@example.com', '+254712000000', selectedCohort.value?.chapter || 'Nairobi', selectedCohort.value?.region || 'Kenya', 'STEM; Career readiness'],
+  ]
+  const worksheet = XLSX.utils.aoa_to_sheet(rows)
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Cohort roster')
+  XLSX.writeFile(workbook, `${selectedCohort.value?.code || 'cohort'}-participant-template.xlsx`)
 }
 
 const rosterPreviewRows = computed(() => parseRosterCsv(rosterCsv.value))
@@ -373,6 +447,20 @@ const refreshAfterMutation = async () => {
   ])
 }
 
+const loadProgramRoster = async () => {
+  if (!programId.value) return
+  try {
+    await companyProgramsStore.loadProgramParticipants({
+      companyProgramId: programId.value,
+      page: 0,
+      size: 500,
+      status: 'ALL',
+    })
+  } catch (programRosterLoadError: any) {
+    toast.error(programRosterLoadError?.response?.data?.message || programRosterLoadError?.message || 'Failed to load program roster')
+  }
+}
+
 const openIntake = async () => {
   if (!cohortId.value) return
 
@@ -397,13 +485,28 @@ const closeIntake = async () => {
   }
 }
 
-const openRosterDialog = () => {
+const openRosterDialog = async () => {
+  rosterEntryMode.value = 'program'
   isRosterDialogOpen.value = true
+  await loadProgramRoster()
 }
 
 const closeRosterDialog = () => {
   isRosterDialogOpen.value = false
   rosterCsv.value = ''
+  selectedProgramParticipantIds.value = []
+  rosterEntryMode.value = 'program'
+}
+
+const toggleProgramParticipant = (participant: CompanyProgramParticipantRecord, checked: boolean | 'indeterminate') => {
+  if (!participant.profileId) return
+  const selected = new Set(selectedProgramParticipantIds.value)
+  if (checked === true) {
+    selected.add(participant.id)
+  } else {
+    selected.delete(participant.id)
+  }
+  selectedProgramParticipantIds.value = Array.from(selected)
 }
 
 const handleRosterFileUpload = async (event: Event) => {
@@ -411,8 +514,37 @@ const handleRosterFileUpload = async (event: Event) => {
   const file = input.files?.[0]
   if (!file) return
 
-  rosterCsv.value = await file.text()
+  const fileName = file.name.toLowerCase()
+  rosterCsv.value = fileName.endsWith('.xlsx') || fileName.endsWith('.xls')
+    ? await parseRosterWorkbook(file)
+    : await file.text()
   input.value = ''
+}
+
+const submitProgramRosterParticipants = async () => {
+  if (!cohortId.value) return
+
+  const selected = selectedProgramParticipants.value
+  if (!selected.length) {
+    toast.error('Select at least one program employee before adding participants.')
+    return
+  }
+
+  try {
+    const participants = await cohortsStore.addRosterParticipants(cohortId.value, {
+      participants: selected.map(participant => ({
+        profileId: participant.profileId,
+        chapter: selectedCohort.value?.chapter || null,
+        region: selectedCohort.value?.region || null,
+      })),
+    })
+    toast.success(`${participants.length} participant${participants.length === 1 ? '' : 's'} added to this cohort and queued for notification.`)
+    closeRosterDialog()
+    activeTab.value = 'participants'
+    await refreshAfterMutation()
+  } catch (rosterError: any) {
+    toast.error(rosterError?.response?.data?.message || rosterError?.message || 'Failed to add program roster participants')
+  }
 }
 
 const submitRosterParticipants = async () => {
@@ -438,7 +570,7 @@ const submitRosterParticipants = async () => {
         region: row.region || selectedCohort.value?.region || null,
       })),
     })
-    toast.success(`${participants.length} participant${participants.length === 1 ? '' : 's'} added for review.`)
+    toast.success(`${participants.length} participant${participants.length === 1 ? '' : 's'} added for review and queued for notification.`)
     closeRosterDialog()
     activeTab.value = 'participants'
     await refreshAfterMutation()
@@ -1327,31 +1459,110 @@ watch(activeTab, value => {
     <Dialog v-model:open="isRosterDialogOpen">
       <DialogContent class="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Upload roster</DialogTitle>
-          <DialogDescription>Add participants to this cohort as pending intake records.</DialogDescription>
+          <DialogTitle>Add participants</DialogTitle>
+          <DialogDescription>
+            Add existing program employees or upload a new roster for this cohort. Participants will be notified after they are added.
+          </DialogDescription>
         </DialogHeader>
         <div class="space-y-4">
-          <div class="grid gap-2">
-            <label class="text-sm font-medium">CSV file</label>
-            <Input type="file" accept=".csv,text/csv" :disabled="isSaving" @change="handleRosterFileUpload" />
+          <div class="grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              :variant="rosterEntryMode === 'program' ? 'default' : 'outline'"
+              @click="rosterEntryMode = 'program'"
+            >
+              <Users class="mr-2 h-4 w-4" />
+              From program roster
+            </Button>
+            <Button
+              type="button"
+              :variant="rosterEntryMode === 'upload' ? 'default' : 'outline'"
+              @click="rosterEntryMode = 'upload'"
+            >
+              <Upload class="mr-2 h-4 w-4" />
+              Upload roster
+            </Button>
           </div>
-          <div class="grid gap-2">
-            <label class="text-sm font-medium">Roster rows</label>
-            <Textarea
-              v-model="rosterCsv"
-              class="min-h-48 font-mono text-xs"
-              placeholder="firstName,lastName,email,phone,chapter,region,interestTags&#10;Amina,Otieno,amina@example.com,+254712000000,Nairobi,Kenya,&quot;STEM; Career readiness&quot;"
-            />
+
+          <div v-if="rosterEntryMode === 'program'" class="space-y-3">
+            <div class="flex flex-col gap-2 rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+              <span>{{ selectedProgramParticipants.length }} selected from {{ availableProgramRosterParticipants.length }} available program employees.</span>
+              <Button type="button" variant="outline" size="sm" :disabled="programRosterLoading" @click="loadProgramRoster">
+                <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': programRosterLoading }" />
+                Refresh roster
+              </Button>
+            </div>
+
+            <Alert v-if="programRosterError" variant="destructive">
+              <AlertDescription>{{ programRosterError }}</AlertDescription>
+            </Alert>
+
+            <div v-if="programRosterLoading" class="space-y-2">
+              <Skeleton class="h-14 w-full" />
+              <Skeleton class="h-14 w-full" />
+            </div>
+
+            <div v-else-if="!availableProgramRosterParticipants.length" class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Every active program employee is already attached to this cohort, or no program employees have been enrolled yet.
+            </div>
+
+            <div v-else class="max-h-80 space-y-2 overflow-y-auto pr-1">
+              <div
+                v-for="participant in availableProgramRosterParticipants"
+                :key="participant.id"
+                class="flex items-start gap-3 rounded-lg border p-3"
+              >
+                <Checkbox
+                  :checked="selectedProgramParticipantIds.includes(participant.id)"
+                  @update:checked="value => toggleProgramParticipant(participant, value)"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="font-medium">{{ participant.profileName || participant.profileEmail || 'Program employee' }}</div>
+                  <div class="text-sm text-muted-foreground">{{ participant.profileEmail || participant.profileRole || '-' }}</div>
+                </div>
+                <Badge variant="outline">{{ statusLabel(participant.status) }}</Badge>
+              </div>
+            </div>
           </div>
-          <div class="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
-            {{ rosterPreviewRows.length }} row{{ rosterPreviewRows.length === 1 ? '' : 's' }} ready for upload.
+
+          <div v-else class="space-y-4">
+            <div class="flex flex-col gap-2 rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+              <span>Use the template for name, contact, chapter, region, and interest tags.</span>
+              <Button type="button" variant="outline" size="sm" @click="downloadRosterTemplate">
+                <Upload class="mr-2 h-4 w-4" />
+                Download Excel template
+              </Button>
+            </div>
+            <div class="grid gap-2">
+              <label class="text-sm font-medium">CSV or Excel file</label>
+              <Input type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" :disabled="isSaving" @change="handleRosterFileUpload" />
+            </div>
+            <div class="grid gap-2">
+              <label class="text-sm font-medium">Roster rows</label>
+              <Textarea
+                v-model="rosterCsv"
+                class="min-h-48 font-mono text-xs"
+                placeholder="firstName,lastName,email,phone,chapter,region,interestTags&#10;Amina,Otieno,amina@example.com,+254712000000,Nairobi,Kenya,&quot;STEM; Career readiness&quot;"
+              />
+            </div>
+            <div class="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
+              {{ rosterPreviewRows.length }} row{{ rosterPreviewRows.length === 1 ? '' : 's' }} ready for upload.
+            </div>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" :disabled="isSaving" @click="closeRosterDialog">
             Cancel
           </Button>
-          <Button :disabled="isSaving || !rosterPreviewRows.length" @click="submitRosterParticipants">
+          <Button
+            v-if="rosterEntryMode === 'program'"
+            :disabled="isSaving || !selectedProgramParticipants.length"
+            @click="submitProgramRosterParticipants"
+          >
+            <UserPlus class="mr-2 h-4 w-4" :class="{ 'animate-spin': isSaving }" />
+            Add selected
+          </Button>
+          <Button v-else :disabled="isSaving || !rosterPreviewRows.length" @click="submitRosterParticipants">
             <Upload class="mr-2 h-4 w-4" :class="{ 'animate-spin': isSaving }" />
             Upload roster
           </Button>
