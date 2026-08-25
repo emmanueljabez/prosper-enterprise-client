@@ -8,6 +8,7 @@ import {
   CreditCard,
   CalendarCheck2,
   BookOpen,
+  CircleDot,
   GitBranch,
   Route,
 } from 'lucide-vue-next'
@@ -33,6 +34,12 @@ export const corporateAdminNavigation: NavigationItem[] = [
         icon: BookOpen,
         url: '/app/admin/programs',
         permission: 'admin:programs',
+      },
+      {
+        title: 'Cohorts',
+        icon: CircleDot,
+        url: '/app/admin/cohorts',
+        permission: 'admin:program-cohorts',
       },
       {
         title: 'Billing',

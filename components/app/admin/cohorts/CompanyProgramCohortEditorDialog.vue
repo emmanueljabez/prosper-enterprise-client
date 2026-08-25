@@ -35,13 +35,22 @@ type CohortFormModel = {
   matchingStartsAfterCirclesFinalized: boolean
 }
 
+type CohortProgramOption = {
+  id: string
+  name: string
+  status?: string | null
+}
+
 const props = withDefaults(defineProps<{
   open: boolean
-  programId: string
+  programId?: string
   companyId?: string
+  programOptions?: CohortProgramOption[]
   cohort?: CompanyProgramCohortRecord | null
 }>(), {
+  programId: '',
   companyId: '',
+  programOptions: () => [],
   cohort: null,
 })
 
@@ -67,6 +76,7 @@ const CURRENT_REGION = '__CURRENT_REGION__'
 const CURRENT_CHAPTER = '__CURRENT_CHAPTER__'
 const selectedRegionId = ref(NO_REGION)
 const selectedChapterId = ref(NO_CHAPTER)
+const selectedProgramId = ref('')
 
 const form = reactive<CohortFormModel>({
   name: '',
@@ -89,6 +99,11 @@ const form = reactive<CohortFormModel>({
 const isEditing = computed(() => Boolean(props.cohort?.id))
 const title = computed(() => isEditing.value ? 'Edit cohort' : 'Create cohort')
 const submitLabel = computed(() => isEditing.value ? 'Save cohort' : 'Create cohort')
+const effectiveProgramId = computed(() =>
+  isEditing.value
+    ? props.cohort?.companyProgramId || props.programId || ''
+    : selectedProgramId.value || props.programId || '',
+)
 const dialogOpen = computed({
   get: () => props.open,
   set: value => emit('update:open', value),
@@ -209,11 +224,13 @@ const resetForm = () => {
     form.plenaryEventType = props.cohort.plenaryEventType || 'NONE'
     form.plenaryEventId = props.cohort.plenaryEventId || ''
     form.matchingStartsAfterCirclesFinalized = props.cohort.matchingStartsAfterCirclesFinalized !== false
+    selectedProgramId.value = props.cohort.companyProgramId || props.programId || ''
     syncRegionSelectionFromValue()
     syncChapterSelectionFromValue()
     return
   }
 
+  selectedProgramId.value = props.programId || props.programOptions[0]?.id || ''
   form.name = ''
   form.code = ''
   form.chapter = ''
@@ -277,7 +294,7 @@ const buildPayload = (): CreateCompanyProgramCohortPayload | UpdateCompanyProgra
 })
 
 const submit = async () => {
-  if (!props.programId) {
+  if (!effectiveProgramId.value) {
     toast.error('Program context is missing')
     return
   }
@@ -298,7 +315,7 @@ const submit = async () => {
     const payload = buildPayload()
     const savedCohort = isEditing.value && props.cohort?.id
       ? await cohortsStore.updateCohort(props.cohort.id, payload)
-      : await cohortsStore.createCohort(props.programId, payload as CreateCompanyProgramCohortPayload)
+      : await cohortsStore.createCohort(effectiveProgramId.value, payload as CreateCompanyProgramCohortPayload)
 
     toast.success(isEditing.value ? 'Cohort updated.' : 'Cohort created.')
     if (isEditing.value) {
@@ -316,6 +333,12 @@ watch(() => props.open, isOpen => {
   if (isOpen) {
     resetForm()
     loadLocationCatalog()
+  }
+})
+
+watch(() => props.programId, () => {
+  if (props.open && !isEditing.value) {
+    selectedProgramId.value = props.programId || props.programOptions[0]?.id || ''
   }
 })
 
@@ -371,6 +394,20 @@ watch([activeRegions, activeChapters], () => {
 
       <div class="max-h-[70vh] space-y-5 overflow-y-auto pr-1">
         <div class="grid gap-4 md:grid-cols-2">
+          <div v-if="!isEditing && programOptions.length" class="grid gap-2 md:col-span-2">
+            <label class="text-sm font-medium">Program</label>
+            <Select v-model="selectedProgramId">
+              <SelectTrigger>
+                <SelectValue placeholder="Select company program" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="program in programOptions" :key="program.id" :value="program.id">
+                  {{ program.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div class="grid gap-2">
             <label class="text-sm font-medium">Cohort name</label>
             <Input v-model="form.name" placeholder="G4G Nairobi - Q3 2026" />

@@ -10,14 +10,14 @@ const coreSection = source.match(/title:\s*'Core'[\s\S]*?children:\s*\[([\s\S]*?
 const administrationSection = source.match(/title:\s*'Administration'[\s\S]*?children:\s*\[([\s\S]*?)\n\s*\],\n\s*\}/)?.[1] || ''
 
 const coreTitles = [...coreSection.matchAll(/title:\s*'([^']+)'/g)].map(match => match[1])
-const expectedCoreStart = ['Dashboard', 'Mentees', 'Programs', 'Billing', 'Mentors', 'Sessions']
+const expectedCoreStart = ['Dashboard', 'Mentees', 'Programs', 'Cohorts', 'Billing', 'Mentors', 'Sessions']
 assert.deepEqual(
   coreTitles.slice(0, expectedCoreStart.length),
   expectedCoreStart,
-  'Corporate admin Core menu should start Dashboard, Mentees, Programs, Billing, Mentors, Sessions.',
+  'Corporate admin Core menu should start Dashboard, Mentees, Programs, Cohorts, Billing, Mentors, Sessions.',
 )
 
-const expectedCoreOrder = ['Dashboard', 'Mentees', 'Programs', 'Billing', 'Mentors', 'Sessions']
+const expectedCoreOrder = ['Dashboard', 'Mentees', 'Programs', 'Cohorts', 'Billing', 'Mentors', 'Sessions']
 const corePositions = expectedCoreOrder.map(title => {
   const index = coreSection.indexOf(`title: '${title}'`)
   assert.notEqual(index, -1, `Corporate admin Core menu should include ${title}.`)
@@ -40,6 +40,12 @@ assert.match(
   coreSection,
   /title:\s*'Programs'[\s\S]*?url:\s*'\/app\/admin\/programs'[\s\S]*?permission:\s*'admin:programs'/,
   'Programs should preserve the company programs route and permission.',
+)
+
+assert.match(
+  coreSection,
+  /title:\s*'Cohorts'[\s\S]*?url:\s*'\/app\/admin\/cohorts'[\s\S]*?permission:\s*'admin:program-cohorts'/,
+  'Cohorts should expose the standalone cohort route and permission.',
 )
 
 assert.match(

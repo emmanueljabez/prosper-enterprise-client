@@ -8,7 +8,6 @@ import { useCompanyProgramCohortsStore } from '@/store/modules/company-program-c
 import { useCompanyProgramsStore } from '@/store/modules/company-programs'
 import type { CompanyProgramParticipantStatus, CompanyProgramStatus } from '@/http/requests/app/companyPrograms'
 import { useAppToast } from '@/composables/services/toastService'
-import CompanyProgramCohortList from '@/components/app/admin/cohorts/CompanyProgramCohortList.vue'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -295,9 +294,20 @@ const loadMentorCandidates = async () => {
   }
 }
 
+const loadProgramCohorts = async () => {
+  if (!programId.value) return
+
+  try {
+    await companyProgramCohortsStore.loadCohorts(programId.value)
+  } catch (error: any) {
+    toast.error(error?.response?.data?.message || error?.message || 'Failed to load program cohorts')
+  }
+}
+
 const refreshWorkspace = async () => {
   await Promise.all([
     loadProgramDetail(),
+    loadProgramCohorts(),
     loadEmployees(),
     loadParticipants(),
     loadMentorCandidates(),
@@ -428,6 +438,10 @@ const saveJourneyTemplate = async () => {
 const openEditProgramPage = () => {
   if (!programId.value) return
   navigateTo(`/app/admin/programs/${programId.value}/edit`)
+}
+
+const openProgramCohorts = () => {
+  navigateTo(`/app/admin/cohorts?programId=${programId.value}`)
 }
 
 watch(companyId, async value => {
@@ -857,7 +871,33 @@ watch(showEnrollEmployeesDialog, isOpen => {
         </TabsContent>
 
         <TabsContent value="cohorts" class="space-y-4">
-          <CompanyProgramCohortList :program-id="programId" :company-id="companyId" />
+          <Card>
+            <CardHeader>
+              <CardTitle>Cohorts</CardTitle>
+              <CardDescription>
+                Cohort operations now live in the standalone Cohorts workspace.
+              </CardDescription>
+            </CardHeader>
+            <CardContent class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div class="grid gap-3 text-sm sm:grid-cols-3">
+                <div class="program-detail">
+                  <span>Cohorts</span>
+                  <strong>{{ cohortTabCount }}</strong>
+                </div>
+                <div class="program-detail">
+                  <span>Participants</span>
+                  <strong>{{ participantsPagination.totalItems || participants.length }}</strong>
+                </div>
+                <div class="program-detail">
+                  <span>Status</span>
+                  <strong>{{ selectedProgram?.status || 'Unknown' }}</strong>
+                </div>
+              </div>
+              <Button @click="openProgramCohorts">
+                Open cohorts
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="employees" class="space-y-4">
