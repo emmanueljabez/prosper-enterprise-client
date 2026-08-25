@@ -13,6 +13,7 @@ import CompanyProgramCohortEditorDialog from './CompanyProgramCohortEditorDialog
 
 const props = defineProps<{
   programId: string
+  companyId?: string
 }>()
 
 const cohortsStore = useCompanyProgramCohortsStore()
@@ -224,6 +225,7 @@ watch(() => props.programId, async programId => {
     <CompanyProgramCohortEditorDialog
       v-model:open="showCreateDialog"
       :program-id="programId"
+      :company-id="companyId"
       @created="loadCohorts"
     />
   </section>

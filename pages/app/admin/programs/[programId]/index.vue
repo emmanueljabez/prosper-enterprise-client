@@ -857,7 +857,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
         </TabsContent>
 
         <TabsContent value="cohorts" class="space-y-4">
-          <CompanyProgramCohortList :program-id="programId" />
+          <CompanyProgramCohortList :program-id="programId" :company-id="companyId" />
         </TabsContent>
 
         <TabsContent value="employees" class="space-y-4">

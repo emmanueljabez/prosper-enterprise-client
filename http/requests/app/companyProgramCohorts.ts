@@ -100,6 +100,7 @@ export interface CohortSelfJoinRecord {
   joinRequestId?: string | null
   cohortId: string
   companyProgramId?: string | null
+  companyId?: string | null
   companyProgramName?: string | null
   companyName?: string | null
   cohortName: string

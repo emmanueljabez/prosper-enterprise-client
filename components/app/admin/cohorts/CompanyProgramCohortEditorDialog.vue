@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useCompanyProgramCohortsStore } from '@/store/modules/company-program-cohorts'
+import { useCompanyLocationCatalogStore } from '@/store/modules/company-location-catalog'
 import type {
   CompanyProgramCohortRecord,
   CreateCompanyProgramCohortPayload,
@@ -36,8 +38,10 @@ type CohortFormModel = {
 const props = withDefaults(defineProps<{
   open: boolean
   programId: string
+  companyId?: string
   cohort?: CompanyProgramCohortRecord | null
 }>(), {
+  companyId: '',
   cohort: null,
 })
 
@@ -48,7 +52,21 @@ const emit = defineEmits<{
 }>()
 
 const cohortsStore = useCompanyProgramCohortsStore()
+const locationCatalogStore = useCompanyLocationCatalogStore()
+const {
+  activeRegions,
+  activeChapters,
+  regionsLoading,
+  chaptersLoading,
+} = storeToRefs(locationCatalogStore)
 const toast = useAppToast()
+
+const NO_REGION = '__NO_REGION__'
+const NO_CHAPTER = '__NO_CHAPTER__'
+const CURRENT_REGION = '__CURRENT_REGION__'
+const CURRENT_CHAPTER = '__CURRENT_CHAPTER__'
+const selectedRegionId = ref(NO_REGION)
+const selectedChapterId = ref(NO_CHAPTER)
 
 const form = reactive<CohortFormModel>({
   name: '',
@@ -96,6 +114,76 @@ const splitTags = (value: string) =>
     .map(tag => tag.trim())
     .filter(Boolean)
 
+const normalizeCatalogName = (value?: string | null) => String(value || '').trim().toLowerCase()
+
+const selectedRegionRecord = computed(() =>
+  activeRegions.value.find(region => region.id === selectedRegionId.value) || null,
+)
+
+const regionOptions = computed(() => {
+  const currentRegion = form.region.trim()
+  const hasCurrentRegion = currentRegion
+    ? activeRegions.value.some(region => normalizeCatalogName(region.name) === normalizeCatalogName(currentRegion))
+    : true
+
+  return hasCurrentRegion
+    ? activeRegions.value
+    : [{
+        id: CURRENT_REGION,
+        companyId: props.companyId || '',
+        name: currentRegion,
+        code: null,
+        description: null,
+        isActive: true,
+        status: 'ACTIVE',
+      }, ...activeRegions.value]
+})
+
+const filteredChapterOptions = computed(() => {
+  const selectedRegionName = selectedRegionRecord.value?.name || (selectedRegionId.value === CURRENT_REGION ? form.region : '')
+  const chapters = selectedRegionId.value === NO_REGION
+    ? activeChapters.value
+    : activeChapters.value.filter(chapter =>
+        chapter.regionId === selectedRegionId.value
+        || normalizeCatalogName(chapter.regionName) === normalizeCatalogName(selectedRegionName),
+      )
+
+  const currentChapter = form.chapter.trim()
+  const hasCurrentChapter = currentChapter
+    ? chapters.some(chapter => normalizeCatalogName(chapter.name) === normalizeCatalogName(currentChapter))
+    : true
+
+  return hasCurrentChapter
+    ? chapters
+    : [{
+        id: CURRENT_CHAPTER,
+        companyId: props.companyId || '',
+        name: currentChapter,
+        code: null,
+        description: null,
+        regionId: selectedRegionId.value === NO_REGION ? null : selectedRegionId.value,
+        regionName: form.region || null,
+        isActive: true,
+        status: 'ACTIVE',
+      }, ...chapters]
+})
+
+const syncRegionSelectionFromValue = () => {
+  const currentRegion = form.region.trim()
+  const match = activeRegions.value.find(region =>
+    normalizeCatalogName(region.name) === normalizeCatalogName(currentRegion),
+  )
+  selectedRegionId.value = match?.id || (currentRegion ? CURRENT_REGION : NO_REGION)
+}
+
+const syncChapterSelectionFromValue = () => {
+  const currentChapter = form.chapter.trim()
+  const match = filteredChapterOptions.value.find(chapter =>
+    normalizeCatalogName(chapter.name) === normalizeCatalogName(currentChapter),
+  )
+  selectedChapterId.value = match?.id || (currentChapter ? CURRENT_CHAPTER : NO_CHAPTER)
+}
+
 const generateCode = (name: string) =>
   name
     .trim()
@@ -121,6 +209,8 @@ const resetForm = () => {
     form.plenaryEventType = props.cohort.plenaryEventType || 'NONE'
     form.plenaryEventId = props.cohort.plenaryEventId || ''
     form.matchingStartsAfterCirclesFinalized = props.cohort.matchingStartsAfterCirclesFinalized !== false
+    syncRegionSelectionFromValue()
+    syncChapterSelectionFromValue()
     return
   }
 
@@ -139,6 +229,33 @@ const resetForm = () => {
   form.plenaryEventType = 'NONE'
   form.plenaryEventId = ''
   form.matchingStartsAfterCirclesFinalized = true
+  selectedRegionId.value = NO_REGION
+  selectedChapterId.value = NO_CHAPTER
+}
+
+const loadLocationCatalog = async () => {
+  if (!props.companyId) return
+
+  try {
+    await Promise.all([
+      locationCatalogStore.loadRegions({
+        companyId: props.companyId,
+        page: 0,
+        size: 100,
+        search: '',
+      }),
+      locationCatalogStore.loadChapters({
+        companyId: props.companyId,
+        page: 0,
+        size: 100,
+        search: '',
+      }),
+    ])
+    syncRegionSelectionFromValue()
+    syncChapterSelectionFromValue()
+  } catch (catalogError: any) {
+    toast.error(catalogError?.response?.data?.message || catalogError?.message || 'Failed to load regions and chapters')
+  }
 }
 
 const buildPayload = (): CreateCompanyProgramCohortPayload | UpdateCompanyProgramCohortPayload => ({
@@ -198,12 +315,46 @@ const submit = async () => {
 watch(() => props.open, isOpen => {
   if (isOpen) {
     resetForm()
+    loadLocationCatalog()
   }
 })
 
 watch(() => props.cohort, () => {
   if (props.open) {
     resetForm()
+  }
+})
+
+watch(selectedRegionId, value => {
+  if (value === NO_REGION) {
+    form.region = ''
+  } else if (value === CURRENT_REGION) {
+    form.region = form.region.trim()
+  } else {
+    form.region = activeRegions.value.find(region => region.id === value)?.name || ''
+  }
+
+  const selectedChapter = filteredChapterOptions.value.find(chapter => chapter.id === selectedChapterId.value)
+  if (selectedChapterId.value !== NO_CHAPTER && !selectedChapter) {
+    selectedChapterId.value = NO_CHAPTER
+    form.chapter = ''
+  }
+})
+
+watch(selectedChapterId, value => {
+  if (value === NO_CHAPTER) {
+    form.chapter = ''
+  } else if (value === CURRENT_CHAPTER) {
+    form.chapter = form.chapter.trim()
+  } else {
+    form.chapter = filteredChapterOptions.value.find(chapter => chapter.id === value)?.name || ''
+  }
+})
+
+watch([activeRegions, activeChapters], () => {
+  if (props.open) {
+    syncRegionSelectionFromValue()
+    syncChapterSelectionFromValue()
   }
 })
 </script>
@@ -231,13 +382,33 @@ watch(() => props.cohort, () => {
           </div>
 
           <div class="grid gap-2">
-            <label class="text-sm font-medium">Chapter</label>
-            <Input v-model="form.chapter" placeholder="Nairobi" />
+            <label class="text-sm font-medium">Region</label>
+            <Select v-model="selectedRegionId" :disabled="regionsLoading || !companyId">
+              <SelectTrigger>
+                <SelectValue :placeholder="regionsLoading ? 'Loading regions...' : 'Select region'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="NO_REGION">No region</SelectItem>
+                <SelectItem v-for="region in regionOptions" :key="region.id" :value="region.id">
+                  {{ region.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div class="grid gap-2">
-            <label class="text-sm font-medium">Region</label>
-            <Input v-model="form.region" placeholder="Kenya" />
+            <label class="text-sm font-medium">Chapter</label>
+            <Select v-model="selectedChapterId" :disabled="chaptersLoading || !companyId">
+              <SelectTrigger>
+                <SelectValue :placeholder="chaptersLoading ? 'Loading chapters...' : 'Select chapter'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="NO_CHAPTER">No chapter</SelectItem>
+                <SelectItem v-for="chapter in filteredChapterOptions" :key="chapter.id" :value="chapter.id">
+                  {{ chapter.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div class="grid gap-2">
