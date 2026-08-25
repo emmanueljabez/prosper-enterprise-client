@@ -12,20 +12,18 @@ import CompanyProgramCohortEditorDialog from '@/components/app/admin/cohorts/Com
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
+import { Card, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import { Input } from '~/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Skeleton } from '~/components/ui/skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~/components/ui/table'
 import {
-  CalendarRange,
   CircleDot,
   Filter,
   GitBranch,
   RefreshCw,
   Search,
-  Ticket,
   UserPlus,
-  Users,
 } from 'lucide-vue-next'
 
 definePageMeta({
@@ -422,9 +420,37 @@ watch(() => companyId.value, value => {
       </div>
     </div>
 
-    <div v-if="isLoading && !cohorts.length" class="grid gap-4 lg:grid-cols-2">
-      <Skeleton class="h-48 w-full" />
-      <Skeleton class="h-48 w-full" />
+    <div v-if="isLoading && !cohorts.length" class="overflow-hidden rounded-lg border bg-background">
+      <div class="overflow-x-auto">
+        <Table class="min-w-[1120px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Cohort</TableHead>
+              <TableHead>Program</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Schedule</TableHead>
+              <TableHead>Participants</TableHead>
+              <TableHead>Circles</TableHead>
+              <TableHead>Intake</TableHead>
+              <TableHead class="text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="index in 5" :key="index">
+              <TableCell><Skeleton class="h-12 w-full" /></TableCell>
+              <TableCell><Skeleton class="h-5 w-36" /></TableCell>
+              <TableCell><Skeleton class="h-5 w-32" /></TableCell>
+              <TableCell><Skeleton class="h-6 w-24" /></TableCell>
+              <TableCell><Skeleton class="h-5 w-40" /></TableCell>
+              <TableCell><Skeleton class="h-10 w-32" /></TableCell>
+              <TableCell><Skeleton class="h-10 w-28" /></TableCell>
+              <TableCell><Skeleton class="h-6 w-28" /></TableCell>
+              <TableCell class="text-right"><Skeleton class="ml-auto h-8 w-20" /></TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
     </div>
 
     <div v-else-if="!visibleCohorts.length" class="rounded-lg border border-dashed p-10 text-center">
@@ -439,78 +465,87 @@ watch(() => companyId.value, value => {
       </Button>
     </div>
 
-    <div v-else class="grid gap-4 lg:grid-cols-2">
-      <Card
-        v-for="cohort in visibleCohorts"
-        :key="cohort.id"
-        class="cohort-card cursor-pointer transition hover:border-primary/50 hover:shadow-sm"
-        role="button"
-        tabindex="0"
-        @click="openCohort(cohort)"
-        @keydown.enter.prevent="openCohort(cohort)"
-        @keydown.space.prevent="openCohort(cohort)"
-      >
-        <CardHeader class="space-y-3">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div class="min-w-0">
-              <CardTitle class="text-base">{{ cohort.name }}</CardTitle>
-              <CardDescription class="mt-1 flex flex-wrap items-center gap-2">
-                <span>{{ cohort.companyProgramName || 'Program not set' }}</span>
-                <span>|</span>
-                <span>{{ cohortLocation(cohort) }}</span>
-              </CardDescription>
-            </div>
-            <Badge :variant="statusTone(cohort.status)" class="w-fit">{{ statusLabel(cohort.status) }}</Badge>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <Badge variant="outline">
-              <Ticket class="mr-1 h-3 w-3" />
-              {{ cohort.code }}
-            </Badge>
-            <Badge v-if="cohort.selfJoinEnabled" variant="secondary">Self-join enabled</Badge>
-            <Badge v-else variant="outline">Admin intake</Badge>
-          </div>
-        </CardHeader>
-
-        <CardContent class="space-y-4">
-          <div class="grid gap-3 text-sm sm:grid-cols-3">
-            <div class="cohort-fact">
-              <Users class="h-4 w-4 text-muted-foreground" />
-              <span>{{ cohort.participantCount || 0 }} participants</span>
-            </div>
-            <div class="cohort-fact">
-              <CircleDot class="h-4 w-4 text-muted-foreground" />
-              <span>{{ cohort.circleCount || 0 }} circles</span>
-            </div>
-            <div class="cohort-fact">
-              <CalendarRange class="h-4 w-4 text-muted-foreground" />
-              <span>{{ formatDateRange(cohort.startsAt, cohort.endsAt) }}</span>
-            </div>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <span
-              v-for="tag in visibleInterestTags(cohort)"
-              :key="tag"
-              class="cohort-tag"
+    <div v-else class="overflow-hidden rounded-lg border bg-background">
+      <div class="overflow-x-auto">
+        <Table class="min-w-[1120px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Cohort</TableHead>
+              <TableHead>Program</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Schedule</TableHead>
+              <TableHead>Participants</TableHead>
+              <TableHead>Circles</TableHead>
+              <TableHead>Intake</TableHead>
+              <TableHead class="text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow
+              v-for="cohort in visibleCohorts"
+              :key="cohort.id"
+              class="cohort-table-row cursor-pointer"
+              role="button"
+              tabindex="0"
+              @click="openCohort(cohort)"
+              @keydown.enter.prevent="openCohort(cohort)"
+              @keydown.space.prevent="openCohort(cohort)"
             >
-              {{ tag }}
-            </span>
-            <span v-if="hiddenInterestTagCount(cohort)" class="cohort-tag">+{{ hiddenInterestTagCount(cohort) }}</span>
-          </div>
-
-          <div class="flex items-center justify-between border-t pt-3 text-sm">
-            <span class="text-muted-foreground">
-              {{ cohort.unplacedCount || 0 }} unplaced | {{ cohort.matchedCount || 0 }} matched
-            </span>
-            <span class="inline-flex items-center font-medium text-primary">
-              Open workspace
-              <GitBranch class="ml-1 h-4 w-4" />
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+              <TableCell class="min-w-[260px] align-top">
+                <div class="space-y-2">
+                  <div class="font-medium text-foreground">{{ cohort.name }}</div>
+                  <div class="flex flex-wrap gap-2">
+                    <Badge variant="outline" class="font-mono text-[11px]">{{ cohort.code }}</Badge>
+                    <span
+                      v-for="tag in visibleInterestTags(cohort)"
+                      :key="tag"
+                      class="cohort-tag"
+                    >
+                      {{ tag }}
+                    </span>
+                    <span v-if="hiddenInterestTagCount(cohort)" class="cohort-tag">+{{ hiddenInterestTagCount(cohort) }}</span>
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell class="min-w-[180px] align-top">
+                {{ cohort.companyProgramName || 'Program not set' }}
+              </TableCell>
+              <TableCell class="min-w-[170px] align-top text-muted-foreground">
+                {{ cohortLocation(cohort) }}
+              </TableCell>
+              <TableCell class="align-top">
+                <Badge :variant="statusTone(cohort.status)" class="w-fit">{{ statusLabel(cohort.status) }}</Badge>
+              </TableCell>
+              <TableCell class="min-w-[160px] align-top text-muted-foreground">
+                {{ formatDateRange(cohort.startsAt, cohort.endsAt) }}
+              </TableCell>
+              <TableCell class="min-w-[150px] align-top">
+                <div class="font-medium">{{ cohort.participantCount || 0 }} participants</div>
+                <div class="text-xs text-muted-foreground">
+                  {{ cohort.unplacedCount || 0 }} unplaced | {{ cohort.matchedCount || 0 }} matched
+                </div>
+              </TableCell>
+              <TableCell class="min-w-[130px] align-top">
+                <div class="font-medium">{{ cohort.circleCount || 0 }} circles</div>
+                <div class="text-xs text-muted-foreground">
+                  {{ cohort.circleMinSize || 5 }}-{{ cohort.circleMaxSize || 10 }} per circle
+                </div>
+              </TableCell>
+              <TableCell class="align-top">
+                <Badge v-if="cohort.selfJoinEnabled" variant="secondary">Self-join</Badge>
+                <Badge v-else variant="outline">Admin</Badge>
+              </TableCell>
+              <TableCell class="text-right align-top">
+                <Button size="sm" variant="outline" @click.stop="openCohort(cohort)">
+                  Open
+                  <GitBranch class="h-4 w-4" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
     </div>
 
     <CompanyProgramCohortEditorDialog
@@ -524,16 +559,12 @@ watch(() => companyId.value, value => {
 </template>
 
 <style scoped>
-.cohort-card {
-  border-radius: 8px;
+.cohort-table-row {
+  transition: background-color 120ms ease, box-shadow 120ms ease;
 }
 
-.cohort-fact {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  color: #3f3a3f;
+.cohort-table-row:hover {
+  background: #faf7fb;
 }
 
 .cohort-tag {
