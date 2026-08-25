@@ -18,6 +18,8 @@ import { Badge } from '~/components/ui/badge'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Skeleton } from '~/components/ui/skeleton'
 import DepartmentsSettingsTab from '~/components/app/admin/settings/DepartmentsSettingsTab.vue'
+import RegionsSettingsTab from '~/components/app/admin/settings/RegionsSettingsTab.vue'
+import ChaptersSettingsTab from '~/components/app/admin/settings/ChaptersSettingsTab.vue'
 import {
   AlertCircle,
   Settings,
@@ -31,7 +33,9 @@ import {
   Plus,
   RefreshCw,
   FileText,
-  Users
+  Users,
+  MapPin,
+  GitBranch,
 } from 'lucide-vue-next'
 import { useAppToast } from '~/composables/services/toastService'
 
@@ -42,7 +46,7 @@ definePageMeta({
   permissions: ['admin:settings']
 })
 
-type SettingsTab = 'company' | 'branding' | 'program' | 'departments' | 'subscription' | 'billing'
+type SettingsTab = 'company' | 'branding' | 'program' | 'departments' | 'regions' | 'chapters' | 'subscription' | 'billing'
 
 const DEFAULT_PRIMARY_COLOR = '#a03b93'
 const DEFAULT_SECONDARY_COLOR = '#d9a8d3'
@@ -73,6 +77,8 @@ const resolveSettingsTab = (value?: unknown): SettingsTab => {
     case 'program':
     case 'subscription':
     case 'departments':
+    case 'regions':
+    case 'chapters':
     case 'billing':
       return normalized
     default:
@@ -745,6 +751,28 @@ onMounted(async () => {
             <Users class="h-4 w-4" /> Departments
           </button>
           <button
+            @click="activeTab = 'regions'"
+            :class="[
+              'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
+              activeTab === 'regions'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            ]"
+          >
+            <MapPin class="h-4 w-4" /> Regions
+          </button>
+          <button
+            @click="activeTab = 'chapters'"
+            :class="[
+              'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
+              activeTab === 'chapters'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            ]"
+          >
+            <GitBranch class="h-4 w-4" /> Chapters
+          </button>
+          <button
             @click="activeTab = 'subscription'"
             :class="[
               'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
@@ -1034,6 +1062,22 @@ onMounted(async () => {
     <!-- Departments Tab -->
     <div v-show="activeTab === 'departments'" class="space-y-6">
       <DepartmentsSettingsTab
+        :company-id="companyContext.companyId"
+        :can-manage="companyContext.isCorporateAdmin"
+      />
+    </div>
+
+    <!-- Regions Tab -->
+    <div v-show="activeTab === 'regions'" class="space-y-6">
+      <RegionsSettingsTab
+        :company-id="companyContext.companyId"
+        :can-manage="companyContext.isCorporateAdmin"
+      />
+    </div>
+
+    <!-- Chapters Tab -->
+    <div v-show="activeTab === 'chapters'" class="space-y-6">
+      <ChaptersSettingsTab
         :company-id="companyContext.companyId"
         :can-manage="companyContext.isCorporateAdmin"
       />

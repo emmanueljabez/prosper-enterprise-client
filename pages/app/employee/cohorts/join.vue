@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useCompanyProgramCohortsStore } from '@/store/modules/company-program-cohorts'
+import { useCompanyLocationCatalogStore } from '@/store/modules/company-location-catalog'
 import { useAppToast } from '@/composables/services/toastService'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import { Input } from '~/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Skeleton } from '~/components/ui/skeleton'
 import { Textarea } from '~/components/ui/textarea'
 import { ArrowLeft, CheckCircle2, Link, RefreshCw } from 'lucide-vue-next'
@@ -22,10 +24,23 @@ definePageMeta({
 
 const route = useRoute()
 const cohortsStore = useCompanyProgramCohortsStore()
+const locationCatalogStore = useCompanyLocationCatalogStore()
 const toast = useAppToast()
 const { joinPreview, isLoading, isSaving, error } = storeToRefs(cohortsStore)
+const {
+  activeRegions,
+  activeChapters,
+  regionsLoading,
+  chaptersLoading,
+} = storeToRefs(locationCatalogStore)
 const joinCode = ref(String(route.query.code || ''))
 const submitted = ref(false)
+const NO_REGION = '__NO_REGION__'
+const NO_CHAPTER = '__NO_CHAPTER__'
+const CURRENT_REGION = '__CURRENT_REGION__'
+const CURRENT_CHAPTER = '__CURRENT_CHAPTER__'
+const selectedRegionId = ref(NO_REGION)
+const selectedChapterId = ref(NO_CHAPTER)
 const joinForm = reactive({
   email: '',
   phone: '',
@@ -42,6 +57,113 @@ const splitTags = (value: string) =>
     .map(tag => tag.trim())
     .filter(Boolean)
 
+const normalizeCatalogName = (value?: string | null) => String(value || '').trim().toLowerCase()
+
+const selectedRegionRecord = computed(() =>
+  activeRegions.value.find(region => region.id === selectedRegionId.value) || null,
+)
+
+const regionOptions = computed(() => {
+  const currentRegion = joinForm.region.trim() || String(joinPreview.value?.region || '').trim()
+  const hasCurrentRegion = currentRegion
+    ? activeRegions.value.some(region => normalizeCatalogName(region.name) === normalizeCatalogName(currentRegion))
+    : true
+
+  return hasCurrentRegion
+    ? activeRegions.value
+    : [{
+        id: CURRENT_REGION,
+        companyId: joinPreview.value?.companyId || '',
+        name: currentRegion,
+        code: null,
+        description: null,
+        isActive: true,
+        status: 'ACTIVE',
+      }, ...activeRegions.value]
+})
+
+const filteredChapterOptions = computed(() => {
+  const selectedRegionName = selectedRegionRecord.value?.name || (selectedRegionId.value === CURRENT_REGION ? joinForm.region : '')
+  const chapters = selectedRegionId.value === NO_REGION
+    ? activeChapters.value
+    : activeChapters.value.filter(chapter =>
+        chapter.regionId === selectedRegionId.value
+        || normalizeCatalogName(chapter.regionName) === normalizeCatalogName(selectedRegionName),
+      )
+
+  const currentChapter = joinForm.chapter.trim() || String(joinPreview.value?.chapter || '').trim()
+  const hasCurrentChapter = currentChapter
+    ? chapters.some(chapter => normalizeCatalogName(chapter.name) === normalizeCatalogName(currentChapter))
+    : true
+
+  return hasCurrentChapter
+    ? chapters
+    : [{
+        id: CURRENT_CHAPTER,
+        companyId: joinPreview.value?.companyId || '',
+        name: currentChapter,
+        code: null,
+        description: null,
+        regionId: selectedRegionId.value === NO_REGION ? null : selectedRegionId.value,
+        regionName: joinForm.region || null,
+        isActive: true,
+        status: 'ACTIVE',
+      }, ...chapters]
+})
+
+const syncRegionSelectionFromValue = () => {
+  const currentRegion = joinForm.region.trim() || String(joinPreview.value?.region || '').trim()
+  if (!joinForm.region && currentRegion) {
+    joinForm.region = currentRegion
+  }
+
+  const match = activeRegions.value.find(region =>
+    normalizeCatalogName(region.name) === normalizeCatalogName(currentRegion),
+  )
+  selectedRegionId.value = match?.id || (currentRegion ? CURRENT_REGION : NO_REGION)
+}
+
+const syncChapterSelectionFromValue = () => {
+  const currentChapter = joinForm.chapter.trim() || String(joinPreview.value?.chapter || '').trim()
+  if (!joinForm.chapter && currentChapter) {
+    joinForm.chapter = currentChapter
+  }
+
+  const match = filteredChapterOptions.value.find(chapter =>
+    normalizeCatalogName(chapter.name) === normalizeCatalogName(currentChapter),
+  )
+  selectedChapterId.value = match?.id || (currentChapter ? CURRENT_CHAPTER : NO_CHAPTER)
+}
+
+const loadLocationCatalog = async (companyId?: string | null) => {
+  if (!companyId) {
+    selectedRegionId.value = NO_REGION
+    selectedChapterId.value = NO_CHAPTER
+    return
+  }
+
+  try {
+    await Promise.all([
+      locationCatalogStore.loadRegions({
+        companyId,
+        page: 0,
+        size: 100,
+        search: '',
+      }),
+      locationCatalogStore.loadChapters({
+        companyId,
+        page: 0,
+        size: 100,
+        search: '',
+      }),
+    ])
+    syncRegionSelectionFromValue()
+    syncChapterSelectionFromValue()
+  } catch (catalogError: any) {
+    toast.error(catalogError?.response?.data?.message || catalogError?.message || 'Failed to load regions and chapters')
+  }
+}
+
 const loadJoinPreview = async () => {
   const code = joinCode.value.trim()
   if (!code) {
@@ -50,7 +172,10 @@ const loadJoinPreview = async () => {
   }
 
   try {
-    await cohortsStore.loadJoinPreview(code)
+    const preview = await cohortsStore.loadJoinPreview(code)
+    joinForm.region = preview.region || ''
+    joinForm.chapter = preview.chapter || ''
+    await loadLocationCatalog(preview.companyId)
   } catch (previewError: any) {
     toast.error(previewError?.response?.data?.message || previewError?.message || 'Failed to load cohort preview')
   }
@@ -96,6 +221,43 @@ watch(() => route.query.code, value => {
     loadJoinPreview()
   }
 }, { immediate: true })
+
+watch(selectedRegionId, value => {
+  if (value === NO_REGION) {
+    joinForm.region = ''
+  } else if (value === CURRENT_REGION) {
+    joinForm.region = joinForm.region.trim()
+  } else {
+    joinForm.region = activeRegions.value.find(region => region.id === value)?.name || ''
+  }
+
+  const selectedChapter = filteredChapterOptions.value.find(chapter => chapter.id === selectedChapterId.value)
+  if (selectedChapterId.value !== NO_CHAPTER && !selectedChapter) {
+    selectedChapterId.value = NO_CHAPTER
+    joinForm.chapter = ''
+  }
+})
+
+watch(selectedChapterId, value => {
+  if (value === NO_CHAPTER) {
+    joinForm.chapter = ''
+  } else if (value === CURRENT_CHAPTER) {
+    joinForm.chapter = joinForm.chapter.trim()
+  } else {
+    const selectedChapter = filteredChapterOptions.value.find(chapter => chapter.id === value)
+    joinForm.chapter = selectedChapter?.name || ''
+    if (selectedChapter?.regionId && selectedRegionId.value === NO_REGION) {
+      selectedRegionId.value = selectedChapter.regionId
+    }
+  }
+})
+
+watch([activeRegions, activeChapters], () => {
+  if (joinPreview.value) {
+    syncRegionSelectionFromValue()
+    syncChapterSelectionFromValue()
+  }
+})
 </script>
 
 <template>
@@ -185,12 +347,32 @@ watch(() => route.query.code, value => {
               <Input v-model="joinForm.lastName" placeholder="Otieno" />
             </div>
             <div class="grid gap-2">
-              <label class="text-sm font-medium">Chapter</label>
-              <Input v-model="joinForm.chapter" placeholder="Nairobi" />
+              <label class="text-sm font-medium">Region</label>
+              <Select v-model="selectedRegionId" :disabled="regionsLoading || !joinPreview.companyId">
+                <SelectTrigger>
+                  <SelectValue :placeholder="regionsLoading ? 'Loading regions...' : 'Select region'" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem :value="NO_REGION">No region</SelectItem>
+                  <SelectItem v-for="region in regionOptions" :key="region.id" :value="region.id">
+                    {{ region.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div class="grid gap-2">
-              <label class="text-sm font-medium">Region</label>
-              <Input v-model="joinForm.region" placeholder="Kenya" />
+              <label class="text-sm font-medium">Chapter</label>
+              <Select v-model="selectedChapterId" :disabled="chaptersLoading || !joinPreview.companyId">
+                <SelectTrigger>
+                  <SelectValue :placeholder="chaptersLoading ? 'Loading chapters...' : 'Select chapter'" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem :value="NO_CHAPTER">No chapter</SelectItem>
+                  <SelectItem v-for="chapter in filteredChapterOptions" :key="chapter.id" :value="chapter.id">
+                    {{ chapter.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
