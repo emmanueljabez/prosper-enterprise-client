@@ -57,7 +57,18 @@ assert.match(listPageSource, /selectedRegionFilter/, 'Standalone cohort list sho
 assert.match(listPageSource, /selectedChapterFilter/, 'Standalone cohort list should support chapter filtering.')
 assert.match(listPageSource, /selectedStatusFilter/, 'Standalone cohort list should support status filtering.')
 assert.match(listPageSource, /CompanyProgramCohortEditorDialog/, 'Standalone cohort list should create cohorts from a dialog.')
-assert.match(listPageSource, /navigateTo\(`\/app\/admin\/cohorts\/\$\{cohort\.id\}`\)/, 'Standalone cohort cards should open the standalone workspace.')
+assert.match(
+  listPageSource,
+  /Table,\s*TableBody,\s*TableCell,\s*TableHead,\s*TableHeader,\s*TableRow/,
+  'Standalone cohort list should import shared table primitives.',
+)
+assert.match(
+  listPageSource,
+  /<Table[\s\S]*<TableHeader[\s\S]*<TableBody[\s\S]*v-for="cohort in visibleCohorts"/,
+  'Standalone cohort list should render cohorts as table rows.',
+)
+assert.match(listPageSource, /navigateTo\(`\/app\/admin\/cohorts\/\$\{cohort\.id\}`\)/, 'Standalone cohort rows should open the standalone workspace.')
+assert.doesNotMatch(listPageSource, /class="cohort-card/, 'Standalone cohort list should not use card grid items for the primary listing.')
 
 assert.match(workspacePageSource, /permissions:\s*\['admin:program-cohorts'\]/, 'Standalone cohort workspace should use the cohort permission.')
 assert.match(workspacePageSource, /const cohortId = computed\(\(\) => String\(route\.params\.cohortId \|\| ''\)\)/, 'Workspace should read cohortId from the standalone route.')
