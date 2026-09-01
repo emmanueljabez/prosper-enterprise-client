@@ -32,8 +32,8 @@ assert.match(
 
 assert.match(
   pricingPage,
-  /<Dialog\s+:open="contactDialogOpen"/,
-  'enterprise solution Contact Us should open an in-page dialog instead of replacing the page content',
+  /<Dialog\s+v-model:open="contactDialogOpen"/,
+  'enterprise solution Contact Us should use the shared dialog v-model binding so it can dismiss after submission',
 )
 
 assert.match(
