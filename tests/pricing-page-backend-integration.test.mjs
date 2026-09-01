@@ -6,14 +6,38 @@ import { dirname, join } from 'node:path'
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const pricingPage = readFileSync(join(repoRoot, 'pages/pricing.vue'), 'utf8')
 
-assert.match(
+assert.doesNotMatch(
   pricingPage,
-  /fetchPlansForAudience\('INDIVIDUAL'\)/,
-  'pricing page should fetch individual mentee package plans from the backend-backed subscriptions store',
+  /fetchPlansForAudience\('INDIVIDUAL'\)|fetchPlans\('CORPORATE'\)|formatPackagePrice|formatCurrencyLabel/,
+  'enterprise solutions pricing page should not expose package-price fetching or formatted plan figures',
 )
 
 assert.doesNotMatch(
   pricingPage,
-  /const\s+menteePlans\s*:\s*MenteePlan\[\]\s*=\s*\[/,
-  'pricing page should not define hardcoded mentee package cards',
+  /KES\s*[0-9{]|\$[0-9]|\/Month|\/Summit|\/Session|Per session/,
+  'enterprise solutions pricing page should not display fixed public pricing figures',
+)
+
+assert.match(
+  pricingPage,
+  /customersuccess@prospermentor\.com/,
+  'enterprise solution contact handoff should route enquiries to customer success',
+)
+
+assert.match(
+  pricingPage,
+  /mailto:\$\{CUSTOMER_SUCCESS_EMAIL\}/,
+  'enterprise solution contact handoff should prepare a customer-success email draft.',
+)
+
+assert.match(
+  pricingPage,
+  /contactDraftPrepared/,
+  'enterprise solution contact handoff should track the email draft state truthfully.',
+)
+
+assert.doesNotMatch(
+  pricingPage,
+  /contactSubmitted|will use this context/,
+  'enterprise solution contact handoff should not claim a lead was captured by the frontend.',
 )

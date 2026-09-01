@@ -6,24 +6,36 @@ const publicHeaderSource = readFileSync(new URL('../components/landing/PublicSit
 const pricingSource = readFileSync(new URL('../pages/pricing.vue', import.meta.url), 'utf8')
 const authMiddlewareSource = readFileSync(new URL('../middleware/auth.global.ts', import.meta.url), 'utf8')
 
+const countMatches = (source, pattern) => Array.from(source.matchAll(pattern)).length
+
 assert.match(
   `${landingSource}\n${publicHeaderSource}`,
   /go\('\/pricing'\)/,
   'Landing navigation should point to /pricing.',
 )
-assert.match(pricingSource, /fetchPlansForAudience\('INDIVIDUAL'\)/, 'Public pricing should load individual mentee package plans.')
-assert.match(pricingSource, /fetchPlans\('CORPORATE'\)/, 'Public pricing should also load corporate plans for the enterprise tab.')
-assert.match(pricingSource, /const corporatePlan = computed/, 'Public pricing should select a backend corporate enterprise plan.')
-assert.match(pricingSource, /activeTab = ref<PricingTab>\('mentee'\)/, 'Public pricing should default to the mentee package tab.')
-assert.match(pricingSource, />\s*Mentee\s*<\/button>[\s\S]*>\s*Enterprise\s*<\/button>/, 'Public pricing should render only Mentee and Enterprise tabs.')
-assert.doesNotMatch(pricingSource, /Mentor Plans|>\s*Mentor\s*<\/button>|audienceTabs|selectedAudience/, 'Public pricing should not render the removed mentor pricing tab.')
-assert.doesNotMatch(pricingSource, /useCompanySignupStore|savePendingSelection|const sessionCount = ref|Buy Sessions/, 'Public pricing should not collect or persist a pre-login session purchase.')
-assert.match(pricingSource, /Start Free Trial/, 'Public pricing should expose the free-trial CTA.')
-assert.match(pricingSource, /\/auth\/signup\?audience=mentee&trial=1&product=FREE_TRIAL/, 'Public pricing free-trial CTA should route into the free-trial signup flow.')
-assert.match(pricingSource, /Create Company Account/, 'Public pricing should invite new companies to create an account.')
-assert.match(pricingSource, /Per session/, 'Public pricing should still show the corporate per-session price model.')
-assert.match(pricingSource, /\/app\/admin\/billing/, 'Public pricing should route authenticated company admins to billing for optional purchases.')
-assert.doesNotMatch(pricingSource, /\/app\/admin\/activate/, 'Public pricing should not route admins into mandatory activation checkout.')
+assert.match(pricingSource, /import PublicSiteHeader/, 'Public pricing should keep the shared public header component.')
+assert.match(pricingSource, /import SocialFooter/, 'Public pricing should keep the shared footer component.')
+assert.match(pricingSource, /<PublicSiteHeader\s*\/>/, 'Public pricing should render the shared header.')
+assert.match(pricingSource, /<SocialFooter\s*\/>/, 'Public pricing should render the shared footer.')
+
+assert.match(pricingSource, /const deliveryModels: DeliveryModel\[] = \[/, 'Public pricing should define delivery models.')
+assert.equal(countMatches(pricingSource, /number:\s*'[123]'/g), 3, 'Public pricing should expose three delivery models.')
+assert.match(pricingSource, /v-for="model in deliveryModels"/, 'Public pricing should render the delivery models from data.')
+
+assert.match(pricingSource, /const solutionCards: SolutionCard\[] = \[/, 'Public pricing should define solution cards.')
+assert.equal(
+  countMatches(pricingSource, /id:\s*'(institutional|corporate|grant-funded)'/g),
+  3,
+  'Public pricing should expose institution, corporate, and donor-funded solution cards.',
+)
+assert.match(pricingSource, /v-for="card in solutionCards"/, 'Public pricing should render solution cards from data.')
+assert.match(pricingSource, /toggleInclusion/, 'Public pricing should support expandable inclusion rows.')
+assert.match(pricingSource, /includeInstitutionAssessment/, 'Public pricing should support the institutional assessment package toggle.')
+assert.match(pricingSource, /activeView === 'solutions'/, 'Public pricing should keep the solutions view as the default surface.')
+assert.match(pricingSource, /activeView\.value = 'contact'/, 'Public pricing should route solution CTAs into the contact view.')
+assert.match(pricingSource, /Contact Us/, 'Public pricing should label solution CTAs clearly.')
+assert.doesNotMatch(pricingSource, /mockup-banner|MOCKUP/, 'Public pricing should not render the mockup-only preview banner.')
+assert.doesNotMatch(pricingSource, />\s*Mentee\s*<\/button>|Start Free Trial|Buy Sessions/, 'Public pricing should no longer render the old mentee package tabs or purchase CTAs.')
 assert.match(authMiddlewareSource, /'\/pricing'/, 'The auth middleware should treat /pricing as public.')
 
 console.log('Public pricing route verified.')
