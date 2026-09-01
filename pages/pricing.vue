@@ -1,18 +1,24 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import {
-  ArrowLeft,
   Check,
   ChevronRight,
-  Mail,
+  Loader2,
   MessageCircle,
 } from 'lucide-vue-next'
 import PublicSiteHeader from '@/components/landing/PublicSiteHeader.vue'
 import SocialFooter from '@/components/landing/SocialFooter.vue'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { useB2BDemoRequestStore } from '@/store/modules/b2b-demo-requests'
 
 definePageMeta({ auth: false })
-
-type PageView = 'solutions' | 'contact'
 
 type DeliveryModel = {
   number: string
@@ -47,22 +53,27 @@ type ContactForm = {
   fullName: string
   workEmail: string
   organisation: string
+  phoneNumber: string
   partnershipType: string
+  cohortSize: string
+  timeline: string
   details: string
 }
 
-const CUSTOMER_SUCCESS_EMAIL = 'customersuccess@prospermentor.com'
-
-const activeView = ref<PageView>('solutions')
+const demoRequestStore = useB2BDemoRequestStore()
 const openInclusions = ref<Record<string, boolean>>({})
 const includeInstitutionAssessment = ref(false)
-const contactDraftPrepared = ref(false)
+const contactDialogOpen = ref(false)
+const contactSubmitted = ref(false)
 const contactError = ref('')
 const contactForm = ref<ContactForm>({
   fullName: '',
   workEmail: '',
   organisation: '',
+  phoneNumber: '',
   partnershipType: '',
+  cohortSize: '',
+  timeline: '',
   details: '',
 })
 
@@ -239,28 +250,15 @@ const solutionCards: SolutionCard[] = [
   },
 ]
 
-const scrollToTop = () => {
-  if (!import.meta.client) return
-
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-const showSolutions = () => {
-  activeView.value = 'solutions'
-  contactError.value = ''
-  scrollToTop()
-}
-
 const showContact = (partnershipType = '') => {
-  activeView.value = 'contact'
-  contactDraftPrepared.value = false
+  contactDialogOpen.value = true
+  contactSubmitted.value = false
   contactError.value = ''
+  demoRequestStore.clearRequest()
 
   if (partnershipType) {
     contactForm.value.partnershipType = partnershipType
   }
-
-  scrollToTop()
 }
 
 const inclusionKey = (cardId: string, sectionTitle: string, itemTitle: string) =>
@@ -284,31 +282,23 @@ const badgeClasses = (tone: SolutionCard['badgeTone'], featured = false) => {
   return tones[tone]
 }
 
-const submitContact = () => {
+const submitContact = async () => {
   contactError.value = ''
-  contactDraftPrepared.value = false
+  contactSubmitted.value = false
 
   if (!contactForm.value.fullName || !contactForm.value.workEmail || !contactForm.value.organisation) {
     contactError.value = 'Please add your name, work email, and organisation.'
     return
   }
 
-  const subject = `Enterprise partnership enquiry - ${contactForm.value.organisation}`
-  const body = [
-    `Full name: ${contactForm.value.fullName}`,
-    `Work email: ${contactForm.value.workEmail}`,
-    `Organisation: ${contactForm.value.organisation}`,
-    `Partnership type: ${contactForm.value.partnershipType || 'Not specified'}`,
-    '',
-    contactForm.value.details || 'No additional details provided.',
-  ].join('\n')
-
-  const mailto = new URL(`mailto:${CUSTOMER_SUCCESS_EMAIL}`)
-  mailto.searchParams.set('subject', subject)
-  mailto.searchParams.set('body', body)
-  if (import.meta.client) {
-    window.location.href = mailto.toString()
-    contactDraftPrepared.value = true
+  try {
+    await demoRequestStore.submitRequest({
+      ...contactForm.value,
+      sourcePage: 'enterprise-pricing',
+    })
+    contactSubmitted.value = true
+  } catch (error: any) {
+    contactError.value = error?.message || demoRequestStore.error || 'Failed to submit your request. Please try again.'
   }
 }
 </script>
@@ -321,10 +311,7 @@ const submitContact = () => {
     <PublicSiteHeader />
 
     <main class="flex-1">
-      <section
-        v-if="activeView === 'solutions'"
-        class="bg-white px-5 py-10 sm:px-8 lg:px-10 lg:py-14"
-      >
+      <section class="bg-white px-5 py-10 sm:px-8 lg:px-10 lg:py-14">
         <div class="mx-auto w-full max-w-[1240px]">
           <div class="max-w-[680px]">
             <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-[#dd63c4]">
@@ -487,129 +474,187 @@ const submitContact = () => {
         </div>
       </section>
 
-      <section
-        v-else
-        class="bg-white px-5 py-10 sm:px-8 lg:px-10 lg:py-14"
-      >
-        <div class="mx-auto w-full max-w-[760px]">
-          <button
-            type="button"
-            class="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-[#016f56] transition hover:text-[#dd63c4] focus:outline-none focus:ring-2 focus:ring-[#dd63c4] focus:ring-offset-2"
-            @click="showSolutions"
-          >
-            <ArrowLeft class="h-4 w-4" aria-hidden="true" />
-            Back to solutions
-          </button>
+    </main>
 
-          <div class="mt-8 max-w-[560px]">
-            <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-[#dd63c4]">
-              Contact Us
-            </p>
-            <h1 class="mt-3 text-[30px] font-semibold leading-tight text-[#101828] sm:text-[36px]">
-              Tell us about your organisation
-            </h1>
-            <p class="mt-4 text-[14px] leading-7 text-[#4b5563]">
-              Use the fields below to prepare an email for customer success with your cohort size, timeline, and goals.
-            </p>
-          </div>
+    <Dialog :open="contactDialogOpen" @update:open="contactDialogOpen = $event">
+      <DialogContent class="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle class="text-[#101828]">
+            Tell us about your organisation
+          </DialogTitle>
+          <DialogDescription class="text-[#4b5563]">
+            Share a few details and our team will follow up with the right partnership next step.
+          </DialogDescription>
+        </DialogHeader>
 
-          <form
-            class="mt-8 rounded-[8px] border border-[#e5e7eb] bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.07)] sm:p-8"
-            @submit.prevent="submitContact"
-          >
-            <div class="grid gap-5 sm:grid-cols-2">
-              <label class="block">
-                <span class="text-[12px] font-semibold text-[#667085]">Full name</span>
-                <input
-                  v-model.trim="contactForm.fullName"
-                  type="text"
-                  autocomplete="name"
-                  class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] px-3 text-[13px] text-[#101828] outline-none transition placeholder:text-[#9ca3af] focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
-                  placeholder="Jane Doe"
-                >
-              </label>
-
-              <label class="block">
-                <span class="text-[12px] font-semibold text-[#667085]">Work email</span>
-                <input
-                  v-model.trim="contactForm.workEmail"
-                  type="email"
-                  autocomplete="email"
-                  class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] px-3 text-[13px] text-[#101828] outline-none transition placeholder:text-[#9ca3af] focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
-                  placeholder="jane@company.com"
-                >
-              </label>
-            </div>
-
-            <div class="mt-5 grid gap-5 sm:grid-cols-2">
-              <label class="block">
-                <span class="text-[12px] font-semibold text-[#667085]">Organisation</span>
-                <input
-                  v-model.trim="contactForm.organisation"
-                  type="text"
-                  autocomplete="organization"
-                  class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] px-3 text-[13px] text-[#101828] outline-none transition placeholder:text-[#9ca3af] focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
-                  placeholder="Company, university, or NGO"
-                >
-              </label>
-
-              <label class="block">
-                <span class="text-[12px] font-semibold text-[#667085]">Partnership type</span>
-                <select
-                  v-model="contactForm.partnershipType"
-                  class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] bg-white px-3 text-[13px] text-[#101828] outline-none transition focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
-                >
-                  <option value="">
-                    Select one
-                  </option>
-                  <option value="Institution">
-                    Institution
-                  </option>
-                  <option value="Corporate">
-                    Corporate
-                  </option>
-                  <option value="Donor-funded / NGO">
-                    Donor-funded / NGO
-                  </option>
-                </select>
-              </label>
-            </div>
-
-            <label class="mt-5 block">
-              <span class="text-[12px] font-semibold text-[#667085]">What would you like to cover?</span>
-              <textarea
-                v-model.trim="contactForm.details"
-                rows="5"
-                class="mt-2 min-h-[124px] w-full rounded-[8px] border border-[#d1d5db] px-3 py-3 text-[13px] text-[#101828] outline-none transition placeholder:text-[#9ca3af] focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
-                placeholder="Tell us about your cohort size, timeline, and goals."
-              />
+        <form class="space-y-5" @submit.prevent="submitContact">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block">
+              <span class="text-[12px] font-semibold text-[#667085]">Full name</span>
+              <input
+                v-model.trim="contactForm.fullName"
+                type="text"
+                autocomplete="name"
+                class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] px-3 text-[13px] text-[#101828] outline-none transition placeholder:text-[#9ca3af] focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
+                placeholder="Jane Doe"
+              >
             </label>
 
-            <p
-              v-if="contactError"
-              class="mt-4 text-[13px] font-medium text-[#b42318]"
-              role="alert"
+            <label class="block">
+              <span class="text-[12px] font-semibold text-[#667085]">Work email</span>
+              <input
+                v-model.trim="contactForm.workEmail"
+                type="email"
+                autocomplete="email"
+                class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] px-3 text-[13px] text-[#101828] outline-none transition placeholder:text-[#9ca3af] focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
+                placeholder="jane@company.com"
+              >
+            </label>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block">
+              <span class="text-[12px] font-semibold text-[#667085]">Organisation</span>
+              <input
+                v-model.trim="contactForm.organisation"
+                type="text"
+                autocomplete="organization"
+                class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] px-3 text-[13px] text-[#101828] outline-none transition placeholder:text-[#9ca3af] focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
+                placeholder="Company, university, or NGO"
+              >
+            </label>
+
+            <label class="block">
+              <span class="text-[12px] font-semibold text-[#667085]">Phone number</span>
+              <input
+                v-model.trim="contactForm.phoneNumber"
+                type="tel"
+                autocomplete="tel"
+                class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] px-3 text-[13px] text-[#101828] outline-none transition placeholder:text-[#9ca3af] focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
+                placeholder="+254700000000"
+              >
+            </label>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-3">
+            <label class="block">
+              <span class="text-[12px] font-semibold text-[#667085]">Partnership type</span>
+              <select
+                v-model="contactForm.partnershipType"
+                class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] bg-white px-3 text-[13px] text-[#101828] outline-none transition focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
+              >
+                <option value="">
+                  Select one
+                </option>
+                <option value="Institution">
+                  Institution
+                </option>
+                <option value="Corporate">
+                  Corporate
+                </option>
+                <option value="Donor-funded / NGO">
+                  Donor-funded / NGO
+                </option>
+              </select>
+            </label>
+
+            <label class="block">
+              <span class="text-[12px] font-semibold text-[#667085]">Cohort size</span>
+              <select
+                v-model="contactForm.cohortSize"
+                class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] bg-white px-3 text-[13px] text-[#101828] outline-none transition focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
+              >
+                <option value="">
+                  Select size
+                </option>
+                <option value="1-50">
+                  1-50
+                </option>
+                <option value="51-200">
+                  51-200
+                </option>
+                <option value="201-500">
+                  201-500
+                </option>
+                <option value="500+">
+                  500+
+                </option>
+              </select>
+            </label>
+
+            <label class="block">
+              <span class="text-[12px] font-semibold text-[#667085]">Timeline</span>
+              <select
+                v-model="contactForm.timeline"
+                class="mt-2 h-11 w-full rounded-[8px] border border-[#d1d5db] bg-white px-3 text-[13px] text-[#101828] outline-none transition focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
+              >
+                <option value="">
+                  Select timing
+                </option>
+                <option value="This month">
+                  This month
+                </option>
+                <option value="This quarter">
+                  This quarter
+                </option>
+                <option value="Next quarter">
+                  Next quarter
+                </option>
+                <option value="Exploring options">
+                  Exploring options
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <label class="block">
+            <span class="text-[12px] font-semibold text-[#667085]">What would you like to cover?</span>
+            <textarea
+              v-model.trim="contactForm.details"
+              rows="5"
+              class="mt-2 min-h-[120px] w-full rounded-[8px] border border-[#d1d5db] px-3 py-3 text-[13px] text-[#101828] outline-none transition placeholder:text-[#9ca3af] focus:border-[#016f56] focus:ring-2 focus:ring-[#016f56]/20"
+              placeholder="Tell us about your cohort, timeline, and goals."
+            />
+          </label>
+
+          <p
+            v-if="contactError"
+            class="rounded-[8px] border border-[#fecdca] bg-[#fffbfa] px-4 py-3 text-[13px] font-medium text-[#b42318]"
+            role="alert"
+          >
+            {{ contactError }}
+          </p>
+
+          <p
+            v-if="contactSubmitted"
+            class="rounded-[8px] border border-[#d9eee7] bg-[#f5fbf9] px-4 py-3 text-[13px] font-medium text-[#016f56]"
+            role="status"
+          >
+            Thank you. We received your request and will follow up with you shortly.
+          </p>
+
+          <DialogFooter class="gap-3 sm:justify-between">
+            <button
+              type="button"
+              class="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d1d5db] bg-white px-5 text-[14px] font-bold text-[#344054] transition hover:border-[#016f56] hover:text-[#016f56] focus:outline-none focus:ring-2 focus:ring-[#dd63c4] focus:ring-offset-2"
+              @click="contactDialogOpen = false"
             >
-              {{ contactError }}
-            </p>
-            <p
-              v-if="contactDraftPrepared"
-              class="mt-4 rounded-[8px] border border-[#d9eee7] bg-[#f5fbf9] px-4 py-3 text-[13px] font-medium text-[#016f56]"
-            >
-              If your email app did not open, email {{ CUSTOMER_SUCCESS_EMAIL }} with the details above.
-            </p>
+              Close
+            </button>
 
             <button
               type="submit"
-              class="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#016f56] px-5 text-[14px] font-bold text-white transition hover:bg-[#016f56] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#dd63c4] focus:ring-offset-2 sm:w-auto"
+              class="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#016f56] px-5 text-[14px] font-bold text-white transition hover:bg-[#016f56] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#dd63c4] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+              :disabled="demoRequestStore.isLoading || contactSubmitted"
             >
-              <Mail class="h-4 w-4" aria-hidden="true" />
-              Contact Us
+              <Loader2 v-if="demoRequestStore.isLoading" class="h-4 w-4 animate-spin" aria-hidden="true" />
+              <MessageCircle v-else class="h-4 w-4" aria-hidden="true" />
+              {{ demoRequestStore.isLoading ? 'Submitting...' : contactSubmitted ? 'Submitted' : 'Submit Request' }}
             </button>
-          </form>
-        </div>
-      </section>
-    </main>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
 
     <footer id="footer" class="w-full" aria-label="Footer">
       <SocialFooter />
