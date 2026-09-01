@@ -35,7 +35,7 @@
           class="rounded-full px-4 py-2 text-[12px] font-normal leading-normal text-black transition hover:bg-brand-purple/10 focus:outline-none focus:ring-2 focus:ring-brand-purple"
           @click="go('/pricing')"
         >
-          Pricing
+          Solutions
         </button>
         <button
           class="rounded-full px-4 py-2 text-[12px] font-normal leading-normal text-black transition hover:bg-brand-purple/10 focus:outline-none focus:ring-2 focus:ring-brand-purple"
@@ -87,7 +87,7 @@
               Insights
             </button>
             <button class="py-2 text-left text-[12px] font-normal leading-normal text-black hover:underline" @click="goAndClose('/pricing')">
-              Pricing
+              Solutions
             </button>
             <div class="my-2 border-t border-gray-200" />
             <span class="text-sm font-semibold uppercase tracking-wide text-gray-500">Account</span>
