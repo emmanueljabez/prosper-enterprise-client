@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useToast } from '@/components/ui/toast'
 import { useB2BDemoRequestStore } from '@/store/modules/b2b-demo-requests'
 
 definePageMeta({ auth: false })
@@ -61,12 +62,13 @@ type ContactForm = {
 }
 
 const demoRequestStore = useB2BDemoRequestStore()
+const { toast } = useToast()
 const openInclusions = ref<Record<string, boolean>>({})
 const includeInstitutionAssessment = ref(false)
 const contactDialogOpen = ref(false)
-const contactSubmitted = ref(false)
 const contactError = ref('')
-const contactForm = ref<ContactForm>({
+
+const emptyContactForm = (): ContactForm => ({
   fullName: '',
   workEmail: '',
   organisation: '',
@@ -76,6 +78,8 @@ const contactForm = ref<ContactForm>({
   timeline: '',
   details: '',
 })
+
+const contactForm = ref<ContactForm>(emptyContactForm())
 
 const deliveryModels: DeliveryModel[] = [
   {
@@ -252,7 +256,6 @@ const solutionCards: SolutionCard[] = [
 
 const showContact = (partnershipType = '') => {
   contactDialogOpen.value = true
-  contactSubmitted.value = false
   contactError.value = ''
   demoRequestStore.clearRequest()
 
@@ -284,7 +287,6 @@ const badgeClasses = (tone: SolutionCard['badgeTone'], featured = false) => {
 
 const submitContact = async () => {
   contactError.value = ''
-  contactSubmitted.value = false
 
   if (!contactForm.value.fullName || !contactForm.value.workEmail || !contactForm.value.organisation) {
     contactError.value = 'Please add your name, work email, and organisation.'
@@ -296,7 +298,13 @@ const submitContact = async () => {
       ...contactForm.value,
       sourcePage: 'enterprise-pricing',
     })
-    contactSubmitted.value = true
+    toast({
+      title: 'Request submitted',
+      description: 'We received your request and will follow up with you shortly.',
+      variant: 'success',
+    })
+    contactDialogOpen.value = false
+    contactForm.value = emptyContactForm()
   } catch (error: any) {
     contactError.value = error?.message || demoRequestStore.error || 'Failed to submit your request. Please try again.'
   }
@@ -625,14 +633,6 @@ const submitContact = async () => {
             {{ contactError }}
           </p>
 
-          <p
-            v-if="contactSubmitted"
-            class="rounded-[8px] border border-[#d9eee7] bg-[#f5fbf9] px-4 py-3 text-[13px] font-medium text-[#016f56]"
-            role="status"
-          >
-            Thank you. We received your request and will follow up with you shortly.
-          </p>
-
           <DialogFooter class="gap-3 sm:justify-between">
             <button
               type="button"
@@ -645,11 +645,11 @@ const submitContact = async () => {
             <button
               type="submit"
               class="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#016f56] px-5 text-[14px] font-bold text-white transition hover:bg-[#016f56] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#dd63c4] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
-              :disabled="demoRequestStore.isLoading || contactSubmitted"
+              :disabled="demoRequestStore.isLoading"
             >
               <Loader2 v-if="demoRequestStore.isLoading" class="h-4 w-4 animate-spin" aria-hidden="true" />
               <MessageCircle v-else class="h-4 w-4" aria-hidden="true" />
-              {{ demoRequestStore.isLoading ? 'Submitting...' : contactSubmitted ? 'Submitted' : 'Submit Request' }}
+              {{ demoRequestStore.isLoading ? 'Submitting...' : 'Submit Request' }}
             </button>
           </DialogFooter>
         </form>

@@ -26,6 +26,12 @@ assert.match(
 
 assert.match(
   pricingPage,
+  /useToast/,
+  'enterprise solutions pricing page should show a toast after successful Contact Us submission',
+)
+
+assert.match(
+  pricingPage,
   /<Dialog\s+:open="contactDialogOpen"/,
   'enterprise solution Contact Us should open an in-page dialog instead of replacing the page content',
 )
@@ -38,8 +44,26 @@ assert.match(
 
 assert.match(
   pricingPage,
-  /:disabled="demoRequestStore\.isLoading \|\| contactSubmitted"/,
-  'enterprise solution Contact Us dialog should prevent duplicate submissions after a successful capture',
+  /toast\(\s*\{[\s\S]*title: 'Request submitted'[\s\S]*variant: 'success'[\s\S]*\}\s*\)/,
+  'enterprise solution Contact Us dialog should surface successful captures as a success toast',
+)
+
+assert.match(
+  pricingPage,
+  /contactDialogOpen\.value = false/,
+  'enterprise solution Contact Us dialog should dismiss after a successful capture',
+)
+
+assert.match(
+  pricingPage,
+  /:disabled="demoRequestStore\.isLoading"/,
+  'enterprise solution Contact Us dialog should disable the submit button while submission is in flight',
+)
+
+assert.doesNotMatch(
+  pricingPage,
+  /contactSubmitted|Thank you\. We received your request|Submitted'/,
+  'enterprise solution Contact Us dialog should no longer keep an inline success state after submission',
 )
 
 assert.doesNotMatch(
