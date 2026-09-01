@@ -38,6 +38,12 @@ assert.match(
 
 assert.match(
   pricingPage,
+  /<DialogContent\s+v-if="contactDialogOpen"/,
+  'enterprise solution Contact Us dialog content should unmount when the dialog closes',
+)
+
+assert.match(
+  pricingPage,
   /submitRequest\(/,
   'enterprise solution Contact Us dialog should call the API-backed submit action',
 )
