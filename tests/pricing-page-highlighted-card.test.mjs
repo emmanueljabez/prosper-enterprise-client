@@ -3,18 +3,25 @@ import { readFileSync } from 'node:fs'
 
 const pricingSource = readFileSync(new URL('../pages/pricing.vue', import.meta.url), 'utf8')
 
-const articleClassMatch = pricingSource.match(/<article[\s\S]*?class="([^"]*group relative[^"]*)"/)
-
-assert.ok(articleClassMatch, 'Pricing plan cards should keep a stable article class declaration.')
-assert.doesNotMatch(
-  articleClassMatch[1],
-  /\bbg-white\b/,
-  'Pricing plan card base classes should not force bg-white because it overrides the highlighted card background.',
+assert.match(
+  pricingSource,
+  /#dd63c4/,
+  'Pricing page should use the requested primary brand color.',
 )
 assert.match(
   pricingSource,
-  /plan\.highlighted\s*\?\s*'[^']*bg-\[#006f58\][^']*'\s*:\s*'[^']*bg-white/,
-  'Pricing plan card background should be selected in the highlighted/non-highlighted class branch.',
+  /#016f56/,
+  'Pricing page should use the requested secondary brand color.',
+)
+assert.match(
+  pricingSource,
+  /card\.featured\s*\?\s*'[^']*bg-\[#016f56\][^']*'\s*:\s*'[^']*bg-white/,
+  'Highlighted solution card background should be selected from the featured/non-featured branch.',
+)
+assert.doesNotMatch(
+  pricingSource,
+  /#0B4F38|#01AB6D|#A03B93|#9b2f85|#f4c9ec|#015f4a/,
+  'Pricing page should adapt reference and variant accents to the requested Prosper brand palette.',
 )
 
 console.log('Pricing highlighted card background verified.')
