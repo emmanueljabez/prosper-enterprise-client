@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import {
   Check,
+  CheckCircle2,
   ChevronRight,
   Loader2,
   MessageCircle,
+  X,
 } from 'lucide-vue-next'
 import PublicSiteHeader from '@/components/landing/PublicSiteHeader.vue'
 import SocialFooter from '@/components/landing/SocialFooter.vue'
@@ -16,7 +18,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useToast } from '@/components/ui/toast'
 import { useB2BDemoRequestStore } from '@/store/modules/b2b-demo-requests'
 
 definePageMeta({ auth: false })
@@ -62,11 +63,12 @@ type ContactForm = {
 }
 
 const demoRequestStore = useB2BDemoRequestStore()
-const { toast } = useToast()
 const openInclusions = ref<Record<string, boolean>>({})
 const includeInstitutionAssessment = ref(false)
 const contactDialogOpen = ref(false)
+const contactToastVisible = ref(false)
 const contactError = ref('')
+let contactToastTimeout: ReturnType<typeof setTimeout> | undefined
 
 const emptyContactForm = (): ContactForm => ({
   fullName: '',
@@ -80,6 +82,29 @@ const emptyContactForm = (): ContactForm => ({
 })
 
 const contactForm = ref<ContactForm>(emptyContactForm())
+
+const clearContactToastTimer = () => {
+  if (contactToastTimeout) {
+    clearTimeout(contactToastTimeout)
+    contactToastTimeout = undefined
+  }
+}
+
+const hideContactToast = () => {
+  contactToastVisible.value = false
+  clearContactToastTimer()
+}
+
+const showContactSuccessToast = () => {
+  clearContactToastTimer()
+  contactToastVisible.value = true
+  contactToastTimeout = setTimeout(() => {
+    contactToastVisible.value = false
+    contactToastTimeout = undefined
+  }, 5000)
+}
+
+onBeforeUnmount(clearContactToastTimer)
 
 const deliveryModels: DeliveryModel[] = [
   {
@@ -256,6 +281,7 @@ const solutionCards: SolutionCard[] = [
 
 const showContact = (partnershipType = '') => {
   contactDialogOpen.value = true
+  hideContactToast()
   contactError.value = ''
   demoRequestStore.clearRequest()
 
@@ -298,13 +324,9 @@ const submitContact = async () => {
       ...contactForm.value,
       sourcePage: 'enterprise-pricing',
     })
-    toast({
-      title: 'Request submitted',
-      description: 'We received your request and will follow up with you shortly.',
-      variant: 'success',
-    })
     contactDialogOpen.value = false
     contactForm.value = emptyContactForm()
+    showContactSuccessToast()
   } catch (error: any) {
     contactError.value = error?.message || demoRequestStore.error || 'Failed to submit your request. Please try again.'
   }
@@ -655,6 +677,42 @@ const submitContact = async () => {
         </form>
       </DialogContent>
     </Dialog>
+
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="translate-y-2 opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="translate-y-0 opacity-100"
+      leave-to-class="translate-y-2 opacity-0"
+    >
+      <div
+        v-if="contactToastVisible"
+        class="fixed left-4 right-4 top-20 z-[120] flex items-start gap-3 rounded-[8px] border border-[#d9eee7] bg-white p-4 text-[#101828] shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:left-auto sm:right-5 sm:w-[360px]"
+        role="status"
+        aria-live="polite"
+      >
+        <span class="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e8f6f1] text-[#016f56]">
+          <CheckCircle2 class="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-[13px] font-bold text-[#101828]">
+            Request submitted
+          </p>
+          <p class="mt-1 text-[12px] leading-5 text-[#4b5563]">
+            We received your request and will follow up with you shortly.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] text-[#667085] transition hover:bg-[#fdf4fb] hover:text-[#dd63c4] focus:outline-none focus:ring-2 focus:ring-[#dd63c4] focus:ring-offset-2"
+          aria-label="Dismiss notification"
+          @click="hideContactToast"
+        >
+          <X class="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+    </Transition>
 
     <footer id="footer" class="w-full" aria-label="Footer">
       <SocialFooter />

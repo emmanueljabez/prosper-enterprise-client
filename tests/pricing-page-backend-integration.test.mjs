@@ -26,8 +26,8 @@ assert.match(
 
 assert.match(
   pricingPage,
-  /useToast/,
-  'enterprise solutions pricing page should show a toast after successful Contact Us submission',
+  /contactToastVisible/,
+  'enterprise solutions pricing page should keep a page-level success toast state',
 )
 
 assert.match(
@@ -44,7 +44,7 @@ assert.match(
 
 assert.match(
   pricingPage,
-  /toast\(\s*\{[\s\S]*title: 'Request submitted'[\s\S]*variant: 'success'[\s\S]*\}\s*\)/,
+  /contactToastVisible\.value = true/,
   'enterprise solution Contact Us dialog should surface successful captures as a success toast',
 )
 
@@ -64,6 +64,14 @@ assert.doesNotMatch(
   pricingPage,
   /contactSubmitted|Thank you\. We received your request|Submitted'/,
   'enterprise solution Contact Us dialog should no longer keep an inline success state after submission',
+)
+
+const toastIndex = pricingPage.indexOf('v-if="contactToastVisible"')
+const dialogCloseIndex = pricingPage.indexOf('</Dialog>')
+
+assert.ok(
+  toastIndex > dialogCloseIndex,
+  'enterprise solution Contact Us success toast should render outside the dialog so the dialog can dismiss',
 )
 
 assert.doesNotMatch(
