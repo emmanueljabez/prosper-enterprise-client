@@ -20,24 +20,30 @@ assert.doesNotMatch(
 
 assert.match(
   pricingPage,
-  /customersuccess@prospermentor\.com/,
-  'enterprise solution contact handoff should route enquiries to customer success',
+  /useB2BDemoRequestStore/,
+  'enterprise solutions pricing page should submit Contact Us enquiries through the B2B demo request store',
 )
 
 assert.match(
   pricingPage,
-  /mailto:\$\{CUSTOMER_SUCCESS_EMAIL\}/,
-  'enterprise solution contact handoff should prepare a customer-success email draft.',
+  /<Dialog\s+:open="contactDialogOpen"/,
+  'enterprise solution Contact Us should open an in-page dialog instead of replacing the page content',
 )
 
 assert.match(
   pricingPage,
-  /contactDraftPrepared/,
-  'enterprise solution contact handoff should track the email draft state truthfully.',
+  /submitRequest\(/,
+  'enterprise solution Contact Us dialog should call the API-backed submit action',
+)
+
+assert.match(
+  pricingPage,
+  /:disabled="demoRequestStore\.isLoading \|\| contactSubmitted"/,
+  'enterprise solution Contact Us dialog should prevent duplicate submissions after a successful capture',
 )
 
 assert.doesNotMatch(
   pricingPage,
-  /contactSubmitted|will use this context/,
-  'enterprise solution contact handoff should not claim a lead was captured by the frontend.',
+  /mailto:|window\.location\.href|contactDraftPrepared|activeView/,
+  'enterprise solution Contact Us should no longer rely on mailto or a separate contact view.',
 )
