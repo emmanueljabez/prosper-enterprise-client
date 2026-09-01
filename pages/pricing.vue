@@ -507,7 +507,7 @@ const submitContact = async () => {
     </main>
 
     <Dialog v-model:open="contactDialogOpen">
-      <DialogContent class="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent v-if="contactDialogOpen" class="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle class="text-[#101828]">
             Tell us about your organisation
