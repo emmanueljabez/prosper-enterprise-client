@@ -7,6 +7,7 @@ const sessionsApi = readFileSync(resolve('http/requests/app/sessions/sessions.ts
 const sessionsPage = readFileSync(resolve('pages/app/sessions/index.vue'), 'utf8')
 const bookingForm = readFileSync(resolve('components/ui/mentors/MentorBookingForm.vue'), 'utf8')
 const mentorPage = readFileSync(resolve('pages/app/mentors/[id].vue'), 'utf8')
+const detailPagePath = resolve('pages/app/sessions/[id]/index.vue')
 const roomPagePath = resolve('pages/app/sessions/[id]/room.vue')
 
 assert.ok(
@@ -26,6 +27,7 @@ assert.match(
   'session API should request short-lived Agora tokens from the backend',
 )
 
+assert.ok(existsSync(detailPagePath), 'enterprise session details should live at /app/sessions/:id/index')
 assert.ok(existsSync(roomPagePath), 'enterprise app should expose /app/sessions/:id/room')
 
 const roomPage = readFileSync(roomPagePath, 'utf8')
