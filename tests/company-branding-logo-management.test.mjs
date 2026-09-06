@@ -9,6 +9,10 @@ const settingsPageSource = readFileSync(
   new URL('../pages/app/admin/settings/index.vue', import.meta.url),
   'utf8',
 )
+const uploadCompanyLogoMatch = companyApiSource.match(
+  /uploadCompanyLogo\(companyId:\s*string,\s*file:\s*File\):[\s\S]*?\n    },/,
+)
+const uploadCompanyLogoSource = uploadCompanyLogoMatch?.[0] || ''
 
 assert.match(
   companyApiSource,
@@ -16,17 +20,22 @@ assert.match(
   'Company API should expose a typed company logo upload method.',
 )
 assert.match(
-  companyApiSource,
+  uploadCompanyLogoSource,
   /new FormData\(\)/,
   'Company logo upload should send multipart form data.',
 )
 assert.match(
-  companyApiSource,
+  uploadCompanyLogoSource,
   /formData\.append\('file',\s*file\)/,
   'Company logo upload should append the selected file under the file field.',
 )
 assert.match(
-  companyApiSource,
+  uploadCompanyLogoSource,
+  /['"]Content-Type['"]:\s*['"]multipart\/form-data['"]/,
+  'Company logo upload should override the default JSON content type with multipart form data.',
+)
+assert.match(
+  uploadCompanyLogoSource,
   /\/v1\/companies\/\$\{companyId\}\/branding\/logo/,
   'Company logo upload/delete should use the company branding logo endpoint.',
 )
