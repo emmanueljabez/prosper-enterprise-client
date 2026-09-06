@@ -247,6 +247,17 @@ export default {
         return axiosInstance.put(`/v1/companies/${companyId}`, payload)
     },
 
+    uploadCompanyLogo(companyId: string, file: File): Promise<{ data: CompanyResponse }> {
+        const formData = new FormData()
+        formData.append('file', file)
+
+        return axiosInstance.post(`/v1/companies/${companyId}/branding/logo`, formData)
+    },
+
+    deleteCompanyLogo(companyId: string): Promise<{ data: CompanyResponse }> {
+        return axiosInstance.delete(`/v1/companies/${companyId}/branding/logo`)
+    },
+
     getCompanyOnboarding(companyId: string): Promise<{ data: CompanyOnboardingResponse }> {
         return axiosInstance.get(`/v1/companies/${companyId}/onboarding`)
     },
