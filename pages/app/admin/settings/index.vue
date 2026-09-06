@@ -31,7 +31,10 @@ import {
   Plus,
   RefreshCw,
   FileText,
-  Users
+  Users,
+  ImageIcon,
+  Trash2,
+  Upload
 } from 'lucide-vue-next'
 import { useAppToast } from '~/composables/services/toastService'
 
@@ -46,6 +49,14 @@ type SettingsTab = 'company' | 'branding' | 'program' | 'departments' | 'subscri
 
 const DEFAULT_PRIMARY_COLOR = '#a03b93'
 const DEFAULT_SECONDARY_COLOR = '#d9a8d3'
+const MAX_LOGO_UPLOAD_BYTES = 5 * 1024 * 1024
+const ACCEPTED_LOGO_FILE_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+]
 
 const { success, error: toastError } = useAppToast()
 const route = useRoute()
@@ -126,7 +137,11 @@ const companyRecord = ref<CompanyRecord | null>(null)
 const isLoadingCompanySettings = ref(false)
 const isSavingCompanyInfo = ref(false)
 const isSavingBranding = ref(false)
+const isUploadingLogo = ref(false)
+const isDeletingLogo = ref(false)
 const companySettingsError = ref<string | null>(null)
+const logoUploadError = ref<string | null>(null)
+const logoFileInput = ref<HTMLInputElement | null>(null)
 const isCreatingInvoice = ref(false)
 const isLoadingProgramCatalog = ref(false)
 const isLoadingRecommendedPrograms = ref(false)
@@ -431,6 +446,105 @@ const saveCompanyInfo = async () => {
   }
 }
 
+const triggerLogoUpload = () => {
+  logoUploadError.value = null
+  logoFileInput.value?.click()
+}
+
+const validateLogoFile = (file: File) => {
+  if (!ACCEPTED_LOGO_FILE_TYPES.includes(file.type)) {
+    return 'Logo upload failed. Please choose a PNG, JPG, WebP, GIF, or SVG image.'
+  }
+
+  if (file.size > MAX_LOGO_UPLOAD_BYTES) {
+    return 'Logo upload failed. Please choose an image smaller than 5 MB.'
+  }
+
+  return null
+}
+
+const handleLogoFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+
+  if (!file) {
+    return
+  }
+
+  if (!companyContext.value.companyId) {
+    logoUploadError.value = 'Logo upload failed. Company context not found.'
+    toastError('Company context not found. Refresh your session and try again.')
+    return
+  }
+
+  const validationError = validateLogoFile(file)
+  if (validationError) {
+    logoUploadError.value = validationError
+    toastError(validationError)
+    return
+  }
+
+  isUploadingLogo.value = true
+  logoUploadError.value = null
+  companySettingsError.value = null
+
+  try {
+    const response = await companyApi.uploadCompanyLogo(companyContext.value.companyId, file)
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.message || 'Logo upload failed')
+    }
+
+    populateCompanySettings(response.data.data)
+    success('Company logo updated successfully')
+  } catch (err: any) {
+    logoUploadError.value =
+      err?.response?.data?.message
+      || err?.message
+      || 'Logo upload failed'
+    toastError(logoUploadError.value)
+  } finally {
+    isUploadingLogo.value = false
+  }
+}
+
+const deleteCompanyLogo = async () => {
+  if (!companyContext.value.companyId) {
+    toastError('Company context not found. Refresh your session and try again.')
+    return
+  }
+
+  if (!branding.value.logoUrl) {
+    return
+  }
+
+  if (typeof window !== 'undefined' && !window.confirm('Delete this company logo?')) {
+    return
+  }
+
+  isDeletingLogo.value = true
+  logoUploadError.value = null
+  companySettingsError.value = null
+
+  try {
+    const response = await companyApi.deleteCompanyLogo(companyContext.value.companyId)
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.message || 'Failed to delete company logo.')
+    }
+
+    populateCompanySettings(response.data.data)
+    success('Company logo deleted successfully')
+  } catch (err: any) {
+    logoUploadError.value =
+      err?.response?.data?.message
+      || err?.message
+      || 'Failed to delete company logo.'
+    toastError(logoUploadError.value)
+  } finally {
+    isDeletingLogo.value = false
+  }
+}
+
 const saveBranding = async () => {
   if (!companyContext.value.companyId) {
     toastError('Company context not found. Refresh your session and try again.')
@@ -438,6 +552,7 @@ const saveBranding = async () => {
   }
 
   isSavingBranding.value = true
+  logoUploadError.value = null
   companySettingsError.value = null
 
   try {
@@ -871,15 +986,73 @@ onMounted(async () => {
           </div>
 
           <template v-else>
+          <div class="rounded-xl border bg-muted/20 p-4">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div class="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border bg-white p-3">
+                  <img
+                    v-if="branding.logoUrl"
+                    :src="branding.logoUrl"
+                    alt="Company Logo"
+                    class="max-h-full max-w-full object-contain"
+                  />
+                  <ImageIcon v-else class="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div class="space-y-1">
+                  <p class="text-sm font-semibold text-foreground">Company Logo</p>
+                  <p class="text-sm text-muted-foreground">
+                    Upload PNG, JPG, WebP, GIF, or SVG up to 5 MB. Recommended size: 200x200px.
+                  </p>
+                  <p v-if="branding.logoUrl" class="break-all text-xs text-muted-foreground">
+                    {{ branding.logoUrl }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-2">
+                <input
+                  ref="logoFileInput"
+                  type="file"
+                  class="sr-only"
+                  accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                  aria-label="Choose company logo file"
+                  @change="handleLogoFileChange"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  class="gap-2"
+                  :disabled="isUploadingLogo || isDeletingLogo || !companyContext.companyId"
+                  @click="triggerLogoUpload"
+                >
+                  <Upload class="h-4 w-4" />
+                  <span v-if="branding.logoUrl">Replace Logo</span>
+                  <span v-else>Upload Logo</span>
+                </Button>
+                <Button
+                  v-if="branding.logoUrl"
+                  type="button"
+                  variant="outline"
+                  class="gap-2 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                  :disabled="isUploadingLogo || isDeletingLogo || !companyContext.companyId"
+                  @click="deleteCompanyLogo"
+                >
+                  <Trash2 class="h-4 w-4" />
+                  Delete Logo
+                </Button>
+              </div>
+            </div>
+            <p v-if="logoUploadError" class="mt-3 text-sm text-red-600">
+              {{ logoUploadError }}
+            </p>
+          </div>
+
           <div class="space-y-2">
             <Label for="logo-url">Company Logo URL</Label>
             <Input id="logo-url" v-model="branding.logoUrl" placeholder="https://example.com/logo.png" />
-            <p class="text-sm text-muted-foreground">Recommended size: 200x200px</p>
-          </div>
-
-          <div v-if="branding.logoUrl" class="flex items-center gap-4 p-4 border rounded-lg">
-            <img :src="branding.logoUrl" alt="Company Logo" class="h-16 w-auto object-contain" />
-            <div class="text-sm text-muted-foreground">Logo Preview</div>
+            <p class="text-sm text-muted-foreground">
+              Advanced fallback: paste a hosted logo URL directly, then save changes.
+            </p>
           </div>
 
           <Separator />
