@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const proposalPagePath = fileURLToPath(new URL('../pages/app/sessions/proposals/[id].vue', import.meta.url))
-const sessionsDetailSource = readFileSync(new URL('../pages/app/sessions/[id].vue', import.meta.url), 'utf8')
+const sessionsDetailSource = readFileSync(new URL('../pages/app/sessions/[id]/index.vue', import.meta.url), 'utf8')
 
 assert.equal(
   existsSync(proposalPagePath),
