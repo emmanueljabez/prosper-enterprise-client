@@ -864,13 +864,16 @@ type PendingBookingRecord = {
   createdAt: number
 }
 
-const normalizeMeetingPlatform = (value: unknown): 'GOOGLE_MEET' | 'ZOOM' => {
+const normalizeMeetingPlatform = (value: unknown): 'GOOGLE_MEET' | 'ZOOM' | 'AGORA' => {
   const raw = String(value || '').trim()
   if (!raw) {
     return 'GOOGLE_MEET'
   }
 
   const normalized = raw.toUpperCase().replace(/[\s-]+/g, '_')
+  if (normalized === 'AGORA' || normalized === 'AGORA_RTC') {
+    return 'AGORA'
+  }
   if (normalized === 'ZOOM') {
     return 'ZOOM'
   }

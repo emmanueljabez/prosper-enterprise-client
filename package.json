@@ -23,6 +23,7 @@
     "@vue-leaflet/vue-leaflet": "^0.10.1",
     "@vueuse/core": "^12.8.2",
     "3d-force-graph": "^1.76.1",
+    "agora-rtc-sdk-ng": "^4.24.8",
     "axios": "^1.7.9",
     "chart.js": "^4.4.8",
     "class-variance-authority": "^0.7.1",

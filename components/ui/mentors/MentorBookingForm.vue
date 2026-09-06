@@ -109,7 +109,7 @@
       <!-- Meeting Platform -->
       <div class="space-y-2">
         <Label class="text-base font-medium">Meeting Platform *</Label>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
           <label
             v-for="platform in meetingPlatforms"
             :key="platform.value"
@@ -336,6 +336,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+const runtimeConfig = useRuntimeConfig()
 
 // Form state
 const formData = reactive<BookingFormData>({
@@ -365,12 +366,24 @@ const errors = reactive({
 const showDatePicker = ref(false)
 
 // Constants
-const meetingPlatforms = [
+const baseMeetingPlatforms = [
   { value: 'zoom', label: 'Zoom', icon: Video },
   { value: 'google-meet', label: 'Google Meet', icon: Video },
   { value: 'teams', label: 'Teams', icon: Monitor },
   { value: 'phone', label: 'Phone', icon: Phone }
 ]
+
+const enableAgoraMeetings = computed(() => runtimeConfig.public.enableAgoraMeetings === true)
+const meetingPlatforms = computed(() => {
+  if (!enableAgoraMeetings.value) {
+    return baseMeetingPlatforms
+  }
+
+  return [
+    { value: 'agora', label: 'Agora', icon: Video },
+    ...baseMeetingPlatforms
+  ]
+})
 
 // Mock available slots - in real app, this would come from API
 const availableSlots = ref([
@@ -525,4 +538,4 @@ watch(() => formData.sessionType, validateSessionType)
 watch(() => formData.platform, validatePlatform)
 watch(() => formData.sessionGoals, validateSessionGoals)
 watch(() => formData.acceptTerms, validateAcceptTerms)
-</script> 
+</script>

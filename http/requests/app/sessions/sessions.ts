@@ -24,6 +24,14 @@ interface CreateSessionPayload {
     journeyInstanceStepId?: string | null
 }
 
+interface AgoraJoinTokenResponse {
+    appId: string
+    channelName: string
+    uid: string
+    token: string
+    expiresAt: string
+}
+
 interface OutcomeActionItemPayload {
     description: string
     ownerType?: 'MENTEE' | 'MENTOR' | 'SHARED'
@@ -57,13 +65,16 @@ interface ContactSessionSupportPayload {
     message?: string | null
 }
 
-const normalizeMeetingPlatform = (value: unknown): 'GOOGLE_MEET' | 'ZOOM' => {
+const normalizeMeetingPlatform = (value: unknown): 'GOOGLE_MEET' | 'ZOOM' | 'AGORA' => {
     const raw = String(value || '').trim()
     if (!raw) {
         return 'GOOGLE_MEET'
     }
 
     const normalized = raw.toUpperCase().replace(/[\s-]+/g, '_')
+    if (normalized === 'AGORA' || normalized === 'AGORA_RTC') {
+        return 'AGORA'
+    }
     if (normalized === 'ZOOM') {
         return 'ZOOM'
     }
@@ -96,6 +107,10 @@ export default {
 
     getSessionById(sessionId: string) {
         return axiosInstance.get(`/v1/sessions/${sessionId}`)
+    },
+
+    createAgoraToken(sessionId: string) {
+        return axiosInstance.post<{ data: AgoraJoinTokenResponse }>(`/v1/sessions/${sessionId}/agora/token`)
     },
 
     confirmSession(sessionId: string, payload: ConfirmSessionPayload = {}) {

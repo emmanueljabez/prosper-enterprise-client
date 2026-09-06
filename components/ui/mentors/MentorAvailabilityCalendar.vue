@@ -1164,8 +1164,15 @@ const canJoinSession = (session: any) => {
 }
 
 const joinSession = (session: any) => {
-  if (session.meetingLink) {
-    window.open(session.meetingLink, '_blank')
+  const meetingUrl = session.meetingUrl || session.meetingLink
+  if (meetingUrl) {
+    if (session.meetingPlatform === 'AGORA') {
+      const roomUrl = new URL(meetingUrl, window.location.origin)
+      window.location.assign(roomUrl.pathname + roomUrl.search)
+      return
+    }
+
+    window.open(meetingUrl, '_blank')
   }
 }
 

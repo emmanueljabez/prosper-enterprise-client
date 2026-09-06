@@ -118,6 +118,14 @@ interface CreateSessionPayload {
   journeyInstanceStepId?: string | null
 }
 
+interface AgoraJoinTokenData {
+  appId: string
+  channelName: string
+  uid: string
+  token: string
+  expiresAt: string
+}
+
 interface SessionOutcomeActionItemData {
   id: string
   description: string
@@ -400,6 +408,23 @@ export const useSessionsStore = defineStore('sessions', {
         throw err
       } finally {
         this.isLoading = false
+      }
+    },
+
+    async createAgoraToken(sessionId: string): Promise<AgoraJoinTokenData> {
+      this.error = null
+
+      try {
+        const response = await sessionsApi.createAgoraToken(sessionId)
+        const token = response.data?.data
+        if (!token) {
+          throw new Error('Agora token response was empty')
+        }
+        return token
+      } catch (err: any) {
+        console.error('Error creating Agora token:', err)
+        this.error = err.response?.data?.message || 'Failed to prepare the session room. Please try again.'
+        throw err
       }
     },
 
