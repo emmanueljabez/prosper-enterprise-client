@@ -35,8 +35,14 @@ const roomPage = readFileSync(roomPagePath, 'utf8')
 assert.match(roomPage, /agora-rtc-sdk-ng/, 'Agora room page should load the Agora Web SDK')
 assert.match(roomPage, /createMicrophoneAndCameraTracks/, 'Agora room should create local audio and video tracks')
 assert.match(roomPage, /createScreenVideoTrack/, 'Agora room should support screen sharing')
+assert.match(roomPage, /sendStreamMessage/, 'Agora room should send in-session chat and reaction events over Agora stream messages')
+assert.match(roomPage, /stream-message/, 'Agora room should receive in-session chat and reaction events over Agora stream messages')
 assert.match(roomPage, /token-privilege-will-expire|token-privilege-did-expire/, 'Agora room should renew expiring tokens')
 assert.match(roomPage, /client\.join\([\s\S]*tokenPayload\.appId[\s\S]*tokenPayload\.channelName[\s\S]*tokenPayload\.token[\s\S]*tokenPayload\.uid[\s\S]*\)/, 'Agora room should join using the backend token payload')
+assert.match(roomPage, /layout:\s*false/, 'Agora room should hide the default app chrome for a focused meeting surface')
+assert.match(roomPage, /Meeting chat/, 'Agora room should expose a meeting chat panel')
+assert.match(roomPage, /Send reaction/, 'Agora room should expose emoji reaction controls')
+assert.match(roomPage, /Present now/, 'Agora room should label screen sharing as a meeting presentation action')
 
 assert.match(
   sessionsPage,

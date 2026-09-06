@@ -33,6 +33,13 @@ assert(
 )
 
 assert(
+  appSource.includes('showNautixWebChat') &&
+    appSource.includes('/app/sessions/') &&
+    appSource.includes('/room'),
+  'App should hide the external Nautix webchat launcher inside live Agora session rooms',
+)
+
+assert(
   nuxtConfig.includes('nautixWebchatSiteKey') &&
     nuxtConfig.includes('NUXT_PUBLIC_NAUTIX_WEBCHAT_SITE_KEY'),
   'Nuxt config should expose a public Nautix site key override',
