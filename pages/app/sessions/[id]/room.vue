@@ -335,6 +335,25 @@ const loadAgoraSdk = async () => {
   return AgoraRTC
 }
 
+const AGORA_OPERATION_TIMEOUT_MS = 12000
+
+const withAgoraTimeout = async <T>(operation: () => Promise<T>, label: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out. Please try again.`))
+    }, AGORA_OPERATION_TIMEOUT_MS)
+  })
+
+  try {
+    return await Promise.race([operation(), timeout])
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+  }
+}
+
 const renderRemoteVideoTracks = async () => {
   await nextTick()
   remoteUsers.value.forEach((user) => {
@@ -414,16 +433,11 @@ const joinAgoraChannel = async (payload: AgoraTokenPayload, room: BreakoutRoom |
   client = agora.createClient({ mode: 'rtc', codec: 'vp8' })
   attachAgoraClientHandlers()
 
-  await client.join(
-    payload.appId,
-    payload.channelName,
-    payload.token,
-    payload.uid,
-  )
+  await withAgoraTimeout(() => client.join(payload.appId, payload.channelName, payload.token, payload.uid), 'Joining the Agora room')
 
   await ensureLocalMediaTracks(agora)
   await playLocalVideoTrack()
-  await client.publish([localAudioTrack, localVideoTrack])
+  await withAgoraTimeout(() => client.publish([localAudioTrack, localVideoTrack]), 'Publishing local media')
 
   tokenPayload.value = payload
   currentRoomKind.value = room ? 'breakout' : 'main'
@@ -442,11 +456,14 @@ const switchAgoraChannel = async (payload: AgoraTokenPayload, room: BreakoutRoom
     if (client) {
       const tracksToUnpublish = [localAudioTrack, localVideoTrack].filter(Boolean)
       if (tracksToUnpublish.length) {
-        await client.unpublish(tracksToUnpublish)
+        await withAgoraTimeout(() => client.unpublish(tracksToUnpublish), 'Leaving the current room')
       }
-      await client.leave()
+      await withAgoraTimeout(() => client.leave(), 'Leaving the current room')
       client = null
     }
+  } catch (error) {
+    console.warn('Agora room cleanup did not finish before switching rooms:', error)
+    client = null
   } finally {
     isJoined.value = false
     remoteUsers.value = []
@@ -522,10 +539,10 @@ const startScreenShare = async () => {
     screenVideoTrack = await agora.createScreenVideoTrack({ encoderConfig: '1080p_1' }, 'disable')
 
     if (localVideoTrack) {
-      await client.unpublish(localVideoTrack)
+      await withAgoraTimeout(() => client.unpublish(localVideoTrack), 'Starting screen share')
     }
 
-    await client.publish(screenVideoTrack)
+    await withAgoraTimeout(() => client.publish(screenVideoTrack), 'Starting screen share')
     screenSharing.value = true
     await playLocalVideoTrack()
     screenVideoTrack.on('track-ended', stopScreenShare)
@@ -539,12 +556,12 @@ const stopScreenShare = async () => {
   if (!client || !screenVideoTrack) return
 
   try {
-    await client.unpublish(screenVideoTrack)
+    await withAgoraTimeout(() => client.unpublish(screenVideoTrack), 'Stopping screen share')
     screenVideoTrack.close()
     screenVideoTrack = null
 
     if (localVideoTrack) {
-      await client.publish(localVideoTrack)
+      await withAgoraTimeout(() => client.publish(localVideoTrack), 'Restoring camera')
     }
     screenSharing.value = false
     await playLocalVideoTrack()
@@ -743,7 +760,7 @@ const leaveRoom = async (redirect = true) => {
       localVideoTrack = null
     }
     if (client) {
-      await client.leave()
+      await withAgoraTimeout(() => client.leave(), 'Leaving the Agora room')
       client = null
     }
   } catch (error) {
