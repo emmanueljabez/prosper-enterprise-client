@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import {
   Captions,
   ChevronUp,
+  DoorOpen,
   Hand,
   Info,
   Loader2,
@@ -18,9 +19,12 @@ import {
   MoreVertical,
   PanelRightClose,
   PhoneOff,
+  Plus,
   Send,
   Smile,
   Sparkles,
+  Shuffle,
+  Undo2,
   Users,
   Video,
   VideoOff,
@@ -41,7 +45,8 @@ type AgoraTokenPayload = {
   expiresAt: string
 }
 
-type MeetingPanel = 'chat' | 'participants' | null
+type MeetingPanel = 'chat' | 'participants' | 'breakouts' | null
+type CurrentRoomKind = 'main' | 'breakout'
 
 type MeetingStreamPayload = {
   id: string
@@ -68,6 +73,31 @@ type ReactionBurst = {
   senderName: string
 }
 
+type BreakoutParticipant = {
+  profileId: string
+  roomId?: string | null
+  roomName?: string | null
+  name: string
+  avatarUrl?: string | null
+  status?: 'ASSIGNED' | 'JOINED' | 'LEFT' | 'RETURNED' | null
+}
+
+type BreakoutRoom = {
+  id: string
+  sessionId: string
+  name: string
+  agoraChannelName: string
+  status: 'DRAFT' | 'OPEN' | 'CLOSED'
+  participants: BreakoutParticipant[]
+}
+
+type BreakoutStateResponse = {
+  host: boolean
+  rooms: BreakoutRoom[]
+  availableParticipants: BreakoutParticipant[]
+  assignedRoom?: BreakoutRoom | null
+}
+
 const route = useRoute()
 const router = useRouter()
 const sessionsStore = useSessionsStore()
@@ -92,6 +122,13 @@ const reactionBursts = ref<ReactionBurst[]>([])
 const localHandRaised = ref(false)
 const showReactions = ref(false)
 const showMore = ref(false)
+const breakoutState = ref<BreakoutStateResponse | null>(null)
+const currentRoomKind = ref<CurrentRoomKind>('main')
+const currentBreakoutRoom = ref<BreakoutRoom | null>(null)
+const breakoutRoomCount = ref(2)
+const dismissedBreakoutRoomId = ref<string | null>(null)
+const isBreakoutBusy = ref(false)
+const breakoutAvailable = ref(true)
 
 let AgoraRTC: any = null
 let client: any = null
@@ -99,6 +136,7 @@ let localAudioTrack: any = null
 let localVideoTrack: any = null
 let screenVideoTrack: any = null
 let clockTimer: ReturnType<typeof setInterval> | null = null
+let breakoutPollTimer: ReturnType<typeof setInterval> | null = null
 const reactionTimers: ReturnType<typeof setTimeout>[] = []
 const seenMeetingEventIds = new Set<string>()
 
@@ -137,7 +175,32 @@ const roomStatus = computed(() => {
 
 const participantCount = computed(() => remoteUsers.value.length + (isJoined.value ? 1 : 0))
 
-const activePanelTitle = computed(() => activePanel.value === 'chat' ? 'Meeting chat' : 'Participants')
+const activePanelTitle = computed(() => {
+  if (activePanel.value === 'chat') return 'Meeting chat'
+  if (activePanel.value === 'breakouts') return 'Breakout rooms'
+  return 'Participants'
+})
+
+const isBreakoutHost = computed(() => Boolean(breakoutState.value?.host))
+
+const currentRoomLabel = computed(() => {
+  if (currentRoomKind.value === 'breakout') {
+    return currentBreakoutRoom.value?.name || 'Breakout room'
+  }
+  return 'Main room'
+})
+
+const assignedBreakoutRoom = computed(() => {
+  const room = breakoutState.value?.assignedRoom
+  if (!room || room.status !== 'OPEN') return null
+  if (currentRoomKind.value !== 'main') return null
+  if (dismissedBreakoutRoomId.value === room.id) return null
+  return room
+})
+
+const activeBreakoutRooms = computed(() => {
+  return (breakoutState.value?.rooms || []).filter((room) => room.status !== 'CLOSED')
+})
 
 const formatTime = (value?: string) => {
   if (!value) return ''
@@ -256,6 +319,15 @@ const fetchAgoraToken = async () => {
   return token
 }
 
+const fetchCurrentAgoraToken = async () => {
+  if (currentRoomKind.value === 'breakout' && currentBreakoutRoom.value) {
+    const token = await sessionsStore.createBreakoutRoomToken(sessionId.value, currentBreakoutRoom.value.id)
+    tokenPayload.value = token
+    return token
+  }
+  return fetchAgoraToken()
+}
+
 const loadAgoraSdk = async () => {
   if (!AgoraRTC) {
     AgoraRTC = await import('agora-rtc-sdk-ng')
@@ -278,6 +350,111 @@ const playLocalVideoTrack = async () => {
   }
 }
 
+const resetRoomMessages = () => {
+  meetingMessages.value = []
+  seenMeetingEventIds.clear()
+}
+
+const attachAgoraClientHandlers = () => {
+  if (!client) return
+
+  client.on('user-published', async (user: any, mediaType: 'audio' | 'video') => {
+    await client.subscribe(user, mediaType)
+    remoteUsers.value = client.remoteUsers.slice()
+
+    if (mediaType === 'video') {
+      await renderRemoteVideoTracks()
+    }
+
+    if (mediaType === 'audio') {
+      user.audioTrack?.play()
+    }
+  })
+
+  client.on('user-unpublished', async () => {
+    remoteUsers.value = client.remoteUsers.slice()
+    await renderRemoteVideoTracks()
+  })
+
+  client.on('user-left', async () => {
+    remoteUsers.value = client.remoteUsers.slice()
+    await renderRemoteVideoTracks()
+  })
+
+  client.on('stream-message', (_uid: string | number, payload: Uint8Array) => {
+    const event = decodeStreamPayload(payload)
+    if (event) {
+      handleMeetingStreamEvent(event)
+    }
+  })
+
+  client.on('token-privilege-will-expire', async () => {
+    const renewedTokenPayload = await fetchCurrentAgoraToken()
+    await client?.renewToken(renewedTokenPayload.token)
+  })
+
+  client.on('token-privilege-did-expire', async () => {
+    const renewedTokenPayload = await fetchCurrentAgoraToken()
+    await client?.renewToken(renewedTokenPayload.token)
+  })
+}
+
+const ensureLocalMediaTracks = async (agora: any) => {
+  if (localAudioTrack && localVideoTrack) return
+  const [microphoneTrack, cameraTrack] = await agora.createMicrophoneAndCameraTracks()
+  localAudioTrack = microphoneTrack
+  localVideoTrack = cameraTrack
+  await localAudioTrack.setEnabled(micEnabled.value)
+  await localVideoTrack.setEnabled(cameraEnabled.value)
+}
+
+const joinAgoraChannel = async (payload: AgoraTokenPayload, room: BreakoutRoom | null = null) => {
+  const sdk = await loadAgoraSdk()
+  const agora = sdk.default || sdk
+  client = agora.createClient({ mode: 'rtc', codec: 'vp8' })
+  attachAgoraClientHandlers()
+
+  await client.join(
+    payload.appId,
+    payload.channelName,
+    payload.token,
+    payload.uid,
+  )
+
+  await ensureLocalMediaTracks(agora)
+  await playLocalVideoTrack()
+  await client.publish([localAudioTrack, localVideoTrack])
+
+  tokenPayload.value = payload
+  currentRoomKind.value = room ? 'breakout' : 'main'
+  currentBreakoutRoom.value = room
+  remoteUsers.value = client.remoteUsers.slice()
+  isJoined.value = true
+  resetRoomMessages()
+}
+
+const switchAgoraChannel = async (payload: AgoraTokenPayload, room: BreakoutRoom | null = null) => {
+  if (screenSharing.value) {
+    await stopScreenShare()
+  }
+
+  try {
+    if (client) {
+      const tracksToUnpublish = [localAudioTrack, localVideoTrack].filter(Boolean)
+      if (tracksToUnpublish.length) {
+        await client.unpublish(tracksToUnpublish)
+      }
+      await client.leave()
+      client = null
+    }
+  } finally {
+    isJoined.value = false
+    remoteUsers.value = []
+  }
+
+  await joinAgoraChannel(payload, room)
+}
+
 const joinRoom = async () => {
   isJoining.value = true
   roomError.value = ''
@@ -287,66 +464,8 @@ const joinRoom = async () => {
       await leaveRoom(false)
     }
 
-    const sdk = await loadAgoraSdk()
-    const agora = sdk.default || sdk
     const tokenPayload = await fetchAgoraToken()
-    client = agora.createClient({ mode: 'rtc', codec: 'vp8' })
-
-    client.on('user-published', async (user: any, mediaType: 'audio' | 'video') => {
-      await client.subscribe(user, mediaType)
-      remoteUsers.value = client.remoteUsers.slice()
-
-      if (mediaType === 'video') {
-        await renderRemoteVideoTracks()
-      }
-
-      if (mediaType === 'audio') {
-        user.audioTrack?.play()
-      }
-    })
-
-    client.on('user-unpublished', async () => {
-      remoteUsers.value = client.remoteUsers.slice()
-      await renderRemoteVideoTracks()
-    })
-
-    client.on('user-left', async () => {
-      remoteUsers.value = client.remoteUsers.slice()
-      await renderRemoteVideoTracks()
-    })
-
-    client.on('stream-message', (_uid: string | number, payload: Uint8Array) => {
-      const event = decodeStreamPayload(payload)
-      if (event) {
-        handleMeetingStreamEvent(event)
-      }
-    })
-
-    client.on('token-privilege-will-expire', async () => {
-      const renewedTokenPayload = await fetchAgoraToken()
-      await client?.renewToken(renewedTokenPayload.token)
-    })
-
-    client.on('token-privilege-did-expire', async () => {
-      const renewedTokenPayload = await fetchAgoraToken()
-      await client?.renewToken(renewedTokenPayload.token)
-    })
-
-    await client.join(
-      tokenPayload.appId,
-      tokenPayload.channelName,
-      tokenPayload.token,
-      tokenPayload.uid,
-    )
-
-    const [microphoneTrack, cameraTrack] = await agora.createMicrophoneAndCameraTracks()
-    localAudioTrack = microphoneTrack
-    localVideoTrack = cameraTrack
-
-    await playLocalVideoTrack()
-    await client.publish([localAudioTrack, localVideoTrack])
-
-    isJoined.value = true
+    await joinAgoraChannel(tokenPayload)
     toast.success('Joined session room')
   } catch (error: any) {
     console.error('Error joining Agora room:', error)
@@ -370,6 +489,10 @@ const loadSessionAndJoin = async () => {
     }
 
     await joinRoom()
+    await pollBreakoutState()
+    if (breakoutAvailable.value) {
+      startBreakoutPolling()
+    }
   } catch (error: any) {
     console.error('Error loading Agora session:', error)
     roomError.value = error?.response?.data?.message || 'Failed to load this session room.'
@@ -437,6 +560,151 @@ const togglePanel = (panel: Exclude<MeetingPanel, null>) => {
   showReactions.value = false
 }
 
+const pollBreakoutState = async () => {
+  if (!sessionId.value || !isJoined.value || !breakoutAvailable.value) return
+
+  try {
+    const state = await sessionsStore.getBreakoutState(sessionId.value)
+    breakoutState.value = state
+
+    if (currentRoomKind.value === 'breakout' && currentBreakoutRoom.value) {
+      const activeRoom = state.rooms.find((room: BreakoutRoom) => room.id === currentBreakoutRoom.value?.id)
+      if (!activeRoom || activeRoom.status === 'CLOSED') {
+        await returnToMainSessionRoom(true)
+      }
+    }
+  } catch (error: any) {
+    const message = error?.response?.data?.message || ''
+    if (error?.response?.status === 400 && String(message).includes('Breakout rooms')) {
+      breakoutAvailable.value = false
+      breakoutState.value = null
+      if (activePanel.value === 'breakouts') {
+        activePanel.value = null
+      }
+      if (breakoutPollTimer) {
+        clearInterval(breakoutPollTimer)
+        breakoutPollTimer = null
+      }
+      return
+    }
+
+    console.error('Error polling breakout rooms:', error)
+  }
+}
+
+const startBreakoutPolling = () => {
+  if (breakoutPollTimer) {
+    clearInterval(breakoutPollTimer)
+  }
+  breakoutPollTimer = setInterval(() => {
+    void pollBreakoutState()
+  }, 5000)
+}
+
+const createBreakoutRooms = async () => {
+  isBreakoutBusy.value = true
+  try {
+    breakoutState.value = await sessionsStore.createBreakoutRooms(sessionId.value, {
+      count: breakoutRoomCount.value,
+    })
+    toast.success('Breakout rooms created')
+  } catch (error: any) {
+    toast.error(error?.response?.data?.message || 'Unable to create breakout rooms.')
+  } finally {
+    isBreakoutBusy.value = false
+  }
+}
+
+const autoAssignBreakoutRooms = async () => {
+  isBreakoutBusy.value = true
+  try {
+    breakoutState.value = await sessionsStore.autoAssignBreakoutRooms(sessionId.value)
+    toast.success('Participants assigned')
+  } catch (error: any) {
+    toast.error(error?.response?.data?.message || 'Unable to assign breakout rooms.')
+  } finally {
+    isBreakoutBusy.value = false
+  }
+}
+
+const openBreakoutRooms = async () => {
+  isBreakoutBusy.value = true
+  try {
+    breakoutState.value = await sessionsStore.openBreakoutRooms(sessionId.value)
+    toast.success('Breakout rooms opened')
+  } catch (error: any) {
+    toast.error(error?.response?.data?.message || 'Unable to open breakout rooms.')
+  } finally {
+    isBreakoutBusy.value = false
+  }
+}
+
+const closeBreakoutRooms = async () => {
+  isBreakoutBusy.value = true
+  try {
+    breakoutState.value = await sessionsStore.closeBreakoutRooms(sessionId.value)
+    if (currentRoomKind.value === 'breakout') {
+      await returnToMainSessionRoom(true)
+    }
+    toast.success('Breakout rooms closed')
+  } catch (error: any) {
+    toast.error(error?.response?.data?.message || 'Unable to close breakout rooms.')
+  } finally {
+    isBreakoutBusy.value = false
+  }
+}
+
+const handleMoveBreakoutParticipant = async (participant: BreakoutParticipant, event: Event) => {
+  const roomId = (event.target as HTMLSelectElement).value
+  if (!roomId) return
+
+  isBreakoutBusy.value = true
+  try {
+    breakoutState.value = await sessionsStore.moveBreakoutParticipant(sessionId.value, participant.profileId, roomId)
+  } catch (error: any) {
+    toast.error(error?.response?.data?.message || 'Unable to move participant.')
+  } finally {
+    isBreakoutBusy.value = false
+  }
+}
+
+const dismissBreakoutPrompt = () => {
+  dismissedBreakoutRoomId.value = assignedBreakoutRoom.value?.id || null
+}
+
+const joinBreakoutRoom = async (room: BreakoutRoom) => {
+  isBreakoutBusy.value = true
+  try {
+    const token = await sessionsStore.createBreakoutRoomToken(sessionId.value, room.id)
+    await switchAgoraChannel(token, room)
+    breakoutState.value = await sessionsStore.markBreakoutRoomJoined(sessionId.value, room.id)
+    dismissedBreakoutRoomId.value = null
+    toast.success(`Joined ${room.name}`)
+  } catch (error: any) {
+    toast.error(error?.response?.data?.message || 'Unable to join breakout room.')
+  } finally {
+    isBreakoutBusy.value = false
+  }
+}
+
+const returnToMainSessionRoom = async (silent = false) => {
+  isBreakoutBusy.value = true
+  try {
+    const token = await sessionsStore.createAgoraToken(sessionId.value)
+    await switchAgoraChannel(token)
+    breakoutState.value = await sessionsStore.returnToMainRoom(sessionId.value)
+    if (!silent) {
+      toast.success('Returned to main room')
+    }
+  } catch (error: any) {
+    if (!silent) {
+      toast.error(error?.response?.data?.message || 'Unable to return to the main room.')
+    }
+  } finally {
+    isBreakoutBusy.value = false
+  }
+}
+
 const sendChatMessage = async () => {
   const text = chatDraft.value.trim()
   if (!text) return
@@ -500,6 +768,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (clockTimer) {
     clearInterval(clockTimer)
+  }
+
+  if (breakoutPollTimer) {
+    clearInterval(breakoutPollTimer)
   }
 
   reactionTimers.forEach((timer) => clearTimeout(timer))
@@ -588,6 +860,10 @@ onBeforeUnmount(() => {
                 {{ localParticipantName }}
               </div>
 
+              <div class="absolute left-5 top-5 rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white shadow-lg">
+                {{ currentRoomLabel }}
+              </div>
+
               <div
                 v-if="screenSharing"
                 class="absolute right-5 top-5 rounded-full bg-[#016f56] px-3 py-1.5 text-xs font-semibold text-white"
@@ -633,6 +909,9 @@ onBeforeUnmount(() => {
                 <h2 class="text-base font-semibold">{{ activePanelTitle }}</h2>
                 <p v-if="activePanel === 'participants'" class="text-xs text-slate-500">
                   {{ participantCount }} in call
+                </p>
+                <p v-else-if="activePanel === 'breakouts'" class="text-xs text-slate-500">
+                  Host-managed room assignments
                 </p>
               </div>
               <button
@@ -692,7 +971,7 @@ onBeforeUnmount(() => {
               </form>
             </div>
 
-            <div v-else class="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+            <div v-else-if="activePanel === 'participants'" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
               <div class="flex items-center gap-3 rounded-2xl bg-slate-100 p-3">
                 <div class="grid h-11 w-11 place-items-center rounded-full bg-[#016f56] text-sm font-semibold text-white">
                   {{ localParticipantName.slice(0, 2).toUpperCase() }}
@@ -729,8 +1008,207 @@ onBeforeUnmount(() => {
                 Waiting for the other participant to join.
               </div>
             </div>
+
+            <div v-else class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              <div v-if="!isBreakoutHost" class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm leading-relaxed text-slate-500">
+                Breakout rooms will appear when the session host opens them.
+              </div>
+
+              <template v-else>
+                <div class="rounded-2xl bg-slate-100 p-4">
+                  <label class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="breakout-room-count">
+                    Rooms
+                  </label>
+                  <div class="mt-3 flex items-center gap-2">
+                    <input
+                      id="breakout-room-count"
+                      v-model.number="breakoutRoomCount"
+                      type="number"
+                      min="1"
+                      max="12"
+                      class="h-10 w-20 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#016f56]"
+                    >
+                    <Button
+                      type="button"
+                      class="h-10 flex-1 rounded-xl bg-[#016f56] text-sm font-semibold text-white hover:bg-[#005944]"
+                      :disabled="isBreakoutBusy"
+                      @click="createBreakoutRooms"
+                    >
+                      <Plus class="mr-2 h-4 w-4" />
+                      Create rooms
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    class="mt-3 h-10 w-full rounded-xl border-[#016f56]/40 text-sm font-semibold text-[#016f56] hover:bg-[#016f56]/10"
+                    :disabled="isBreakoutBusy || activeBreakoutRooms.length === 0"
+                    @click="autoAssignBreakoutRooms"
+                  >
+                    <Shuffle class="mr-2 h-4 w-4" />
+                    Auto assign participants
+                  </Button>
+                </div>
+
+                <div class="space-y-3">
+                  <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-slate-950">Rooms</h3>
+                    <span class="text-xs text-slate-500">{{ activeBreakoutRooms.length }} active</span>
+                  </div>
+
+                  <div
+                    v-if="!breakoutState?.rooms?.length"
+                    class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500"
+                  >
+                    Create rooms to start assigning participants.
+                  </div>
+
+                  <div
+                    v-for="room in breakoutState?.rooms || []"
+                    :key="room.id"
+                    class="rounded-2xl border border-slate-200 bg-white p-4"
+                  >
+                    <div class="flex items-center justify-between gap-3">
+                      <div>
+                        <h4 class="text-sm font-semibold text-slate-950">{{ room.name }}</h4>
+                        <p class="text-xs text-slate-500">{{ room.participants.length }} assigned</p>
+                      </div>
+                      <span
+                        class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                        :class="room.status === 'OPEN' ? 'bg-[#016f56]/10 text-[#016f56]' : room.status === 'CLOSED' ? 'bg-slate-100 text-slate-500' : 'bg-[#dd63c4]/10 text-[#9c2d83]'"
+                      >
+                        {{ room.status.toLowerCase() }}
+                      </span>
+                    </div>
+
+                    <div class="mt-3 space-y-2">
+                      <div
+                        v-for="participant in room.participants"
+                        :key="`${room.id}-${participant.profileId}`"
+                        class="flex items-center gap-2 text-xs text-slate-600"
+                      >
+                        <img
+                          v-if="participant.avatarUrl"
+                          :src="participant.avatarUrl"
+                          :alt="participant.name"
+                          class="h-6 w-6 rounded-full object-cover"
+                        >
+                        <span v-else class="grid h-6 w-6 place-items-center rounded-full bg-slate-100 text-[10px] font-semibold">
+                          {{ participant.name.slice(0, 2).toUpperCase() }}
+                        </span>
+                        <span class="min-w-0 flex-1 truncate">{{ participant.name }}</span>
+                        <span class="text-[11px] text-slate-400">{{ participant.status?.toLowerCase() }}</span>
+                      </div>
+
+                      <p v-if="room.participants.length === 0" class="text-xs text-slate-400">
+                        No participants assigned yet.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="space-y-3">
+                  <h3 class="text-sm font-semibold text-slate-950">Participants</h3>
+                  <div
+                    v-for="participant in breakoutState?.availableParticipants || []"
+                    :key="participant.profileId"
+                    class="flex items-center gap-3 rounded-2xl border border-slate-200 p-3"
+                  >
+                    <img
+                      v-if="participant.avatarUrl"
+                      :src="participant.avatarUrl"
+                      :alt="participant.name"
+                      class="h-9 w-9 rounded-full object-cover"
+                    >
+                    <span v-else class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                      {{ participant.name.slice(0, 2).toUpperCase() }}
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-semibold text-slate-950">{{ participant.name }}</p>
+                      <p class="truncate text-xs text-slate-500">{{ participant.roomName || 'Unassigned' }}</p>
+                    </div>
+                    <select
+                      class="h-9 rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#016f56]"
+                      :value="participant.roomId || ''"
+                      :disabled="isBreakoutBusy || activeBreakoutRooms.length === 0"
+                      @change="handleMoveBreakoutParticipant(participant, $event)"
+                    >
+                      <option value="">Room</option>
+                      <option
+                        v-for="room in activeBreakoutRooms"
+                        :key="`move-${room.id}`"
+                        :value="room.id"
+                      >
+                        {{ room.name }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div
+                    v-if="breakoutState?.availableParticipants?.length === 0"
+                    class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500"
+                  >
+                    No eligible participants were found for this group session.
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
+                  <Button
+                    type="button"
+                    class="h-10 rounded-xl bg-[#016f56] text-sm font-semibold text-white hover:bg-[#005944]"
+                    :disabled="isBreakoutBusy || activeBreakoutRooms.length === 0"
+                    @click="openBreakoutRooms"
+                  >
+                    <DoorOpen class="mr-2 h-4 w-4" />
+                    Open rooms
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    class="h-10 rounded-xl border-[#dd63c4]/50 text-sm font-semibold text-[#9c2d83] hover:bg-[#dd63c4]/10"
+                    :disabled="isBreakoutBusy || activeBreakoutRooms.length === 0"
+                    @click="closeBreakoutRooms"
+                  >
+                    <Undo2 class="mr-2 h-4 w-4" />
+                    Close rooms
+                  </Button>
+                </div>
+              </template>
+            </div>
           </aside>
         </section>
+
+        <div
+          v-if="assignedBreakoutRoom"
+          class="fixed bottom-24 left-4 right-4 z-50 mx-auto max-w-xl rounded-3xl border border-white/15 bg-[#202124]/95 p-4 text-white shadow-2xl backdrop-blur sm:bottom-28"
+        >
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[#dd63c4]">Breakout assignment</p>
+              <h2 class="mt-1 text-xl font-semibold">{{ assignedBreakoutRoom.name }}</h2>
+              <p class="mt-1 text-sm text-white/70">The host has opened this room for your group.</p>
+            </div>
+            <div class="flex shrink-0 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                class="rounded-full border-white/20 bg-transparent text-white hover:bg-white/10"
+                :disabled="isBreakoutBusy"
+                @click="dismissBreakoutPrompt"
+              >
+                Stay here
+              </Button>
+              <Button
+                type="button"
+                class="rounded-full bg-[#dd63c4] px-5 font-semibold text-white hover:bg-[#c94daf]"
+                :disabled="isBreakoutBusy"
+                @click="joinBreakoutRoom(assignedBreakoutRoom)"
+              >
+                Join breakout room
+              </Button>
+            </div>
+          </div>
+        </div>
 
         <div class="fixed bottom-4 left-2 right-2 z-40 flex items-center gap-2 overflow-x-auto rounded-full bg-[#202124]/95 p-2 shadow-2xl backdrop-blur sm:bottom-5 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:overflow-visible">
           <div
@@ -748,6 +1226,15 @@ onBeforeUnmount(() => {
             <div class="px-3 py-2 text-xs text-slate-500">
               {{ scheduledTimeRange || roomStatus }}
             </div>
+            <button
+              v-if="currentRoomKind === 'breakout'"
+              type="button"
+              class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left font-medium hover:bg-slate-100"
+              @click="returnToMainSessionRoom()"
+            >
+              Return to main room
+              <Undo2 class="h-4 w-4" />
+            </button>
           </div>
 
           <Button
@@ -893,6 +1380,19 @@ onBeforeUnmount(() => {
             @click="togglePanel('participants')"
           >
             <PanelRightClose class="h-5 w-5" />
+          </Button>
+          <Button
+            v-if="breakoutAvailable"
+            type="button"
+            :class="[
+              'h-12 w-12 rounded-full p-0 text-white',
+              activePanel === 'breakouts' ? 'bg-[#dd63c4] hover:bg-[#c94daf]' : 'bg-[#3c4043] hover:bg-[#4a4d50]',
+            ]"
+            title="Breakout rooms"
+            aria-label="Breakout rooms"
+            @click="togglePanel('breakouts')"
+          >
+            <DoorOpen class="h-5 w-5" />
           </Button>
         </div>
       </div>
