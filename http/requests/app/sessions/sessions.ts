@@ -32,6 +32,40 @@ interface AgoraJoinTokenResponse {
     expiresAt: string
 }
 
+interface BreakoutParticipantResponse {
+    profileId: string
+    roomId?: string | null
+    roomName?: string | null
+    name: string
+    avatarUrl?: string | null
+    status?: 'ASSIGNED' | 'JOINED' | 'LEFT' | 'RETURNED' | null
+}
+
+interface BreakoutRoomResponse {
+    id: string
+    sessionId: string
+    name: string
+    agoraChannelName: string
+    status: 'DRAFT' | 'OPEN' | 'CLOSED'
+    participants: BreakoutParticipantResponse[]
+}
+
+interface BreakoutStateResponse {
+    host: boolean
+    rooms: BreakoutRoomResponse[]
+    availableParticipants: BreakoutParticipantResponse[]
+    assignedRoom?: BreakoutRoomResponse | null
+}
+
+interface CreateBreakoutRoomsPayload {
+    count?: number
+    names?: string[]
+}
+
+interface MoveBreakoutParticipantPayload {
+    roomId: string
+}
+
 interface OutcomeActionItemPayload {
     description: string
     ownerType?: 'MENTEE' | 'MENTOR' | 'SHARED'
@@ -111,6 +145,42 @@ export default {
 
     createAgoraToken(sessionId: string) {
         return axiosInstance.post<{ data: AgoraJoinTokenResponse }>(`/v1/sessions/${sessionId}/agora/token`)
+    },
+
+    getBreakoutState(sessionId: string) {
+        return axiosInstance.get<{ data: BreakoutStateResponse }>(`/v1/sessions/${sessionId}/breakouts/state`)
+    },
+
+    createBreakoutRooms(sessionId: string, payload: CreateBreakoutRoomsPayload = {}) {
+        return axiosInstance.post<{ data: BreakoutStateResponse }>(`/v1/sessions/${sessionId}/breakouts/rooms`, payload)
+    },
+
+    autoAssignBreakoutRooms(sessionId: string) {
+        return axiosInstance.post<{ data: BreakoutStateResponse }>(`/v1/sessions/${sessionId}/breakouts/auto-assign`)
+    },
+
+    moveBreakoutParticipant(sessionId: string, profileId: string, payload: MoveBreakoutParticipantPayload) {
+        return axiosInstance.patch<{ data: BreakoutStateResponse }>(`/v1/sessions/${sessionId}/breakouts/participants/${profileId}`, payload)
+    },
+
+    openBreakoutRooms(sessionId: string) {
+        return axiosInstance.post<{ data: BreakoutStateResponse }>(`/v1/sessions/${sessionId}/breakouts/open`)
+    },
+
+    closeBreakoutRooms(sessionId: string) {
+        return axiosInstance.post<{ data: BreakoutStateResponse }>(`/v1/sessions/${sessionId}/breakouts/close`)
+    },
+
+    createBreakoutRoomToken(sessionId: string, roomId: string) {
+        return axiosInstance.post<{ data: AgoraJoinTokenResponse }>(`/v1/sessions/${sessionId}/breakouts/rooms/${roomId}/token`)
+    },
+
+    markBreakoutRoomJoined(sessionId: string, roomId: string) {
+        return axiosInstance.post<{ data: BreakoutStateResponse }>(`/v1/sessions/${sessionId}/breakouts/rooms/${roomId}/join`)
+    },
+
+    returnToMainRoom(sessionId: string) {
+        return axiosInstance.post<{ data: BreakoutStateResponse }>(`/v1/sessions/${sessionId}/breakouts/return-main`)
     },
 
     confirmSession(sessionId: string, payload: ConfirmSessionPayload = {}) {

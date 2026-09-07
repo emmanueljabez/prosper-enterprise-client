@@ -126,6 +126,36 @@ interface AgoraJoinTokenData {
   expiresAt: string
 }
 
+interface BreakoutParticipantData {
+  profileId: string
+  roomId?: string | null
+  roomName?: string | null
+  name: string
+  avatarUrl?: string | null
+  status?: 'ASSIGNED' | 'JOINED' | 'LEFT' | 'RETURNED' | null
+}
+
+interface BreakoutRoomData {
+  id: string
+  sessionId: string
+  name: string
+  agoraChannelName: string
+  status: 'DRAFT' | 'OPEN' | 'CLOSED'
+  participants: BreakoutParticipantData[]
+}
+
+interface BreakoutStateData {
+  host: boolean
+  rooms: BreakoutRoomData[]
+  availableParticipants: BreakoutParticipantData[]
+  assignedRoom?: BreakoutRoomData | null
+}
+
+interface CreateBreakoutRoomsPayload {
+  count?: number
+  names?: string[]
+}
+
 interface SessionOutcomeActionItemData {
   id: string
   description: string
@@ -424,6 +454,159 @@ export const useSessionsStore = defineStore('sessions', {
       } catch (err: any) {
         console.error('Error creating Agora token:', err)
         this.error = err.response?.data?.message || 'Failed to prepare the session room. Please try again.'
+        throw err
+      }
+    },
+
+    async getBreakoutState(sessionId: string): Promise<BreakoutStateData> {
+      this.error = null
+
+      try {
+        const response = await sessionsApi.getBreakoutState(sessionId)
+        const state = response.data?.data
+        if (!state) {
+          throw new Error('Breakout state response was empty')
+        }
+        return state
+      } catch (err: any) {
+        console.error('Error loading breakout rooms:', err)
+        this.error = err.response?.data?.message || 'Failed to load breakout rooms.'
+        throw err
+      }
+    },
+
+    async createBreakoutRooms(sessionId: string, payload: CreateBreakoutRoomsPayload = {}): Promise<BreakoutStateData> {
+      this.error = null
+
+      try {
+        const response = await sessionsApi.createBreakoutRooms(sessionId, payload)
+        const state = response.data?.data
+        if (!state) {
+          throw new Error('Breakout room response was empty')
+        }
+        return state
+      } catch (err: any) {
+        console.error('Error creating breakout rooms:', err)
+        this.error = err.response?.data?.message || 'Failed to create breakout rooms.'
+        throw err
+      }
+    },
+
+    async autoAssignBreakoutRooms(sessionId: string): Promise<BreakoutStateData> {
+      this.error = null
+
+      try {
+        const response = await sessionsApi.autoAssignBreakoutRooms(sessionId)
+        const state = response.data?.data
+        if (!state) {
+          throw new Error('Breakout assignment response was empty')
+        }
+        return state
+      } catch (err: any) {
+        console.error('Error assigning breakout rooms:', err)
+        this.error = err.response?.data?.message || 'Failed to assign breakout rooms.'
+        throw err
+      }
+    },
+
+    async moveBreakoutParticipant(sessionId: string, profileId: string, roomId: string): Promise<BreakoutStateData> {
+      this.error = null
+
+      try {
+        const response = await sessionsApi.moveBreakoutParticipant(sessionId, profileId, { roomId })
+        const state = response.data?.data
+        if (!state) {
+          throw new Error('Breakout participant response was empty')
+        }
+        return state
+      } catch (err: any) {
+        console.error('Error moving breakout participant:', err)
+        this.error = err.response?.data?.message || 'Failed to move participant.'
+        throw err
+      }
+    },
+
+    async openBreakoutRooms(sessionId: string): Promise<BreakoutStateData> {
+      this.error = null
+
+      try {
+        const response = await sessionsApi.openBreakoutRooms(sessionId)
+        const state = response.data?.data
+        if (!state) {
+          throw new Error('Open breakout response was empty')
+        }
+        return state
+      } catch (err: any) {
+        console.error('Error opening breakout rooms:', err)
+        this.error = err.response?.data?.message || 'Failed to open breakout rooms.'
+        throw err
+      }
+    },
+
+    async closeBreakoutRooms(sessionId: string): Promise<BreakoutStateData> {
+      this.error = null
+
+      try {
+        const response = await sessionsApi.closeBreakoutRooms(sessionId)
+        const state = response.data?.data
+        if (!state) {
+          throw new Error('Close breakout response was empty')
+        }
+        return state
+      } catch (err: any) {
+        console.error('Error closing breakout rooms:', err)
+        this.error = err.response?.data?.message || 'Failed to close breakout rooms.'
+        throw err
+      }
+    },
+
+    async createBreakoutRoomToken(sessionId: string, roomId: string): Promise<AgoraJoinTokenData> {
+      this.error = null
+
+      try {
+        const response = await sessionsApi.createBreakoutRoomToken(sessionId, roomId)
+        const token = response.data?.data
+        if (!token) {
+          throw new Error('Breakout token response was empty')
+        }
+        return token
+      } catch (err: any) {
+        console.error('Error creating breakout token:', err)
+        this.error = err.response?.data?.message || 'Failed to join breakout room.'
+        throw err
+      }
+    },
+
+    async markBreakoutRoomJoined(sessionId: string, roomId: string): Promise<BreakoutStateData> {
+      this.error = null
+
+      try {
+        const response = await sessionsApi.markBreakoutRoomJoined(sessionId, roomId)
+        const state = response.data?.data
+        if (!state) {
+          throw new Error('Breakout join response was empty')
+        }
+        return state
+      } catch (err: any) {
+        console.error('Error marking breakout room joined:', err)
+        this.error = err.response?.data?.message || 'Failed to update breakout room.'
+        throw err
+      }
+    },
+
+    async returnToMainRoom(sessionId: string): Promise<BreakoutStateData> {
+      this.error = null
+
+      try {
+        const response = await sessionsApi.returnToMainRoom(sessionId)
+        const state = response.data?.data
+        if (!state) {
+          throw new Error('Return to main room response was empty')
+        }
+        return state
+      } catch (err: any) {
+        console.error('Error returning to main room:', err)
+        this.error = err.response?.data?.message || 'Failed to return to main room.'
         throw err
       }
     },
