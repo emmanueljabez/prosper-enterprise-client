@@ -31,3 +31,8 @@ assert.match(roomPage, /currentRoomKind/, 'room page should distinguish main roo
 assert.match(roomPage, /assignedBreakoutRoom/, 'room page should show participant assignment prompts')
 assert.match(roomPage, /breakoutAvailable/, 'room page should stop showing breakout controls when the backend marks them unsupported')
 assert.match(roomPage, /Meeting chat/, 'room page should keep chat in-session')
+assert.match(roomPage, /withAgoraTimeout/, 'room page should bound Agora SDK operations so room switches cannot hang forever')
+assert.match(roomPage, /withAgoraTimeout\(\(\) => client\.join/, 'Agora room joins should be timeout-bounded')
+assert.match(roomPage, /withAgoraTimeout\(\(\) => client\.publish/, 'Agora publishing should be timeout-bounded')
+assert.match(roomPage, /withAgoraTimeout\(\(\) => client\.unpublish/, 'Agora unpublishing should be timeout-bounded')
+assert.match(roomPage, /withAgoraTimeout\(\(\) => client\.leave/, 'Agora channel leaves should be timeout-bounded')
