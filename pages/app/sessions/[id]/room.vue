@@ -917,10 +917,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <aside
-            v-if="activePanel"
-            class="fixed inset-x-4 bottom-24 top-20 z-30 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl sm:left-auto sm:right-7 sm:w-[390px]"
-          >
+          <aside v-if="activePanel" class="fixed inset-x-4 bottom-24 top-20 z-50 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl sm:left-auto sm:right-7 sm:w-[390px]">
             <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <h2 class="text-base font-semibold">{{ activePanelTitle }}</h2>
@@ -1169,7 +1166,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
+                <div class="sticky bottom-0 grid grid-cols-2 gap-2 border-t border-slate-200 bg-white pt-4">
                   <Button
                     type="button"
                     class="h-10 rounded-xl bg-[#016f56] text-sm font-semibold text-white hover:bg-[#005944]"

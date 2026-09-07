@@ -36,3 +36,5 @@ assert.match(roomPage, /withAgoraTimeout\(\(\) => client\.join/, 'Agora room joi
 assert.match(roomPage, /withAgoraTimeout\(\(\) => client\.publish/, 'Agora publishing should be timeout-bounded')
 assert.match(roomPage, /withAgoraTimeout\(\(\) => client\.unpublish/, 'Agora unpublishing should be timeout-bounded')
 assert.match(roomPage, /withAgoraTimeout\(\(\) => client\.leave/, 'Agora channel leaves should be timeout-bounded')
+assert.match(roomPage, /activePanel[^\n]+z-50/, 'active side panels should render above the fixed meeting toolbar')
+assert.match(roomPage, /sticky bottom-0 grid grid-cols-2/, 'breakout room actions should remain visible and clickable')
