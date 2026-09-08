@@ -50,6 +50,9 @@ assert.match(
   /meetingPlatform\s*===\s*['"]AGORA['"]/,
   'sessions page should route Agora meetings to the internal room route',
 )
+assert.match(sessionsPage, /copyMeetingLink\(selectedSession\.meetingUrl\)/, 'session details should expose a copy action for generated meeting links')
+assert.match(sessionsPage, /:href="selectedSession\.meetingUrl"/, 'session details should render the generated meeting URL as a visible link')
+assert.match(sessionsPage, /Meeting link will appear after the session is confirmed\./, 'session details should explain pending sessions without a generated meeting link')
 
 assert.match(bookingForm, /enableAgoraMeetings/, 'booking form should gate Agora behind a public feature flag')
 assert.match(bookingForm, /value:\s*['"]agora['"]/, 'booking form should offer Agora when the feature flag is enabled')

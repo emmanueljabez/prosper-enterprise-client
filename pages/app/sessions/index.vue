@@ -36,7 +36,8 @@ import {
   Users,
   Zap,
   CalendarClock,
-  LifeBuoy
+  LifeBuoy,
+  Copy
 } from 'lucide-vue-next'
 
 definePageMeta({
@@ -187,6 +188,13 @@ const canJoinSession = (session: any) => {
          session.status === 'CONFIRMED'
 }
 
+const formatMeetingPlatform = (platform: string) => {
+  return String(platform || 'Meeting')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, letter => letter.toUpperCase())
+}
+
 const joinSession = (session: any) => {
   if (session.meetingUrl) {
     if (session.meetingPlatform === 'AGORA') {
@@ -200,6 +208,33 @@ const joinSession = (session: any) => {
     toast.success('Opening session meeting...')
   } else {
     toast.error('Meeting link not available')
+  }
+}
+
+const showJoinWindowNotice = () => {
+  toast.info('Session room opens 15 minutes before the scheduled start.')
+}
+
+const getJoinWindowMessage = (session: any) => {
+  if (session?.meetingPlatform === 'AGORA') {
+    return 'Join button opens 15 minutes before the scheduled start to keep Agora tokens inside the valid session window.'
+  }
+
+  return 'Join button opens 15 minutes before the scheduled start.'
+}
+
+const copyMeetingLink = async (link: string | null) => {
+  if (!link) {
+    toast.error('Meeting link not available')
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(link)
+    toast.success('Meeting link copied')
+  } catch (error) {
+    console.error('Failed to copy meeting link:', error)
+    toast.error('Could not copy meeting link')
   }
 }
 
@@ -804,7 +839,7 @@ onMounted(async () => {
                 </div>
                 <div class="flex justify-between">
                   <span class="text-muted-foreground">Platform:</span>
-                  <span class="capitalize">{{ selectedSession.meetingPlatform.replace('_', ' ').toLowerCase() }}</span>
+                  <span>{{ formatMeetingPlatform(selectedSession.meetingPlatform) }}</span>
                 </div>
                 <div v-if="selectedSession.companyProgramName" class="flex justify-between">
                   <span class="text-muted-foreground">Program:</span>
@@ -946,15 +981,52 @@ onMounted(async () => {
           </div>
 
           <!-- Meeting Link -->
-          <div v-if="selectedSession.meetingUrl && isUpcoming(selectedSession)">
-            <Button
-              @click="joinSession(selectedSession)"
-              :disabled="!canJoinSession(selectedSession)"
-              class="w-full"
-            >
-              <Video class="h-4 w-4 mr-2" />
-              Join Session
-            </Button>
+          <div v-if="isUpcoming(selectedSession)" class="space-y-3 rounded-lg border bg-muted/40 p-4">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <Video class="h-4 w-4 text-muted-foreground" />
+                <h4 class="font-semibold">Meeting Link</h4>
+              </div>
+              <Badge variant="outline">{{ formatMeetingPlatform(selectedSession.meetingPlatform) }}</Badge>
+            </div>
+
+            <div v-if="selectedSession.meetingUrl" class="space-y-3">
+              <div class="flex flex-col gap-3 rounded-md bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
+                <a
+                  :href="selectedSession.meetingUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="min-w-0 break-all text-sm font-medium text-[#016f56] hover:text-[#dd63c4]"
+                  @click.prevent="canJoinSession(selectedSession) ? joinSession(selectedSession) : showJoinWindowNotice()"
+                >
+                  {{ selectedSession.meetingUrl }}
+                </a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="shrink-0"
+                  @click="copyMeetingLink(selectedSession.meetingUrl)"
+                >
+                  <Copy class="h-4 w-4 mr-2" />
+                  Copy
+                </Button>
+              </div>
+              <p v-if="!canJoinSession(selectedSession)" class="text-xs text-muted-foreground">
+                {{ getJoinWindowMessage(selectedSession) }}
+              </p>
+              <Button
+                @click="joinSession(selectedSession)"
+                :disabled="!canJoinSession(selectedSession)"
+                class="w-full bg-[#016f56] hover:bg-[#015744]"
+              >
+                <ExternalLink class="h-4 w-4 mr-2" />
+                Join Session
+              </Button>
+            </div>
+
+            <p v-else class="text-sm text-muted-foreground">
+              Meeting link will appear after the session is confirmed.
+            </p>
           </div>
 
           <div v-if="canMarkComplete(selectedSession)">
