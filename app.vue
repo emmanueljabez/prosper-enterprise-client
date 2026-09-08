@@ -10,7 +10,7 @@
     <ClientOnly>
       <SessionWarning />
     </ClientOnly>
-    <ClientOnly>
+    <ClientOnly v-if="showNautixWebChat">
       <NautixWebChat />
     </ClientOnly>
   </div>
@@ -19,8 +19,14 @@
 <script setup lang="ts">
 import { Toaster } from '@/components/ui/toast'
 import { useAuthStore } from '@/store/modules/auth';
-import { onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router'
 import SessionWarning from '@/components/ui/session/SessionWarning.vue'
+
+const route = useRoute()
+const showNautixWebChat = computed(() => {
+  return !route.path.startsWith('/app/sessions/') || !route.path.endsWith('/room')
+})
 
 onMounted(() => {
   const authStore = useAuthStore();

@@ -166,6 +166,7 @@ const getStatusColor = (status: string) => {
 
 const getPlatformIcon = (platform: string) => {
   switch (platform.toLowerCase()) {
+    case 'agora': return Video
     case 'zoom': return Video
     case 'google_meet':
     case 'google-meet': return Video
@@ -196,6 +197,13 @@ const formatMeetingPlatform = (platform: string) => {
 
 const joinSession = (session: any) => {
   if (session.meetingUrl) {
+    if (session.meetingPlatform === 'AGORA') {
+      const roomUrl = new URL(session.meetingUrl, window.location.origin)
+      router.push(roomUrl.pathname + roomUrl.search)
+      toast.success('Opening session room...')
+      return
+    }
+
     window.open(session.meetingUrl, '_blank')
     toast.success('Opening session meeting...')
   } else {
