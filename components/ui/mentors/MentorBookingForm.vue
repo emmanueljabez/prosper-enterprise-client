@@ -366,6 +366,7 @@ const showDatePicker = ref(false)
 
 // Constants
 const meetingPlatforms = [
+  { value: 'agora', label: 'Agora', icon: Video },
   { value: 'zoom', label: 'Zoom', icon: Video },
   { value: 'google-meet', label: 'Google Meet', icon: Video },
   { value: 'teams', label: 'Teams', icon: Monitor },
