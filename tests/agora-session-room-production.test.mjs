@@ -42,7 +42,22 @@ assert.ok(
 const roomPage = existsSync(roomPagePath) ? readFileSync(roomPagePath, 'utf8') : ''
 
 assert.match(roomPage, /agora-rtc-sdk-ng/, 'Agora room page should load the Agora Web SDK')
-assert.match(roomPage, /createMicrophoneAndCameraTracks/, 'Agora room should create local audio and video tracks')
+assert.match(roomPage, /const micEnabled = ref\(false\)/, 'Agora room should default the microphone off before joining')
+assert.match(roomPage, /const cameraEnabled = ref\(false\)/, 'Agora room should default the camera off before joining')
+assert.match(roomPage, /loadSessionForLobby/, 'Agora room should load session metadata into a pre-join lobby')
+assert.doesNotMatch(
+  roomPage,
+  /onMounted\(\(\) =>[\s\S]*loadSessionAndJoin/,
+  'Agora room should not auto-join and request media permissions on page mount',
+)
+assert.doesNotMatch(
+  roomPage,
+  /createMicrophoneAndCameraTracks/,
+  'Agora room should create microphone and camera tracks lazily after the user chooses devices',
+)
+assert.match(roomPage, /Join now/, 'Agora room should expose a clear pre-join action')
+assert.match(roomPage, /createMicrophoneAudioTrack/, 'Agora room should create microphone tracks lazily')
+assert.match(roomPage, /createCameraVideoTrack/, 'Agora room should create camera tracks lazily')
 assert.match(roomPage, /createScreenVideoTrack/, 'Agora room should support screen sharing')
 assert.match(roomPage, /sendStreamMessage/, 'Agora room should send in-session chat and reaction events')
 assert.match(roomPage, /Meeting chat/, 'Agora room should expose meeting chat')

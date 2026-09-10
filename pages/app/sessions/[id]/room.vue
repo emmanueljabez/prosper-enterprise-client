@@ -112,8 +112,8 @@ const isLoading = ref(true)
 const isJoining = ref(false)
 const isJoined = ref(false)
 const roomError = ref('')
-const micEnabled = ref(true)
-const cameraEnabled = ref(true)
+const micEnabled = ref(false)
+const cameraEnabled = ref(false)
 const screenSharing = ref(false)
 const activePanel = ref<MeetingPanel>(null)
 const chatDraft = ref('')
@@ -135,6 +135,8 @@ let client: any = null
 let localAudioTrack: any = null
 let localVideoTrack: any = null
 let screenVideoTrack: any = null
+let audioTrackPublished = false
+let videoTrackPublished = false
 let clockTimer: ReturnType<typeof setInterval> | null = null
 let breakoutPollTimer: ReturnType<typeof setInterval> | null = null
 const reactionTimers: ReturnType<typeof setTimeout>[] = []
@@ -174,6 +176,8 @@ const roomStatus = computed(() => {
 })
 
 const participantCount = computed(() => remoteUsers.value.length + (isJoined.value ? 1 : 0))
+
+const showPreJoinLobby = computed(() => !isLoading.value && !isJoining.value && !isJoined.value && !roomError.value)
 
 const activePanelTitle = computed(() => {
   if (activePanel.value === 'chat') return 'Meeting chat'
@@ -418,13 +422,65 @@ const attachAgoraClientHandlers = () => {
   })
 }
 
-const ensureLocalMediaTracks = async (agora: any) => {
-  if (localAudioTrack && localVideoTrack) return
-  const [microphoneTrack, cameraTrack] = await agora.createMicrophoneAndCameraTracks()
-  localAudioTrack = microphoneTrack
-  localVideoTrack = cameraTrack
+const ensureLocalAudioTrack = async () => {
+  if (!localAudioTrack) {
+    const sdk = await loadAgoraSdk()
+    const agora = sdk.default || sdk
+    localAudioTrack = await agora.createMicrophoneAudioTrack()
+  }
+
   await localAudioTrack.setEnabled(micEnabled.value)
+  return localAudioTrack
+}
+
+const ensureLocalVideoTrack = async () => {
+  if (!localVideoTrack) {
+    const sdk = await loadAgoraSdk()
+    const agora = sdk.default || sdk
+    localVideoTrack = await agora.createCameraVideoTrack()
+  }
+
   await localVideoTrack.setEnabled(cameraEnabled.value)
+  await playLocalVideoTrack()
+  return localVideoTrack
+}
+
+const publishLocalTrack = async (track: any, kind: 'audio' | 'video', label: string) => {
+  if (!client || !track) return
+  if (kind === 'audio' && audioTrackPublished) return
+  if (kind === 'video' && videoTrackPublished) return
+
+  await withAgoraTimeout(() => client.publish(track), label)
+
+  if (kind === 'audio') {
+    audioTrackPublished = true
+  } else {
+    videoTrackPublished = true
+  }
+}
+
+const publishSelectedLocalMedia = async () => {
+  if (micEnabled.value) {
+    try {
+      const audioTrack = await ensureLocalAudioTrack()
+      await publishLocalTrack(audioTrack, 'audio', 'Starting microphone')
+    } catch (error: any) {
+      console.error('Error starting microphone:', error)
+      micEnabled.value = false
+      toast.error(error?.message || 'Microphone is off because access was not granted.')
+    }
+  }
+
+  if (cameraEnabled.value) {
+    try {
+      const videoTrack = await ensureLocalVideoTrack()
+      await publishLocalTrack(videoTrack, 'video', 'Starting camera')
+    } catch (error: any) {
+      console.error('Error starting camera:', error)
+      cameraEnabled.value = false
+      toast.error(error?.message || 'Camera is off because access was not granted.')
+    }
+  }
 }
 
 const joinAgoraChannel = async (payload: AgoraTokenPayload, room: BreakoutRoom | null = null) => {
@@ -435,16 +491,13 @@ const joinAgoraChannel = async (payload: AgoraTokenPayload, room: BreakoutRoom |
 
   await withAgoraTimeout(() => client.join(payload.appId, payload.channelName, payload.token, payload.uid), 'Joining the Agora room')
 
-  await ensureLocalMediaTracks(agora)
-  await playLocalVideoTrack()
-  await withAgoraTimeout(() => client.publish([localAudioTrack, localVideoTrack]), 'Publishing local media')
-
   tokenPayload.value = payload
   currentRoomKind.value = room ? 'breakout' : 'main'
   currentBreakoutRoom.value = room
   remoteUsers.value = client.remoteUsers.slice()
   isJoined.value = true
   resetRoomMessages()
+  await publishSelectedLocalMedia()
 }
 
 const switchAgoraChannel = async (payload: AgoraTokenPayload, room: BreakoutRoom | null = null) => {
@@ -454,16 +507,23 @@ const switchAgoraChannel = async (payload: AgoraTokenPayload, room: BreakoutRoom
 
   try {
     if (client) {
-      const tracksToUnpublish = [localAudioTrack, localVideoTrack].filter(Boolean)
+      const tracksToUnpublish = [
+        audioTrackPublished ? localAudioTrack : null,
+        videoTrackPublished ? localVideoTrack : null,
+      ].filter(Boolean)
       if (tracksToUnpublish.length) {
         await withAgoraTimeout(() => client.unpublish(tracksToUnpublish), 'Leaving the current room')
       }
       await withAgoraTimeout(() => client.leave(), 'Leaving the current room')
       client = null
+      audioTrackPublished = false
+      videoTrackPublished = false
     }
   } catch (error) {
     console.warn('Agora room cleanup did not finish before switching rooms:', error)
     client = null
+    audioTrackPublished = false
+    videoTrackPublished = false
   } finally {
     isJoined.value = false
     remoteUsers.value = []
@@ -483,6 +543,10 @@ const joinRoom = async () => {
 
     const tokenPayload = await fetchAgoraToken()
     await joinAgoraChannel(tokenPayload)
+    await pollBreakoutState()
+    if (breakoutAvailable.value) {
+      startBreakoutPolling()
+    }
     toast.success('Joined session room')
   } catch (error: any) {
     console.error('Error joining Agora room:', error)
@@ -494,7 +558,7 @@ const joinRoom = async () => {
   }
 }
 
-const loadSessionAndJoin = async () => {
+const loadSessionForLobby = async () => {
   isLoading.value = true
   try {
     const loadedSession = unwrapApiData(await sessionsStore.getSessionById(sessionId.value))
@@ -502,13 +566,6 @@ const loadSessionAndJoin = async () => {
 
     if (loadedSession?.meetingPlatform && loadedSession.meetingPlatform !== 'AGORA') {
       roomError.value = 'This session is not configured for Agora.'
-      return
-    }
-
-    await joinRoom()
-    await pollBreakoutState()
-    if (breakoutAvailable.value) {
-      startBreakoutPolling()
     }
   } catch (error: any) {
     console.error('Error loading Agora session:', error)
@@ -519,15 +576,49 @@ const loadSessionAndJoin = async () => {
 }
 
 const toggleMic = async () => {
-  if (!localAudioTrack) return
-  micEnabled.value = !micEnabled.value
-  await localAudioTrack.setEnabled(micEnabled.value)
+  const nextValue = !micEnabled.value
+  micEnabled.value = nextValue
+
+  if (!isJoined.value) return
+
+  if (!nextValue) {
+    if (localAudioTrack) {
+      await localAudioTrack.setEnabled(false)
+    }
+    return
+  }
+
+  try {
+    const audioTrack = await ensureLocalAudioTrack()
+    await publishLocalTrack(audioTrack, 'audio', 'Starting microphone')
+  } catch (error: any) {
+    console.error('Error toggling microphone:', error)
+    micEnabled.value = false
+    toast.error(error?.message || 'Unable to turn on microphone.')
+  }
 }
 
 const toggleCamera = async () => {
-  if (!localVideoTrack) return
-  cameraEnabled.value = !cameraEnabled.value
-  await localVideoTrack.setEnabled(cameraEnabled.value)
+  const nextValue = !cameraEnabled.value
+  cameraEnabled.value = nextValue
+
+  if (!isJoined.value) return
+
+  if (!nextValue) {
+    if (localVideoTrack) {
+      await localVideoTrack.setEnabled(false)
+    }
+    return
+  }
+
+  try {
+    const videoTrack = await ensureLocalVideoTrack()
+    await publishLocalTrack(videoTrack, 'video', 'Starting camera')
+  } catch (error: any) {
+    console.error('Error toggling camera:', error)
+    cameraEnabled.value = false
+    toast.error(error?.message || 'Unable to turn on camera.')
+  }
 }
 
 const startScreenShare = async () => {
@@ -538,8 +629,9 @@ const startScreenShare = async () => {
     const agora = sdk.default || sdk
     screenVideoTrack = await agora.createScreenVideoTrack({ encoderConfig: '1080p_1' }, 'disable')
 
-    if (localVideoTrack) {
+    if (localVideoTrack && videoTrackPublished) {
       await withAgoraTimeout(() => client.unpublish(localVideoTrack), 'Starting screen share')
+      videoTrackPublished = false
     }
 
     await withAgoraTimeout(() => client.publish(screenVideoTrack), 'Starting screen share')
@@ -560,8 +652,8 @@ const stopScreenShare = async () => {
     screenVideoTrack.close()
     screenVideoTrack = null
 
-    if (localVideoTrack) {
-      await withAgoraTimeout(() => client.publish(localVideoTrack), 'Restoring camera')
+    if (localVideoTrack && cameraEnabled.value) {
+      await publishLocalTrack(localVideoTrack, 'video', 'Restoring camera')
     }
     screenSharing.value = false
     await playLocalVideoTrack()
@@ -750,6 +842,7 @@ const leaveRoom = async (redirect = true) => {
     if (screenVideoTrack) {
       screenVideoTrack.close()
       screenVideoTrack = null
+      screenSharing.value = false
     }
     if (localAudioTrack) {
       localAudioTrack.close()
@@ -766,6 +859,8 @@ const leaveRoom = async (redirect = true) => {
   } catch (error) {
     console.error('Error leaving Agora room:', error)
   } finally {
+    audioTrackPublished = false
+    videoTrackPublished = false
     isJoined.value = false
     remoteUsers.value = []
     if (redirect) {
@@ -779,7 +874,7 @@ onMounted(() => {
     currentTime.value = formatClock(new Date())
   }, 30000)
 
-  void loadSessionAndJoin()
+  void loadSessionForLobby()
 })
 
 onBeforeUnmount(() => {
@@ -864,13 +959,87 @@ onBeforeUnmount(() => {
               </div>
 
               <div
-                v-if="!isJoined && !roomError"
+                v-if="(isLoading || isJoining) && !isJoined && !roomError"
                 class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/65"
               >
                 <Loader2 class="h-8 w-8 animate-spin text-[#dd63c4]" />
                 <p class="text-sm text-white/75">
-                  {{ isJoining || isLoading ? 'Joining room...' : 'Preparing room...' }}
+                  {{ isJoining ? 'Joining room...' : 'Preparing room...' }}
                 </p>
+              </div>
+
+              <div
+                v-if="showPreJoinLobby"
+                class="absolute inset-0 flex items-center justify-center bg-[#111214]/82 p-5 backdrop-blur-sm"
+              >
+                <div class="w-full max-w-md rounded-[28px] border border-white/15 bg-[#202124]/95 p-5 text-center shadow-2xl sm:p-7">
+                  <div class="mx-auto grid h-20 w-20 place-items-center rounded-full bg-white/10 text-2xl font-semibold text-white">
+                    {{ localParticipantName.slice(0, 2).toUpperCase() }}
+                  </div>
+                  <p class="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#dd63c4]">
+                    Ready to join
+                  </p>
+                  <h1 class="mt-2 text-2xl font-semibold text-white">
+                    {{ roomTitle }}
+                  </h1>
+                  <p class="mt-2 text-sm text-white/65">
+                    {{ scheduledTimeRange || 'Choose your audio and video before entering.' }}
+                  </p>
+
+                  <div class="mt-6 grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      :class="[
+                        'flex h-14 items-center justify-center gap-2 rounded-2xl border text-sm font-semibold transition',
+                        micEnabled
+                          ? 'border-[#016f56] bg-[#016f56] text-white'
+                          : 'border-white/15 bg-white/10 text-white/85 hover:bg-white/15',
+                      ]"
+                      :title="micEnabled ? 'Join with microphone on' : 'Join with microphone off'"
+                      :aria-label="micEnabled ? 'Join with microphone on' : 'Join with microphone off'"
+                      @click="toggleMic"
+                    >
+                      <Mic v-if="micEnabled" class="h-5 w-5" />
+                      <MicOff v-else class="h-5 w-5" />
+                      <span>{{ micEnabled ? 'Mic on' : 'Mic off' }}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      :class="[
+                        'flex h-14 items-center justify-center gap-2 rounded-2xl border text-sm font-semibold transition',
+                        cameraEnabled
+                          ? 'border-[#016f56] bg-[#016f56] text-white'
+                          : 'border-white/15 bg-white/10 text-white/85 hover:bg-white/15',
+                      ]"
+                      :title="cameraEnabled ? 'Join with camera on' : 'Join with camera off'"
+                      :aria-label="cameraEnabled ? 'Join with camera on' : 'Join with camera off'"
+                      @click="toggleCamera"
+                    >
+                      <Video v-if="cameraEnabled" class="h-5 w-5" />
+                      <VideoOff v-else class="h-5 w-5" />
+                      <span>{{ cameraEnabled ? 'Camera on' : 'Camera off' }}</span>
+                    </button>
+                  </div>
+
+                  <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      class="h-12 flex-1 rounded-full border-white/20 bg-transparent text-white hover:bg-white/10"
+                      @click="router.push('/app/sessions')"
+                    >
+                      Back to sessions
+                    </Button>
+                    <Button
+                      type="button"
+                      class="h-12 flex-1 rounded-full bg-[#dd63c4] font-semibold text-white hover:bg-[#c94daf]"
+                      @click="joinRoom"
+                    >
+                      Join now
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               <div class="absolute bottom-5 left-5 rounded-full bg-black/50 px-3 py-1.5 text-sm font-semibold shadow-lg">
