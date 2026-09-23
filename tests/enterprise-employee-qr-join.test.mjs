@@ -6,6 +6,7 @@ const companyStoreSource = readFileSync(new URL('../store/modules/company.ts', i
 const signupSource = readFileSync(new URL('../pages/auth/signup.vue', import.meta.url), 'utf8')
 const confirmEmailSource = readFileSync(new URL('../pages/auth/confirm-email.vue', import.meta.url), 'utf8')
 const employeesSource = readFileSync(new URL('../pages/app/admin/employees.vue', import.meta.url), 'utf8')
+const qrPdfSource = readFileSync(new URL('../utils/companyJoinQrPdf.ts', import.meta.url), 'utf8')
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 
 assert.match(companyApiSource, /getCompanyJoinLink/, 'Company API should expose getCompanyJoinLink.')
@@ -37,5 +38,10 @@ assert.match(employeesSource, /Invite Employee/, 'Actions dropdown should includ
 assert.match(employeesSource, /Import Employees/, 'Actions dropdown should include Import Employees.')
 assert.match(employeesSource, /Export CSV/, 'Actions dropdown should include Export CSV.')
 assert.match(employeesSource, /Refresh/, 'Actions dropdown should include Refresh.')
+assert.match(qrPdfSource, /COMPANY_JOIN_QR_BRAND_COLOR\s*=\s*'#8f1f74'/, 'QR/PDF helper should use the requested brand color.')
+assert.match(qrPdfSource, /COMPANY_JOIN_QR_BRAND_RGB\s*=\s*\[143,\s*31,\s*116\]/, 'PDF helper should use the requested RGB brand color.')
+assert.doesNotMatch(qrPdfSource, /#027F63|setFillColor\(2,\s*127,\s*99\)/, 'QR/PDF helper should not use the old green.')
+assert.match(employeesSource, /bg-\[#8f1f74\]/, 'Download PDF button should use the requested brand color.')
+assert.doesNotMatch(employeesSource, /bg-\[#027F63\]/, 'Download PDF button should not use the old green.')
 
 console.log('Enterprise employee QR join data flow verified.')
