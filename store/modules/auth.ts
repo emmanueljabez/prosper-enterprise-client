@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { navigateTo } from 'nuxt/app'
 import { jwtDecode } from 'jwt-decode'
 import { DEFAULT_ROLES } from '@/utils/roleManager'
+import { normalizeAuthSession } from '@/utils/authSession'
 
 // Dummy JWT tokens for testing different roles
 // These are pre-generated tokens with embedded role data
@@ -643,52 +644,22 @@ export const useAuthStore = defineStore('auth', {
         jwt.login(loginData)
             .then((response) => {
               if (response && response.data) {
-                const responseData = response.data.data || response.data
-                const responseUser = responseData?.user || response.data?.user || {}
-                const responseProfile = responseData?.profile || response.data?.profile || {}
-
-                const roleNames: string[] = Array.isArray(responseUser.roles)
-                  ? responseUser.roles
-                  : responseProfile?.role
-                    ? [responseProfile.role]
-                    : ['employee']
-
-                const mappedRoles = roleNames.map((roleName: string) => {
-                  const normalizedRole = normalizeFrontendRoleName(roleName)
-                  return DEFAULT_ROLES[normalizedRole]
-                })
-
-                const firstName = responseProfile.firstName || responseUser?.user_metadata?.first_name
-                const lastName = responseProfile.lastName || responseUser?.user_metadata?.last_name
-                const fallbackName = [firstName, lastName].filter(Boolean).join(' ').trim()
-                const resolvedName = responseUser.name || fallbackName || responseUser.email || loginData.email
-                const resolvedUserId = responseUser.id || responseData.id || responseProfile.id || ''
-
-                this.loggedInUser = {
-                  id: resolvedUserId,
-                  email: responseUser.email || loginData.email,
-                  name: resolvedName,
-                  firstName: firstName || undefined,
-                  lastName: lastName || undefined,
-                  provider: 'local',
-                  roles: mappedRoles.length > 0 ? mappedRoles : [DEFAULT_ROLES.employee],
-                  isVerified: true,
-                  createdAt: responseUser.created_at || new Date().toISOString(),
-                  lastLoginAt: new Date().toISOString(),
-                  companyId: responseProfile.companyId || responseProfile.company_id || responseProfile.company?.id
-                }
+                const session = normalizeAuthSession(response.data, loginData.email)
+                this.loggedInUser = session.user
 
                 if (typeof window !== 'undefined') {
-                  const authToken = responseData?.access_token || response.data?.access_token || responseData?.jwtToken || response.data?.jwtToken
-                  if (authToken) {
-                    localStorage.setItem('token', authToken)
+                  if (session.accessToken) {
+                    localStorage.setItem('token', session.accessToken)
                   }
-                  localStorage.setItem('provider', 'local')
+                  if (session.refreshToken) {
+                    localStorage.setItem('refreshToken', session.refreshToken)
+                  }
+                  localStorage.setItem('provider', session.user.provider)
                   localStorage.setItem('loggedInUser', JSON.stringify(this.loggedInUser))
-                  if (responseProfile && Object.keys(responseProfile).length > 0) {
-                    localStorage.setItem('profile', JSON.stringify(responseProfile))
-                    if (responseProfile.role) {
-                      localStorage.setItem('role', responseProfile.role)
+                  if (session.profile && Object.keys(session.profile).length > 0) {
+                    localStorage.setItem('profile', JSON.stringify(session.profile))
+                    if (session.profile.role) {
+                      localStorage.setItem('role', session.profile.role)
                     }
                   }
                 }
