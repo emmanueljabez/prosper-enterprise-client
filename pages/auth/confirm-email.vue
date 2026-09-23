@@ -55,6 +55,24 @@ const verificationType = computed(() => {
   }
 })
 
+const companyJoinToken = computed(() => {
+  const directToken = route.query.companyJoinToken
+  if (typeof directToken === 'string' && directToken.trim()) {
+    return directToken.trim()
+  }
+
+  if (!verifyUrl.value) {
+    return ''
+  }
+
+  try {
+    const url = new URL(verifyUrl.value)
+    return url.searchParams.get('companyJoinToken') || ''
+  } catch {
+    return ''
+  }
+})
+
 const canConfirm = computed(() => Boolean(tokenHash.value))
 
 const hasFreeTrialIntent = () => {
@@ -126,6 +144,7 @@ const confirmEmail = async () => {
     await api.post('/v1/public/auth/confirm-email', {
       tokenHash: tokenHash.value,
       type: verificationType.value || 'signup',
+      companyJoinToken: companyJoinToken.value || undefined,
     })
     status.value = 'success'
     setTimeout(() => {
