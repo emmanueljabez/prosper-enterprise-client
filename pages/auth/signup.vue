@@ -71,11 +71,16 @@ const isCountrySelectorOpen = ref(false)
 
 const routeProduct = computed(() => String(route.query.product || '').trim().toUpperCase())
 const routeAudience = computed(() => String(route.query.audience || '').trim().toLowerCase())
+const companyJoinToken = computed(() => {
+  const value = route.query.companyJoinToken
+  return typeof value === 'string' ? value.trim() : ''
+})
+const isCompanyJoinSignup = computed(() => Boolean(companyJoinToken.value))
 const isFreeTrialSignup = computed(() =>
   routeProduct.value === 'FREE_TRIAL'
   || String(route.query.trial || '').trim() === '1'
 )
-const isMenteeSignup = computed(() => routeAudience.value === 'mentee' || isFreeTrialSignup.value)
+const isMenteeSignup = computed(() => routeAudience.value === 'mentee' || isFreeTrialSignup.value || isCompanyJoinSignup.value)
 const isSubmitting = computed(() => companySignupStore.isLoading || authStore.loading)
 const pageTitle = computed(() => {
   if (isFreeTrialSignup.value) {
@@ -264,6 +269,7 @@ const submit = async () => {
         audience: 'mentee',
         product: isFreeTrialSignup.value ? 'FREE_TRIAL' : null,
         trial: isFreeTrialSignup.value,
+        companyJoinToken: companyJoinToken.value || null,
       })
 
       clearAuthSession()
@@ -282,6 +288,7 @@ const submit = async () => {
           email: form.workEmail.trim(),
           audience: 'mentee',
           ...(isFreeTrialSignup.value ? { trial: '1', product: 'FREE_TRIAL' } : {}),
+          ...(companyJoinToken.value ? { companyJoinToken: companyJoinToken.value } : {}),
         },
       })
       return
