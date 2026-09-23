@@ -7,12 +7,13 @@ import { useCompanyStore } from '@/store/modules/company'
 import companySessionAllocationsApi, { type EmployeeSessionAllocationRecord } from '@/http/requests/app/companySessionAllocations'
 import { useCompanySubscriptionAdmin } from '@/composables/useCompanySubscriptionAdmin'
 import { useAppToast } from '@/composables/services/toastService'
+import { buildCompanyJoinQrDataUrl, downloadCompanyJoinQrPdf } from '@/utils/companyJoinQrPdf'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '~/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '~/components/ui/dropdown-menu'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
@@ -21,13 +22,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~
 import {
   AlertCircle,
   BarChart3,
+  ChevronDown,
   CheckCircle2,
+  Copy,
   Download,
   GitBranch,
+  LinkIcon,
   Mail,
   Minus,
   MoreVertical,
   Plus,
+  QrCode,
   RefreshCw,
   Search,
   SlidersHorizontal,
@@ -70,6 +75,8 @@ const {
   whitelist,
   whitelistPagination,
   isLoading: whitelistLoading,
+  companyJoinLink,
+  companyJoinLinkLoading,
 } = storeToRefs(companyStore)
 
 const companyId = computed(() => {
@@ -108,6 +115,10 @@ const allocationQuantity = ref(1)
 const addEmployeeDialogOpen = ref(false)
 const newEmployeeEmail = ref('')
 const isSubmittingEmployeeInvite = ref(false)
+const qrDialogOpen = ref(false)
+const qrCodeDataUrl = ref('')
+const qrCodeError = ref('')
+const isDownloadingQrPdf = ref(false)
 
 const visibleColumns = ref<Record<ColumnKey, boolean>>({
   department: true,
@@ -211,6 +222,8 @@ const averageSessions = computed(() => {
   return Number((total / employeeRows.value.length).toFixed(1))
 })
 
+const companyJoinLinkRecord = computed(() => companyJoinLink.value)
+
 const employeeDisplayName = (profile: any) => {
   const fullName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim()
   return fullName || profile?.username || profile?.email || 'Employee'
@@ -300,6 +313,86 @@ const exportEmployeesCsv = () => {
   link.download = `employees-${new Date().toISOString().slice(0, 10)}.csv`
   link.click()
   URL.revokeObjectURL(url)
+}
+
+const renderCompanyJoinQr = async () => {
+  qrCodeDataUrl.value = ''
+  qrCodeError.value = ''
+
+  if (!companyJoinLinkRecord.value?.joinUrl) {
+    return
+  }
+
+  try {
+    qrCodeDataUrl.value = await buildCompanyJoinQrDataUrl(companyJoinLinkRecord.value.joinUrl)
+  } catch (error: any) {
+    qrCodeError.value = error?.message || 'Failed to generate QR code'
+    toast.error(qrCodeError.value)
+  }
+}
+
+const openQrDialog = async () => {
+  if (!companyId.value) {
+    toast.error('Company context is missing')
+    return
+  }
+
+  qrDialogOpen.value = true
+  qrCodeError.value = ''
+
+  try {
+    await companyStore.loadCompanyJoinLink(companyId.value)
+    await renderCompanyJoinQr()
+  } catch {
+    // company store already handles toast
+  }
+}
+
+const regenerateQrLink = async () => {
+  if (!companyId.value) {
+    toast.error('Company context is missing')
+    return
+  }
+
+  try {
+    await companyStore.regenerateCompanyJoinLink(companyId.value)
+    await renderCompanyJoinQr()
+  } catch {
+    // company store already handles toast
+  }
+}
+
+const copyJoinLink = async () => {
+  if (!companyJoinLinkRecord.value?.joinUrl) {
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(companyJoinLinkRecord.value.joinUrl)
+    toast.success('Join link copied')
+  } catch {
+    toast.error('Failed to copy join link')
+  }
+}
+
+const downloadQrPdf = async () => {
+  if (!companyJoinLinkRecord.value?.joinUrl || !qrCodeDataUrl.value) {
+    toast.error('Generate the QR code before downloading')
+    return
+  }
+
+  isDownloadingQrPdf.value = true
+  try {
+    await downloadCompanyJoinQrPdf({
+      companyName: companyJoinLinkRecord.value.companyName || 'Prosper Mentor Company',
+      joinUrl: companyJoinLinkRecord.value.joinUrl,
+      qrDataUrl: qrCodeDataUrl.value,
+    })
+  } catch (error: any) {
+    toast.error(error?.message || 'Failed to download QR PDF')
+  } finally {
+    isDownloadingQrPdf.value = false
+  }
 }
 
 const loadEmployees = async () => {
@@ -589,31 +682,43 @@ watch(employeeProfileIds, async () => {
           </p>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <Button class="bg-[#8f1f75] text-white hover:bg-[#7b1a65]" @click="addEmployeeDialogOpen = true">
-            <UserPlus class="mr-2 h-4 w-4" />
-            Invite Employee
-          </Button>
-          <Button variant="outline" @click="router.push('/app/admin/users/import')">
-            <Upload class="mr-2 h-4 w-4" />
-            Import
-          </Button>
-          <Button variant="outline" @click="router.push('/app/admin/settings?tab=subscription')">
-            <Wallet class="mr-2 h-4 w-4" />
-            Buy Sessions
-          </Button>
-          <Button
-            variant="outline"
-            @click="refreshWorkspace"
-            :disabled="profilesLoading || whitelistLoading || isLoadingBilling || allocationLookupLoading"
-          >
-            <RefreshCw
-              class="mr-2 h-4 w-4"
-              :class="{ 'animate-spin': profilesLoading || whitelistLoading || isLoadingBilling || allocationLookupLoading }"
-            />
-            Refresh
-          </Button>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button class="bg-[#8f1f75] text-white hover:bg-[#7b1a65]">
+              Actions
+              <ChevronDown class="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-56">
+            <DropdownMenuItem @click="addEmployeeDialogOpen = true">
+              <UserPlus class="h-4 w-4" />
+              Invite Employee
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="router.push('/app/admin/users/import')">
+              <Upload class="h-4 w-4" />
+              Import Employees
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem @click="openQrDialog">
+              <QrCode class="h-4 w-4" />
+              Generate QR Code
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="exportEmployeesCsv">
+              <Download class="h-4 w-4" />
+              Export CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="profilesLoading || whitelistLoading || isLoadingBilling || allocationLookupLoading"
+              @click="refreshWorkspace"
+            >
+              <RefreshCw
+                class="h-4 w-4"
+                :class="{ 'animate-spin': profilesLoading || whitelistLoading || isLoadingBilling || allocationLookupLoading }"
+              />
+              Refresh
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -743,10 +848,6 @@ watch(employeeProfileIds, async () => {
             </div>
 
             <div class="ml-auto flex items-center gap-2">
-              <Button variant="outline" class="gap-2" @click="exportEmployeesCsv">
-                <Download class="h-4 w-4" />
-                Export CSV
-              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
                   <Button variant="outline" class="gap-2">
@@ -1068,6 +1169,81 @@ watch(employeeProfileIds, async () => {
             @click="submitAllocationChange"
           >
             {{ allocationMode === 'allocate' ? 'Allocate Sessions' : 'Withdraw Sessions' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="qrDialogOpen">
+      <DialogContent class="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Generate QR Code</DialogTitle>
+          <DialogDescription>
+            Share this QR code with mentees. After signup and email verification, they will be added to your company automatically.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-5 py-2">
+          <div class="rounded-lg border border-[#ead4df] bg-muted/20 p-4">
+            <div class="flex flex-col items-center justify-center gap-3">
+              <div class="flex h-64 w-64 items-center justify-center rounded-lg border bg-white p-3">
+                <img
+                  v-if="qrCodeDataUrl"
+                  :src="qrCodeDataUrl"
+                  alt="Company join QR code"
+                  class="h-full w-full object-contain"
+                >
+                <div v-else class="flex flex-col items-center gap-2 text-center text-sm text-muted-foreground">
+                  <QrCode class="h-8 w-8" />
+                  <span>{{ companyJoinLinkLoading ? 'Generating QR code...' : 'QR code preview unavailable' }}</span>
+                </div>
+              </div>
+
+              <div class="text-center">
+                <div class="text-sm font-semibold text-slate-900">
+                  {{ companyJoinLinkRecord?.companyName || 'Company join link' }}
+                </div>
+                <div class="mt-1 text-xs text-muted-foreground">
+                  Reusable until regenerated
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <Label for="company-join-link">Join link</Label>
+            <div class="flex gap-2">
+              <div
+                id="company-join-link"
+                class="flex min-h-10 flex-1 items-center rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground break-all"
+              >
+                <LinkIcon class="mr-2 h-4 w-4 shrink-0" />
+                {{ companyJoinLinkRecord?.joinUrl || 'Generating link...' }}
+              </div>
+              <Button variant="outline" size="icon" :disabled="!companyJoinLinkRecord?.joinUrl" @click="copyJoinLink">
+                <Copy class="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <Alert v-if="qrCodeError" variant="destructive">
+            <AlertCircle class="h-4 w-4" />
+            <AlertDescription>{{ qrCodeError }}</AlertDescription>
+          </Alert>
+        </div>
+
+        <DialogFooter class="gap-2 sm:gap-0">
+          <Button variant="outline" :disabled="companyJoinLinkLoading" @click="regenerateQrLink">
+            <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': companyJoinLinkLoading }" />
+            Regenerate
+          </Button>
+          <Button
+            class="bg-[#027F63] text-white hover:bg-[#026d55]"
+            :disabled="!qrCodeDataUrl || isDownloadingQrPdf"
+            @click="downloadQrPdf"
+          >
+            <Download class="mr-2 h-4 w-4" />
+            {{ isDownloadingQrPdf ? 'Preparing...' : 'Download PDF' }}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -217,6 +217,24 @@ export interface CompanyResponse {
     data: CompanyRecord | null
 }
 
+export interface CompanyJoinLink {
+    companyId: string
+    companyName: string
+    joinToken: string
+    joinUrl: string
+    status: string
+    createdAt?: string | null
+    revokedAt?: string | null
+    lastUsedAt?: string | null
+    linked?: boolean
+}
+
+export interface CompanyJoinLinkResponse {
+    success: boolean
+    message: string
+    data: CompanyJoinLink | null
+}
+
 export interface UpdateCompanyPayload {
     name?: string
     emailAddress?: string
@@ -241,6 +259,14 @@ export interface UpdateCompanyPayload {
 export default {
     getCompany(companyId: string): Promise<{ data: CompanyResponse }> {
         return axiosInstance.get(`/v1/companies/${companyId}`)
+    },
+
+    getCompanyJoinLink(companyId: string): Promise<{ data: CompanyJoinLinkResponse }> {
+        return axiosInstance.get(`/v1/companies/${companyId}/join-link`)
+    },
+
+    regenerateCompanyJoinLink(companyId: string): Promise<{ data: CompanyJoinLinkResponse }> {
+        return axiosInstance.post(`/v1/companies/${companyId}/join-link/regenerate`)
     },
 
     updateCompany(companyId: string, payload: UpdateCompanyPayload): Promise<{ data: CompanyResponse }> {

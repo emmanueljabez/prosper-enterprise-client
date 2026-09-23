@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import companyApi from '~/http/requests/app/company'
+import companyApi, { type CompanyJoinLink } from '~/http/requests/app/company'
 import { useAppToast } from '@/composables/services/toastService'
 
 interface BulkUploadResult {
@@ -142,6 +142,8 @@ interface CompanyState {
     }
     profilesSearchQuery: string
     profilesLoading: boolean
+    companyJoinLink: CompanyJoinLink | null
+    companyJoinLinkLoading: boolean
 }
 
 export const useCompanyStore = defineStore('company', {
@@ -169,10 +171,61 @@ export const useCompanyStore = defineStore('company', {
             hasPrevious: false
         },
         profilesSearchQuery: '',
-        profilesLoading: false
+        profilesLoading: false,
+        companyJoinLink: null,
+        companyJoinLinkLoading: false
     }),
 
     actions: {
+        async loadCompanyJoinLink(companyId: string) {
+            const toast = useAppToast()
+            this.companyJoinLinkLoading = true
+            this.error = null
+
+            try {
+                const response = await companyApi.getCompanyJoinLink(companyId)
+
+                if (response.data.success && response.data.data) {
+                    this.companyJoinLink = response.data.data
+                    return response.data.data
+                }
+
+                throw new Error(response.data.message || 'Failed to load company join link')
+            } catch (err: any) {
+                console.error('Error loading company join link:', err)
+                this.error = err.response?.data?.message || err.message || 'Failed to load company join link'
+                toast.error(this.error)
+                throw err
+            } finally {
+                this.companyJoinLinkLoading = false
+            }
+        },
+
+        async regenerateCompanyJoinLink(companyId: string) {
+            const toast = useAppToast()
+            this.companyJoinLinkLoading = true
+            this.error = null
+
+            try {
+                const response = await companyApi.regenerateCompanyJoinLink(companyId)
+
+                if (response.data.success && response.data.data) {
+                    this.companyJoinLink = response.data.data
+                    toast.success('QR join link regenerated')
+                    return response.data.data
+                }
+
+                throw new Error(response.data.message || 'Failed to regenerate company join link')
+            } catch (err: any) {
+                console.error('Error regenerating company join link:', err)
+                this.error = err.response?.data?.message || err.message || 'Failed to regenerate company join link'
+                toast.error(this.error)
+                throw err
+            } finally {
+                this.companyJoinLinkLoading = false
+            }
+        },
+
         async bulkUploadWhitelist(companyId: string, file: File) {
             const toast = useAppToast()
             this.isLoading = true
