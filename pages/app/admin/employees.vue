@@ -1238,7 +1238,7 @@ watch(employeeProfileIds, async () => {
             Regenerate
           </Button>
           <Button
-            class="bg-[#027F63] text-white hover:bg-[#026d55]"
+            class="bg-[#8f1f74] text-white hover:bg-[#76185f]"
             :disabled="!qrCodeDataUrl || isDownloadingQrPdf"
             @click="downloadQrPdf"
           >
