@@ -59,6 +59,8 @@ export const normalizeAuthSession = (rawResponse: any, fallbackEmail = '') => {
     memberships: raw.memberships || [],
     entitlements: raw.entitlements || [],
     defaultDestination: raw.defaultDestination || null,
+    status: raw.status,
+    emailVerificationRequired: raw.emailVerificationRequired,
     message: raw.message,
     freeTrial: raw.freeTrial,
   }
