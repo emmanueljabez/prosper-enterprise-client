@@ -4,6 +4,9 @@ type DownloadCompanyJoinQrPdfInput = {
   qrDataUrl: string
 }
 
+export const COMPANY_JOIN_QR_BRAND_COLOR = '#8f1f74'
+export const COMPANY_JOIN_QR_BRAND_RGB = [143, 31, 116] as const
+
 const slugify = (value: string) => {
   const slug = value
     .trim()
@@ -24,7 +27,7 @@ export const buildCompanyJoinQrDataUrl = async (joinUrl: string): Promise<string
     margin: 2,
     width: 320,
     color: {
-      dark: '#027F63',
+      dark: COMPANY_JOIN_QR_BRAND_COLOR,
       light: '#FFFFFF',
     },
   })
@@ -42,7 +45,7 @@ export const downloadCompanyJoinQrPdf = async ({
   const qrSize = 88
   const qrX = (pageWidth - qrSize) / 2
 
-  doc.setFillColor(2, 127, 99)
+  doc.setFillColor(...COMPANY_JOIN_QR_BRAND_RGB)
   doc.rect(0, 0, pageWidth, 34, 'F')
   doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
