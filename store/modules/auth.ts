@@ -715,36 +715,41 @@ export const useAuthStore = defineStore('auth', {
 
         jwt.register(signupPayload)
           .then((response) => {
-            // Since axios interceptor handles decryption, response.data is already decrypted
             if (response && response.data) {
-              const responseData = response.data.data || response.data
-              const responseUser = responseData?.user || response.data?.user || {}
-              const responseProfile = responseData?.profile || response.data?.profile || {}
-              const resolvedEmail = responseUser.email || userData.email || userData.emailAddress || ''
-              const resolvedUserId = responseUser.id || responseData.id || responseProfile.id || ''
-              
-              // Create User object from registration response
-              this.loggedInUser = {
-                id: resolvedUserId || responseData.tenantId || responseData.sub,
-                email: resolvedEmail,
-                name: responseData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
-                firstName: userData.firstName || undefined,
-                lastName: userData.lastName || undefined,
-                provider: 'local',
-                roles: (responseData.roles || (responseProfile.role ? [responseProfile.role] : null))?.map((roleName: string) => {
-                  const role = normalizeFrontendRoleName(roleName)
-                  return DEFAULT_ROLES[role] || DEFAULT_ROLES.employee
-                }) || [DEFAULT_ROLES.employee],
-                isVerified: false, // Email verification required
-                createdAt: responseData.createdAt || new Date().toISOString(),
-                lastLoginAt: new Date().toISOString(),
-                companyId: responseData.tenantId || responseProfile.companyId || responseProfile.company_id
+              const session = normalizeAuthSession(response.data, signupPayload.email)
+
+              if (session.status === 'PENDING_EMAIL_VERIFICATION' || session.emailVerificationRequired) {
+                this.loggedInUser = null
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('token')
+                  localStorage.removeItem('refreshToken')
+                  localStorage.removeItem('loggedInUser')
+                  localStorage.removeItem('profile')
+                  localStorage.removeItem('provider')
+                  localStorage.removeItem('role')
+                }
+                resolve(response.data)
+                return
               }
 
-              // Token handling can be uncommented if needed
-              // if (responseData.authToken && typeof window !== 'undefined') {
-              //   localStorage.setItem('token', responseData.authToken)
-              // }
+              this.loggedInUser = session.user
+
+              if (typeof window !== 'undefined') {
+                if (session.accessToken) {
+                  localStorage.setItem('token', session.accessToken)
+                }
+                if (session.refreshToken) {
+                  localStorage.setItem('refreshToken', session.refreshToken)
+                }
+                localStorage.setItem('provider', session.user.provider)
+                localStorage.setItem('loggedInUser', JSON.stringify(this.loggedInUser))
+                if (session.profile && Object.keys(session.profile).length > 0) {
+                  localStorage.setItem('profile', JSON.stringify(session.profile))
+                  if (session.profile.role) {
+                    localStorage.setItem('role', session.profile.role)
+                  }
+                }
+              }
 
               resolve(response.data)
             } else {
