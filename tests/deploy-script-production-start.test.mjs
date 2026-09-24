@@ -75,6 +75,24 @@ assert.match(
   'Deployment should restart the live systemd frontend service.',
 )
 
+assert.match(
+  source,
+  /Preserving previous Nuxt route chunks/,
+  'Deployment should preserve previous Nuxt route chunks so open tabs do not hit client-side 404s after a release.',
+)
+
+assert.match(
+  source,
+  /\.output\.backup\.\*\/public\/_nuxt/,
+  'Deployment should copy retained backup _nuxt assets into the new build.',
+)
+
+assert.match(
+  source,
+  /cp -n/,
+  'Deployment should not overwrite freshly built Nuxt assets while retaining old hashed chunks.',
+)
+
 assert.doesNotMatch(
   source,
   /\/var\/www\/html\/prosper_enterprise/,
