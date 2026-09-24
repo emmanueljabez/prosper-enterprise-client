@@ -37,6 +37,8 @@ assert.match(detailSource, /Request an additional session/, 'Employee detail sho
 assert.match(joinSource, /loadJoinPreview/, 'Join-code page should preview the cohort before submit.')
 assert.match(joinSource, /submitSelfJoin/, 'Join-code page should submit self-join intake.')
 assert.match(joinSource, /interestTags/, 'Join-code page should capture interest tags for circle suggestions.')
+assert.match(joinSource, /previewErrorMessage/, 'Join-code page should keep preview errors visible after the toast disappears.')
+assert.match(joinSource, /cohortsStore\.joinPreview\s*=\s*null/, 'Join-code page should clear stale cohort previews when a join code fails.')
 assert.match(
   joinSource,
   /layout:\s*['"]auth['"]|layout:\s*['"]public['"]|layout:\s*false/,

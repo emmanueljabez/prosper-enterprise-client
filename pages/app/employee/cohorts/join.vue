@@ -36,6 +36,7 @@ const {
 } = storeToRefs(locationCatalogStore)
 const joinCode = ref(String(route.query.code || ''))
 const submitted = ref(false)
+const previewErrorMessage = ref('')
 const NO_REGION = '__NO_REGION__'
 const NO_CHAPTER = '__NO_CHAPTER__'
 const CURRENT_REGION = '__CURRENT_REGION__'
@@ -168,17 +169,22 @@ const loadLocationCatalog = async (companyId?: string | null) => {
 const loadJoinPreview = async () => {
   const code = joinCode.value.trim()
   if (!code) {
+    previewErrorMessage.value = 'Enter a cohort join code'
     toast.error('Enter a cohort join code')
     return
   }
 
   try {
+    previewErrorMessage.value = ''
     const preview = await cohortsStore.loadJoinPreview(code)
     joinForm.region = preview.region || ''
     joinForm.chapter = preview.chapter || ''
     await loadLocationCatalog(preview.companyId)
   } catch (previewError: any) {
-    toast.error(previewError?.response?.data?.message || previewError?.message || 'Failed to load cohort preview')
+    const message = previewError?.response?.data?.message || previewError?.message || 'Failed to load cohort preview'
+    previewErrorMessage.value = message
+    cohortsStore.joinPreview = null
+    toast.error(message)
   }
 }
 
@@ -274,8 +280,8 @@ watch([activeRegions, activeChapters], () => {
       </p>
     </div>
 
-    <Alert v-if="error" variant="destructive">
-      <AlertDescription>{{ error }}</AlertDescription>
+    <Alert v-if="previewErrorMessage || error" variant="destructive">
+      <AlertDescription>{{ previewErrorMessage || error }}</AlertDescription>
     </Alert>
 
     <Card>
