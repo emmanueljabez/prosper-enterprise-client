@@ -40,7 +40,7 @@ assert(
 )
 
 assert(
-  settingsSource.includes("type SettingsTab = 'company' | 'branding' | 'program' | 'departments' | 'regions' | 'chapters' | 'subscription' | 'billing'"),
+  settingsSource.includes("type SettingsTab = 'company' | 'branding' | 'join' | 'program' | 'departments' | 'regions' | 'chapters' | 'subscription' | 'billing'"),
   'Settings tabs should include separate regions and chapters tabs',
 )
 

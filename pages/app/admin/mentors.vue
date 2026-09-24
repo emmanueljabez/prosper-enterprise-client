@@ -5,17 +5,12 @@ import { useRouter } from 'vue-router'
 import { useMentorsStore } from '@/store/modules/mentors'
 import { useCompanyMentorsStore } from '~/store/modules/companyMentors'
 import { useAuthStore } from '@/store/modules/auth'
-import { useCompanyStore } from '@/store/modules/company'
-import { useAppToast } from '@/composables/services/toastService'
 import { RoleManager } from '@/utils/roleManager'
-import { buildCompanyJoinQrDataUrl, downloadCompanyJoinQrPdf } from '@/utils/companyJoinQrPdf'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '~/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '~/components/ui/dropdown-menu'
 import { Input } from '~/components/ui/input'
-import { Label } from '~/components/ui/label'
 import { Skeleton } from '~/components/ui/skeleton'
 import { Tabs, TabsContent } from '~/components/ui/tabs'
 import CompanyMentorStatusBadge from '~/components/app/admin/mentors/CompanyMentorStatusBadge.vue'
@@ -25,17 +20,12 @@ import InviteCompanyMentorDialog from '~/components/app/admin/mentors/InviteComp
 import type { CompanyMentorInvitation, CompanyMentorPoolMember } from '~/types/company-mentors'
 import {
   ArrowRight,
-  AlertCircle,
   BadgeCheck,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Copy,
-  Download,
-  LinkIcon,
   Pencil,
   Plus,
-  QrCode,
   RefreshCw,
   Search,
   Send,
@@ -85,8 +75,6 @@ const router = useRouter()
 const authStore = useAuthStore()
 const mentorsStore = useMentorsStore()
 const companyMentorsStore = useCompanyMentorsStore()
-const companyStore = useCompanyStore()
-const toast = useAppToast()
 const {
   mentorProfiles,
   mentorProfilesLoading,
@@ -100,21 +88,12 @@ const {
   isLoading: companyMentorsLoading,
   error: companyMentorsError,
 } = storeToRefs(companyMentorsStore)
-const {
-  companyJoinLink,
-  companyJoinLinkLoading,
-} = storeToRefs(companyStore)
-
 const searchTerm = ref('')
 const activeMentorTab = ref<'prosper' | 'company'>('prosper')
 const inviteDialogOpen = ref(false)
 const importDialogOpen = ref(false)
 const visibilityDialogOpen = ref(false)
 const selectedMember = ref<CompanyMentorPoolMember | null>(null)
-const qrDialogOpen = ref(false)
-const qrCodeDataUrl = ref('')
-const qrCodeError = ref('')
-const isDownloadingQrPdf = ref(false)
 
 const companyAdminRoleNames = ['corporate_admin', 'company_admin', 'company']
 
@@ -225,8 +204,6 @@ const showPagination = computed(() => activeMentorTab.value === 'prosper')
 const pendingInvites = computed(() =>
   invitations.value.filter(invitation => !['ACCEPTED', 'CANCELLED', 'EXPIRED'].includes(invitation.status)),
 )
-const companyJoinLinkRecord = computed(() => companyJoinLink.value)
-
 const companyMentorRows = computed<CompanyMentorOperationalRow[]>(() => [
   ...pendingInvites.value.map(invitation => ({
     rowType: 'invite' as const,
@@ -315,86 +292,6 @@ const goToNextPage = () => {
 
 const openMatchingWorkspace = () => {
   router.push('/app/admin/matches')
-}
-
-const renderCompanyJoinQr = async () => {
-  qrCodeDataUrl.value = ''
-  qrCodeError.value = ''
-
-  if (!companyJoinLinkRecord.value?.joinUrl) {
-    return
-  }
-
-  try {
-    qrCodeDataUrl.value = await buildCompanyJoinQrDataUrl(companyJoinLinkRecord.value.joinUrl)
-  } catch (error: any) {
-    qrCodeError.value = error?.message || 'Failed to generate QR code'
-    toast.error(qrCodeError.value)
-  }
-}
-
-const openQrDialog = async () => {
-  if (!companyId.value) {
-    toast.error('Company context is missing')
-    return
-  }
-
-  qrDialogOpen.value = true
-  qrCodeError.value = ''
-
-  try {
-    await companyStore.loadCompanyJoinLink(companyId.value)
-    await renderCompanyJoinQr()
-  } catch {
-    // company store already handles toast
-  }
-}
-
-const regenerateQrLink = async () => {
-  if (!companyId.value) {
-    toast.error('Company context is missing')
-    return
-  }
-
-  try {
-    await companyStore.regenerateCompanyJoinLink(companyId.value)
-    await renderCompanyJoinQr()
-  } catch {
-    // company store already handles toast
-  }
-}
-
-const copyJoinLink = async () => {
-  if (!companyJoinLinkRecord.value?.joinUrl) {
-    return
-  }
-
-  try {
-    await navigator.clipboard.writeText(companyJoinLinkRecord.value.joinUrl)
-    toast.success('Join link copied')
-  } catch {
-    toast.error('Failed to copy join link')
-  }
-}
-
-const downloadQrPdf = async () => {
-  if (!companyJoinLinkRecord.value?.joinUrl || !qrCodeDataUrl.value) {
-    toast.error('Generate the QR code before downloading')
-    return
-  }
-
-  isDownloadingQrPdf.value = true
-  try {
-    await downloadCompanyJoinQrPdf({
-      companyName: companyJoinLinkRecord.value.companyName || 'Prosper Mentor Company',
-      joinUrl: companyJoinLinkRecord.value.joinUrl,
-      qrDataUrl: qrCodeDataUrl.value,
-    })
-  } catch (error: any) {
-    toast.error(error?.message || 'Failed to download QR PDF')
-  } finally {
-    isDownloadingQrPdf.value = false
-  }
 }
 
 const openVisibilityDialog = (member: CompanyMentorPoolMember) => {
@@ -560,11 +457,6 @@ onMounted(() => {
                 <DropdownMenuItem @click="importDialogOpen = true">
                   <Upload class="h-4 w-4" />
                   Import mentors
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem @click="openQrDialog">
-                  <QrCode class="h-4 w-4" />
-                  Generate QR Code
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -851,76 +743,6 @@ onMounted(() => {
       @submitted="loadCompanyMentors"
     />
 
-    <Dialog v-model:open="qrDialogOpen">
-      <DialogContent class="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Generate QR Code</DialogTitle>
-          <DialogDescription>
-            Share this QR code with mentors and mentees. After signup and email verification, they will be added to your company automatically.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div class="grid gap-6 md:grid-cols-[240px_1fr]">
-          <div class="flex min-h-[240px] items-center justify-center rounded-lg border bg-white p-4">
-            <img
-              v-if="qrCodeDataUrl"
-              :src="qrCodeDataUrl"
-              alt="Company join QR code"
-              class="h-52 w-52"
-            />
-            <div v-else class="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-              <QrCode class="h-8 w-8" />
-              <span>{{ companyJoinLinkLoading ? 'Generating QR code...' : 'QR code preview unavailable' }}</span>
-            </div>
-          </div>
-
-          <div class="space-y-4">
-            <div>
-              <Label>Company</Label>
-              <p class="mt-1 text-sm font-medium">
-                {{ companyJoinLinkRecord?.companyName || 'Company join link' }}
-              </p>
-            </div>
-
-            <Alert v-if="qrCodeError" variant="destructive">
-              <AlertCircle class="h-4 w-4" />
-              <AlertDescription>{{ qrCodeError }}</AlertDescription>
-            </Alert>
-
-            <div class="space-y-2">
-              <Label>Signup link</Label>
-              <div class="flex gap-2">
-                <div class="min-h-10 flex-1 rounded-md border bg-muted px-3 py-2 text-xs text-muted-foreground break-all">
-                  {{ companyJoinLinkRecord?.joinUrl || 'Generating link...' }}
-                </div>
-                <Button variant="outline" size="icon" :disabled="!companyJoinLinkRecord?.joinUrl" @click="copyJoinLink">
-                  <Copy class="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div class="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-              <LinkIcon class="mr-2 inline h-4 w-4" />
-              The same QR code supports mentor and mentee signup. The user chooses their role on Prosper Mentor signup.
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" :disabled="companyJoinLinkLoading" @click="regenerateQrLink">
-            <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': companyJoinLinkLoading }" />
-            Regenerate Link
-          </Button>
-          <Button
-            :disabled="!qrCodeDataUrl || isDownloadingQrPdf"
-            @click="downloadQrPdf"
-          >
-            <Download class="mr-2 h-4 w-4" />
-            {{ isDownloadingQrPdf ? 'Preparing...' : 'Download PDF' }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   </div>
 </template>
 
