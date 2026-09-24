@@ -42,6 +42,10 @@ assert.match(joinSource, /cohortsStore\.joinPreview\s*=\s*null/, 'Join-code page
 const catalogErrorBlock = joinSource.match(/catch \(catalogError: any\) \{([\s\S]*?)\n  \}/)?.[1] || ''
 assert.match(catalogErrorBlock, /syncRegionSelectionFromValue\(\)/, 'Join-code page should keep preview region visible if the public catalog lookup is not available.')
 assert.match(catalogErrorBlock, /syncChapterSelectionFromValue\(\)/, 'Join-code page should keep preview chapter visible if the public catalog lookup is not available.')
+assert.match(joinSource, /showRegionSelect/, 'Join-code page should only use the region select when catalog options are available.')
+assert.match(joinSource, /showChapterSelect/, 'Join-code page should only use the chapter select when catalog options are available.')
+assert.match(joinSource, /v-else[\s\S]+v-model="joinForm\.region"/, 'Join-code page should fall back to an editable region input.')
+assert.match(joinSource, /v-else[\s\S]+v-model="joinForm\.chapter"/, 'Join-code page should fall back to an editable chapter input.')
 assert.match(
   joinSource,
   /layout:\s*['"]auth['"]|layout:\s*['"]public['"]|layout:\s*false/,
