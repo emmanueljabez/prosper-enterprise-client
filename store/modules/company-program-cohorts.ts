@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import companyProgramsApi from '~/http/requests/app/companyPrograms'
 import companyProgramCohortsApi, {
   type AddCohortRosterParticipantsPayload,
   type CircleSuggestionResultRecord,
@@ -79,6 +80,31 @@ export const useCompanyProgramCohortsStore = defineStore('company-program-cohort
         this.cohorts = response.data.cohorts
         return response.data.cohorts
       } catch (error: any) {
+        const isMissingCompanyCohortsEndpoint = error?.response?.status === 404
+        if (isMissingCompanyCohortsEndpoint) {
+          try {
+            const programsResponse = await companyProgramsApi.getCompanyPrograms({
+              companyId,
+              page: 0,
+              size: 100,
+              status: 'ALL',
+            })
+            const programs = programsResponse.data?.programs || []
+            const cohortResponses = await Promise.all(
+              programs.map(program => companyProgramCohortsApi.getCohorts(program.id)),
+            )
+            const fallbackCohorts = cohortResponses.flatMap(response =>
+              response.success && response.data ? response.data.cohorts : [],
+            )
+
+            this.cohorts = fallbackCohorts
+            return fallbackCohorts
+          } catch (fallbackError: any) {
+            this.error = errorMessage(fallbackError, 'Failed to load company cohorts')
+            throw fallbackError
+          }
+        }
+
         this.error = errorMessage(error, 'Failed to load company cohorts')
         throw error
       } finally {

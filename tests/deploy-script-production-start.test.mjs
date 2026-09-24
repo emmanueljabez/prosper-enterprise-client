@@ -93,6 +93,12 @@ assert.match(
   'Deployment should not overwrite freshly built Nuxt assets while retaining old hashed chunks.',
 )
 
+assert.match(
+  source,
+  /cp -n \{\} \.output\/public\/_nuxt\/ \\; 2>\/dev\/null \|\| true/,
+  'Deployment should suppress duplicate Nuxt chunk copy warnings while preserving old hashed chunks.',
+)
+
 assert.doesNotMatch(
   source,
   /\/var\/www\/html\/prosper_enterprise/,
