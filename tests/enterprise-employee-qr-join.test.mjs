@@ -6,6 +6,7 @@ const companyStoreSource = readFileSync(new URL('../store/modules/company.ts', i
 const signupSource = readFileSync(new URL('../pages/auth/signup.vue', import.meta.url), 'utf8')
 const confirmEmailSource = readFileSync(new URL('../pages/auth/confirm-email.vue', import.meta.url), 'utf8')
 const employeesSource = readFileSync(new URL('../pages/app/admin/employees.vue', import.meta.url), 'utf8')
+const mentorsSource = readFileSync(new URL('../pages/app/admin/mentors.vue', import.meta.url), 'utf8')
 const qrPdfSource = readFileSync(new URL('../utils/companyJoinQrPdf.ts', import.meta.url), 'utf8')
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 
@@ -29,6 +30,7 @@ assert.match(confirmEmailSource, /companyJoinToken:\s*companyJoinToken\.value/, 
 assert.ok(packageJson.dependencies?.qrcode, 'QR code generation should use qrcode.')
 assert.ok(packageJson.dependencies?.jspdf, 'PDF download should use jspdf.')
 assert.match(employeesSource, /Generate QR Code/, 'Employees page should expose Generate QR Code action.')
+assert.match(employeesSource, /mentors and mentees/, 'Employees QR dialog should describe the shared mentor and mentee QR.')
 assert.match(employeesSource, /Download PDF/, 'Employees QR dialog should expose Download PDF.')
 assert.match(employeesSource, /QrCode/, 'Employees page should use the QR code icon.')
 assert.doesNotMatch(employeesSource, />\s*Buy Sessions\s*</, 'Employees page should remove the Buy Sessions action button.')
@@ -43,5 +45,13 @@ assert.match(qrPdfSource, /COMPANY_JOIN_QR_BRAND_RGB\s*=\s*\[143,\s*31,\s*116\]/
 assert.doesNotMatch(qrPdfSource, /#027F63|setFillColor\(2,\s*127,\s*99\)/, 'QR/PDF helper should not use the old green.')
 assert.match(employeesSource, /bg-\[#8f1f74\]/, 'Download PDF button should use the requested brand color.')
 assert.doesNotMatch(employeesSource, /bg-\[#027F63\]/, 'Download PDF button should not use the old green.')
+
+assert.match(mentorsSource, /buildCompanyJoinQrDataUrl/, 'Mentors page should render the shared company QR code.')
+assert.match(mentorsSource, /downloadCompanyJoinQrPdf/, 'Mentors page should download the shared QR PDF.')
+assert.match(mentorsSource, /Generate QR Code/, 'Mentors page Actions dropdown should include Generate QR Code.')
+assert.match(mentorsSource, /Invite mentor/, 'Mentors page Actions dropdown should include Invite mentor.')
+assert.match(mentorsSource, /Import mentors/, 'Mentors page Actions dropdown should include Import mentors.')
+assert.match(mentorsSource, /mentors and mentees/, 'Mentors QR dialog should describe the shared mentor and mentee QR.')
+assert.match(mentorsSource, /The same QR code supports mentor and mentee signup/, 'Mentors QR dialog should explain role selection happens on signup.')
 
 console.log('Enterprise employee QR join data flow verified.')

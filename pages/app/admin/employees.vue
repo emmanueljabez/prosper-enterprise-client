@@ -1179,7 +1179,7 @@ watch(employeeProfileIds, async () => {
         <DialogHeader>
           <DialogTitle>Generate QR Code</DialogTitle>
           <DialogDescription>
-            Share this QR code with mentees. After signup and email verification, they will be added to your company automatically.
+            Share this QR code with mentors and mentees. After signup and email verification, they will be added to your company automatically.
           </DialogDescription>
         </DialogHeader>
 
@@ -1211,7 +1211,7 @@ watch(employeeProfileIds, async () => {
           </div>
 
           <div class="space-y-2">
-            <Label for="company-join-link">Join link</Label>
+            <Label for="company-join-link">Signup link</Label>
             <div class="flex gap-2">
               <div
                 id="company-join-link"
@@ -1224,6 +1224,11 @@ watch(employeeProfileIds, async () => {
                 <Copy class="h-4 w-4" />
               </Button>
             </div>
+          </div>
+
+          <div class="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+            <LinkIcon class="mr-2 inline h-4 w-4" />
+            The same QR code supports mentor and mentee signup. The user chooses their role on Prosper Mentor signup.
           </div>
 
           <Alert v-if="qrCodeError" variant="destructive">
