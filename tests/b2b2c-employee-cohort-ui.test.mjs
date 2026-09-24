@@ -39,6 +39,9 @@ assert.match(joinSource, /submitSelfJoin/, 'Join-code page should submit self-jo
 assert.match(joinSource, /interestTags/, 'Join-code page should capture interest tags for circle suggestions.')
 assert.match(joinSource, /previewErrorMessage/, 'Join-code page should keep preview errors visible after the toast disappears.')
 assert.match(joinSource, /cohortsStore\.joinPreview\s*=\s*null/, 'Join-code page should clear stale cohort previews when a join code fails.')
+const catalogErrorBlock = joinSource.match(/catch \(catalogError: any\) \{([\s\S]*?)\n  \}/)?.[1] || ''
+assert.match(catalogErrorBlock, /syncRegionSelectionFromValue\(\)/, 'Join-code page should keep preview region visible if the public catalog lookup is not available.')
+assert.match(catalogErrorBlock, /syncChapterSelectionFromValue\(\)/, 'Join-code page should keep preview chapter visible if the public catalog lookup is not available.')
 assert.match(
   joinSource,
   /layout:\s*['"]auth['"]|layout:\s*['"]public['"]|layout:\s*false/,

@@ -162,7 +162,13 @@ const loadLocationCatalog = async (companyId?: string | null) => {
     syncRegionSelectionFromValue()
     syncChapterSelectionFromValue()
   } catch (catalogError: any) {
-    toast.error(catalogError?.response?.data?.message || catalogError?.message || 'Failed to load regions and chapters')
+    syncRegionSelectionFromValue()
+    syncChapterSelectionFromValue()
+
+    const status = catalogError?.response?.status
+    if (status !== 401 && status !== 403) {
+      toast.error(catalogError?.response?.data?.message || catalogError?.message || 'Failed to load regions and chapters')
+    }
   }
 }
 
