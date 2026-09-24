@@ -83,8 +83,20 @@ assert.match(
 
 assert.match(
   source,
-  /\.output\.backup\.\*\/public\/_nuxt/,
-  'Deployment should copy retained backup _nuxt assets into the new build.',
+  /copy_previous_nuxt_asset\(\)/,
+  'Deployment should copy previous Nuxt assets through a bounded helper.',
+)
+
+assert.match(
+  source,
+  /client\.manifest\.mjs/,
+  'Deployment should preserve only assets referenced by the previous build manifest.',
+)
+
+assert.doesNotMatch(
+  source,
+  /for previous_nuxt_dir in \.output\.backup\.\*\/public\/_nuxt/,
+  'Deployment should not scan every retained backup _nuxt directory.',
 )
 
 assert.match(
@@ -95,7 +107,7 @@ assert.match(
 
 assert.match(
   source,
-  /cp -n \{\} \.output\/public\/_nuxt\/ \\; 2>\/dev\/null \|\| true/,
+  /cp -n [^\n]+ \.output\/public\/_nuxt\/ 2>\/dev\/null \|\| true/,
   'Deployment should suppress duplicate Nuxt chunk copy warnings while preserving old hashed chunks.',
 )
 

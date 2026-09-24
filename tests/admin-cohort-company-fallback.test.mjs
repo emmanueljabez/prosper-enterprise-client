@@ -19,8 +19,8 @@ assert.match(
 
 assert.match(
   storeSource,
-  /companyProgramsApi\.getCompanyPrograms\(\{[\s\S]*companyId,[\s\S]*page:\s*0,[\s\S]*size:\s*100,[\s\S]*status:\s*'ALL'[\s\S]*\}\)/,
-  'Company cohort fallback should load the company programs through the request module.',
+  /companyProgramsApi\.getCompanyPrograms\(\{[\s\S]*companyId,[\s\S]*page:\s*0,[\s\S]*size:\s*100,[\s\S]*status:\s*null[\s\S]*\}\)/,
+  'Company cohort fallback should load company programs with a backend-safe unfiltered status.',
 )
 
 assert.match(

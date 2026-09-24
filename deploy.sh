@@ -284,11 +284,26 @@ tar -xzf deployment.tar.gz
 
 echo "🧩 Preserving previous Nuxt route chunks..."
 mkdir -p .output/public/_nuxt
-for previous_nuxt_dir in .output.backup.*/public/_nuxt; do
-    if [ -d "$previous_nuxt_dir" ]; then
-        find "$previous_nuxt_dir" -maxdepth 1 -type f -exec cp -n {} .output/public/_nuxt/ \; 2>/dev/null || true
+
+copy_previous_nuxt_asset() {
+    local asset_path="$1"
+    local source_path="$backup_dir/public/$asset_path"
+
+    if [ -f "$source_path" ]; then
+        cp -n "$source_path" .output/public/_nuxt/ 2>/dev/null || true
     fi
-done
+}
+
+if [ -n "${backup_dir:-}" ] && [ -d "$backup_dir/public/_nuxt" ]; then
+    previous_manifest="$backup_dir/server/chunks/build/client.manifest.mjs"
+    if [ -f "$previous_manifest" ]; then
+        grep -oE "_nuxt/[^\"' ]+\\.(js|css)" "$previous_manifest" | sort -u | while read -r asset_path; do
+            copy_previous_nuxt_asset "$asset_path"
+        done
+    else
+        find "$backup_dir/public/_nuxt" -maxdepth 1 -type f -exec cp -n {} .output/public/_nuxt/ \; 2>/dev/null || true
+    fi
+fi
 
 echo "📦 Installing dependencies..."
 npm ci --omit=dev --ignore-scripts

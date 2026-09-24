@@ -87,7 +87,7 @@ export const useCompanyProgramCohortsStore = defineStore('company-program-cohort
               companyId,
               page: 0,
               size: 100,
-              status: 'ALL',
+              status: null,
             })
             const programs = programsResponse.data?.programs || []
             const cohortResponses = await Promise.all(
