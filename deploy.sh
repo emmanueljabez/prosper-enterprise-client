@@ -286,7 +286,7 @@ echo "🧩 Preserving previous Nuxt route chunks..."
 mkdir -p .output/public/_nuxt
 for previous_nuxt_dir in .output.backup.*/public/_nuxt; do
     if [ -d "$previous_nuxt_dir" ]; then
-        find "$previous_nuxt_dir" -maxdepth 1 -type f -exec cp -n {} .output/public/_nuxt/ \;
+        find "$previous_nuxt_dir" -maxdepth 1 -type f -exec cp -n {} .output/public/_nuxt/ \; 2>/dev/null || true
     fi
 done
 
