@@ -113,6 +113,14 @@ const filteredChapterOptions = computed(() => {
       }, ...chapters]
 })
 
+const showRegionSelect = computed(() =>
+  activeRegions.value.length > 0 && selectedRegionId.value !== CURRENT_REGION,
+)
+
+const showChapterSelect = computed(() =>
+  activeChapters.value.length > 0 && selectedChapterId.value !== CURRENT_CHAPTER,
+)
+
 const syncRegionSelectionFromValue = () => {
   const currentRegion = joinForm.region.trim() || String(joinPreview.value?.region || '').trim()
   if (!joinForm.region && currentRegion) {
@@ -361,7 +369,7 @@ watch([activeRegions, activeChapters], () => {
             </div>
             <div class="grid gap-2">
               <label class="text-sm font-medium">Region</label>
-              <Select v-model="selectedRegionId" :disabled="regionsLoading || !joinPreview.companyId">
+              <Select v-if="showRegionSelect" v-model="selectedRegionId" :disabled="regionsLoading || !joinPreview.companyId">
                 <SelectTrigger>
                   <SelectValue :placeholder="regionsLoading ? 'Loading regions...' : 'Select region'" />
                 </SelectTrigger>
@@ -372,10 +380,11 @@ watch([activeRegions, activeChapters], () => {
                   </SelectItem>
                 </SelectContent>
               </Select>
+              <Input v-else v-model="joinForm.region" :disabled="regionsLoading" placeholder="Kenya" />
             </div>
             <div class="grid gap-2">
               <label class="text-sm font-medium">Chapter</label>
-              <Select v-model="selectedChapterId" :disabled="chaptersLoading || !joinPreview.companyId">
+              <Select v-if="showChapterSelect" v-model="selectedChapterId" :disabled="chaptersLoading || !joinPreview.companyId">
                 <SelectTrigger>
                   <SelectValue :placeholder="chaptersLoading ? 'Loading chapters...' : 'Select chapter'" />
                 </SelectTrigger>
@@ -386,6 +395,7 @@ watch([activeRegions, activeChapters], () => {
                   </SelectItem>
                 </SelectContent>
               </Select>
+              <Input v-else v-model="joinForm.chapter" :disabled="chaptersLoading" placeholder="Nairobi" />
             </div>
           </div>
 
