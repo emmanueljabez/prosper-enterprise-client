@@ -26,6 +26,9 @@ for (const endpoint of [
 
 assert.match(requestSource, /export interface CohortRosterParticipantPayload/, 'Request module should type cohort roster participant rows.')
 assert.match(requestSource, /export interface AddCohortRosterParticipantsPayload/, 'Request module should type cohort roster upload payloads.')
+assert.match(requestSource, /export interface PlenaryEventOptionRecord/, 'Cohort request layer should type available plenary event options.')
+assert.match(requestSource, /listAvailablePlenaryEvents/, 'Cohort request layer should expose listAvailablePlenaryEvents.')
+assert.match(requestSource, /\/cohorts\/plenary-events/, 'Available plenary events should come from the backend cohorts endpoint.')
 assert.match(requestSource, /async addRosterParticipants\(cohortId: string, payload: AddCohortRosterParticipantsPayload\)/, 'Request module should POST roster participants to a cohort.')
 assert.match(requestSource, /api\.post\(`\/v1\/company-program-cohorts\/\$\{cohortId\}\/participants`, payload\)/, 'Roster upload should use the cohort participants collection POST endpoint.')
 
@@ -49,6 +52,8 @@ for (const action of [
   assert.match(storeSource, new RegExp(`async ${action}\\(`), `Store should expose ${action}.`)
 }
 
+assert.match(storeSource, /plenaryEventOptions/, 'Cohort store should keep plenary event options.')
+assert.match(storeSource, /loadPlenaryEventOptions/, 'Cohort store should load plenary event options for the editor.')
 assert.doesNotMatch(storeSource, /from ['"]~?\/?http\/axios['"]/, 'Store should call the cohort request module, not axios directly.')
 
 console.log('B2B2C cohort data layer verified.')

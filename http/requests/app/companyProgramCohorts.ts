@@ -225,6 +225,16 @@ export interface EmployeeCompanyProgramCohortRecord {
   mentorAssignment?: MentorAssignmentSummaryRecord | null
 }
 
+export interface PlenaryEventOptionRecord {
+  id: string
+  title: string
+  status?: string | null
+  eventType?: string | null
+  startDate?: string | null
+  endDate?: string | null
+  locationType?: string | null
+}
+
 export interface CreateCompanyProgramCohortPayload {
   name: string
   code: string
@@ -357,6 +367,11 @@ export interface EmployeeCohortsData {
 const companyProgramCohortsApi = {
   async getCompanyCohorts(companyId: string): Promise<ApiEnvelope<CompanyCohortsData>> {
     const response = await api.get(`/v1/companies/${companyId}/program-cohorts`)
+    return response.data
+  },
+
+  async listAvailablePlenaryEvents(): Promise<ApiEnvelope<PlenaryEventOptionRecord[]>> {
+    const response = await api.get('/v1/cohorts/plenary-events')
     return response.data
   },
 
