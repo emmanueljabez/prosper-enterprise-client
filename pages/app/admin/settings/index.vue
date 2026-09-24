@@ -20,6 +20,7 @@ import { Skeleton } from '~/components/ui/skeleton'
 import DepartmentsSettingsTab from '~/components/app/admin/settings/DepartmentsSettingsTab.vue'
 import RegionsSettingsTab from '~/components/app/admin/settings/RegionsSettingsTab.vue'
 import ChaptersSettingsTab from '~/components/app/admin/settings/ChaptersSettingsTab.vue'
+import CompanyJoinQrSettingsTab from '~/components/app/admin/settings/CompanyJoinQrSettingsTab.vue'
 import {
   AlertCircle,
   Settings,
@@ -37,6 +38,7 @@ import {
   MapPin,
   GitBranch,
   ImageIcon,
+  QrCode,
   Trash2,
   Upload,
 } from 'lucide-vue-next'
@@ -49,7 +51,7 @@ definePageMeta({
   permissions: ['admin:settings']
 })
 
-type SettingsTab = 'company' | 'branding' | 'program' | 'departments' | 'regions' | 'chapters' | 'subscription' | 'billing'
+type SettingsTab = 'company' | 'branding' | 'join' | 'program' | 'departments' | 'regions' | 'chapters' | 'subscription' | 'billing'
 
 const DEFAULT_PRIMARY_COLOR = '#a03b93'
 const DEFAULT_SECONDARY_COLOR = '#d9a8d3'
@@ -85,6 +87,7 @@ const resolveSettingsTab = (value?: unknown): SettingsTab => {
   switch (normalized) {
     case 'company':
     case 'branding':
+    case 'join':
     case 'program':
     case 'subscription':
     case 'departments':
@@ -844,6 +847,17 @@ onMounted(async () => {
             <Palette class="h-4 w-4" /> Branding
           </button>
           <button
+            @click="activeTab = 'join'"
+            :class="[
+              'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
+              activeTab === 'join'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            ]"
+          >
+            <QrCode class="h-4 w-4" /> Join QR
+          </button>
+          <button
             @click="activeTab = 'program'"
             :class="[
               'px-6 py-3 font-medium transition-colors whitespace-nowrap flex items-center gap-2',
@@ -1129,6 +1143,15 @@ onMounted(async () => {
           </template>
         </CardContent>
       </Card>
+    </div>
+
+    <!-- Join QR Tab -->
+    <div v-if="activeTab === 'join'" class="space-y-6">
+      <CompanyJoinQrSettingsTab
+        :company-id="companyContext.companyId"
+        :company-name="companyContext.companyName"
+        :can-manage="companyContext.isCorporateAdmin"
+      />
     </div>
 
     <!-- Program Settings Tab -->
