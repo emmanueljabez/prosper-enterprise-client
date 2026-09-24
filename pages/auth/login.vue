@@ -60,6 +60,11 @@ const clearStoredFreeTrialIntent = () => {
   }
 }
 
+const isMissingOnboardingEndpoint = (error: unknown) => {
+  const maybeError = error as { response?: { status?: number }, status?: number, statusCode?: number }
+  return maybeError.response?.status === 404 || maybeError.status === 404 || maybeError.statusCode === 404
+}
+
 const login = handleSubmit(async (values) => {
   try {
     const hasFreeTrialIntent = hasRouteFreeTrialIntent.value || readStoredFreeTrialIntent()
@@ -86,7 +91,15 @@ const login = handleSubmit(async (values) => {
       } else if (['company', 'company_admin', 'corporate_admin'].includes(String(role || '').toLowerCase())) {
         const companyId = authStore.loggedInUser?.companyId || result.profile?.company?.id || result.profile?.companyId || result.company?.companyId
         if (companyId) {
-          await companyOnboardingStore.loadOnboardingStatus(companyId)
+          try {
+            await companyOnboardingStore.loadOnboardingStatus(companyId)
+          } catch (onboardingError) {
+            if (!isMissingOnboardingEndpoint(onboardingError)) {
+              throw onboardingError
+            }
+            console.warn('Company onboarding status endpoint returned 404 during login; continuing to admin workspace.')
+          }
+
           if (companyOnboardingStore.requiresOnboarding) {
             router.push('/app/admin/onboarding')
             return
