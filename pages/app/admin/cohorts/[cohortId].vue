@@ -97,7 +97,7 @@ const {
 
 const cohortId = computed(() => String(route.params.cohortId || ''))
 const cohortProgramId = computed(() => selectedCohort.value?.companyProgramId || '')
-const activeTab = ref(['participants', 'plenary', 'circles', 'matching'].includes(String(route.query.tab)) ? String(route.query.tab) : 'overview')
+const activeTab = ref(['participants', 'plenary', 'matching'].includes(String(route.query.tab)) ? String(route.query.tab) : 'overview')
 const editDialogOpen = ref(false)
 const isRosterDialogOpen = ref(false)
 const isCreateCircleDialogOpen = ref(false)
@@ -825,8 +825,18 @@ const canOpenIntake = computed(() => ['DRAFT', 'INTAKE_CLOSED'].includes(String(
 const canCloseIntake = computed(() => selectedCohort.value?.status === 'INTAKE_OPEN')
 const canFinalizeCircles = computed(() => Boolean(circles.value.length) && Boolean(circleEligibleParticipants.value.length) && !unplacedParticipants.value.length)
 
+const openCirclesWorkspace = () => {
+  router.push(`/app/admin/cohorts/${cohortId.value}/circles`)
+}
+
 watch(cohortId, async () => {
   await loadWorkspace()
+}, { immediate: true })
+
+watch(() => route.query.tab, value => {
+  if (value === 'circles') {
+    router.replace(`/app/admin/cohorts/${cohortId.value}/circles`)
+  }
 }, { immediate: true })
 
 watch(activeTab, value => {
@@ -951,7 +961,7 @@ watch(activeTab, value => {
             type="button"
             class="cohort-tab"
             :class="{ 'cohort-tab--active': activeTab === 'circles' }"
-            @click="activeTab = 'circles'"
+            @click="openCirclesWorkspace"
           >
             Circles
             <span>{{ circles.length }}</span>

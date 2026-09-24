@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 
 const listPageUrl = new URL('../pages/app/admin/cohorts/index.vue', import.meta.url)
 const workspacePageUrl = new URL('../pages/app/admin/cohorts/[cohortId].vue', import.meta.url)
+const circlesRouteUrl = new URL('../pages/app/admin/cohorts/[cohortId]/circles.vue', import.meta.url)
 const legacyWorkspaceUrl = new URL('../pages/app/admin/programs/[programId]/cohorts/[cohortId].vue', import.meta.url)
 const programDetailUrl = new URL('../pages/app/admin/programs/[programId]/index.vue', import.meta.url)
 const requestUrl = new URL('../http/requests/app/companyProgramCohorts.ts', import.meta.url)
@@ -12,10 +13,12 @@ const roleManagerUrl = new URL('../utils/roleManager.ts', import.meta.url)
 
 assert.equal(existsSync(listPageUrl), true, 'Standalone admin cohorts list should exist at /app/admin/cohorts.')
 assert.equal(existsSync(workspacePageUrl), true, 'Standalone admin cohort workspace should exist at /app/admin/cohorts/:cohortId.')
+assert.equal(existsSync(circlesRouteUrl), true, 'Standalone circles workspace route should exist.')
 assert.equal(existsSync(legacyWorkspaceUrl), true, 'Legacy nested cohort route should remain as a redirect for old links.')
 
 const listPageSource = readFileSync(listPageUrl, 'utf8')
 const workspacePageSource = readFileSync(workspacePageUrl, 'utf8')
+const circlesRouteSource = readFileSync(circlesRouteUrl, 'utf8')
 const legacyWorkspaceSource = readFileSync(legacyWorkspaceUrl, 'utf8')
 const programDetailSource = readFileSync(programDetailUrl, 'utf8')
 const requestSource = readFileSync(requestUrl, 'utf8')
@@ -75,6 +78,13 @@ assert.match(workspacePageSource, /const cohortId = computed\(\(\) => String\(ro
 assert.match(workspacePageSource, /selectedCohort\.value\?\.companyProgramId/, 'Workspace should derive the parent program from the loaded cohort.')
 assert.match(workspacePageSource, /router\.push\('\/app\/admin\/cohorts'\)/, 'Workspace back action should return to standalone cohorts.')
 assert.doesNotMatch(workspacePageSource, /route\.params\.programId/, 'Standalone workspace should not depend on a program route parameter.')
+assert.match(workspacePageSource, /\/app\/admin\/cohorts\/.*\/circles/, 'Cohort detail should link to the standalone circles workspace.')
+
+assert.match(
+  circlesRouteSource,
+  /Form circles|Circles in this cohort|Confirm circles as final/,
+  'Standalone circles route should render circle management language.',
+)
 
 assert.match(
   legacyWorkspaceSource,
