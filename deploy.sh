@@ -282,6 +282,14 @@ fi
 echo "📂 Extracting files..."
 tar -xzf deployment.tar.gz
 
+echo "🧩 Preserving previous Nuxt route chunks..."
+mkdir -p .output/public/_nuxt
+for previous_nuxt_dir in .output.backup.*/public/_nuxt; do
+    if [ -d "$previous_nuxt_dir" ]; then
+        find "$previous_nuxt_dir" -maxdepth 1 -type f -exec cp -n {} .output/public/_nuxt/ \;
+    fi
+done
+
 echo "📦 Installing dependencies..."
 npm ci --omit=dev --ignore-scripts
 
