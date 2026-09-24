@@ -97,7 +97,7 @@ const {
 
 const cohortId = computed(() => String(route.params.cohortId || ''))
 const cohortProgramId = computed(() => selectedCohort.value?.companyProgramId || '')
-const activeTab = ref(['participants', 'plenary', 'circles', 'matching'].includes(String(route.query.tab)) ? String(route.query.tab) : 'overview')
+const activeTab = ref(['participants', 'plenary', 'matching'].includes(String(route.query.tab)) ? String(route.query.tab) : 'overview')
 const editDialogOpen = ref(false)
 const isRosterDialogOpen = ref(false)
 const isCreateCircleDialogOpen = ref(false)
@@ -246,6 +246,13 @@ const formatPercent = (value?: number | null) => {
   const normalized = value > 1 ? value : value * 100
   return `${Math.round(normalized)}%`
 }
+
+const publicIntakeLink = computed(() => {
+  const code = selectedCohort.value?.code
+  if (!code) return ''
+  const origin = typeof window === 'undefined' ? 'https://enterprise.prospermentor.com' : window.location.origin
+  return `${origin}/app/employee/cohorts/join?code=${encodeURIComponent(code)}`
+})
 
 const toIsoOrNull = (value: string) => value ? new Date(value).toISOString() : null
 const optionalNumber = (value: number | string | null) => {
@@ -661,6 +668,17 @@ const recordPlenaryAttendance = async (participant: CompanyProgramCohortParticip
   }
 }
 
+const copyPublicIntakeLink = async () => {
+  if (!publicIntakeLink.value) return
+
+  try {
+    await navigator.clipboard.writeText(publicIntakeLink.value)
+    toast.success('Intake link copied.')
+  } catch (copyError: any) {
+    toast.error(copyError?.message || 'Failed to copy intake link')
+  }
+}
+
 const suggestCircles = async () => {
   if (!cohortId.value) return
 
@@ -825,8 +843,18 @@ const canOpenIntake = computed(() => ['DRAFT', 'INTAKE_CLOSED'].includes(String(
 const canCloseIntake = computed(() => selectedCohort.value?.status === 'INTAKE_OPEN')
 const canFinalizeCircles = computed(() => Boolean(circles.value.length) && Boolean(circleEligibleParticipants.value.length) && !unplacedParticipants.value.length)
 
+const openCirclesWorkspace = () => {
+  router.push(`/app/admin/cohorts/${cohortId.value}/circles`)
+}
+
 watch(cohortId, async () => {
   await loadWorkspace()
+}, { immediate: true })
+
+watch(() => route.query.tab, value => {
+  if (value === 'circles') {
+    router.replace(`/app/admin/cohorts/${cohortId.value}/circles`)
+  }
 }, { immediate: true })
 
 watch(activeTab, value => {
@@ -951,7 +979,7 @@ watch(activeTab, value => {
             type="button"
             class="cohort-tab"
             :class="{ 'cohort-tab--active': activeTab === 'circles' }"
-            @click="activeTab = 'circles'"
+            @click="openCirclesWorkspace"
           >
             Circles
             <span>{{ circles.length }}</span>
@@ -1011,6 +1039,16 @@ watch(activeTab, value => {
                 <div class="rounded-lg border bg-muted/20 p-4">
                   <div class="text-xs font-medium uppercase text-muted-foreground">Join code</div>
                   <div class="mt-1 break-all text-lg font-semibold">{{ selectedCohort?.code || '-' }}</div>
+                </div>
+                <div class="space-y-2">
+                  <div class="text-xs font-medium uppercase text-muted-foreground">Public join link</div>
+                  <div class="grid gap-2 sm:grid-cols-[1fr,auto]">
+                    <Input :model-value="publicIntakeLink || 'Open intake to generate a link'" readonly />
+                    <Button variant="outline" :disabled="!publicIntakeLink" @click="copyPublicIntakeLink">
+                      <Link class="mr-2 h-4 w-4" />
+                      Copy link
+                    </Button>
+                  </div>
                 </div>
                 <div class="grid gap-2 text-sm text-muted-foreground">
                   <div>Self-join: {{ selectedCohort?.selfJoinEnabled ? 'Enabled' : 'Disabled' }}</div>

@@ -15,6 +15,7 @@ import companyProgramCohortsApi, {
   type EmployeeCompanyProgramCohortRecord,
   type MoveMembershipPayload,
   type PlaceParticipantPayload,
+  type PlenaryEventOptionRecord,
   type RecordPlenaryAttendancePayload,
   type RequestCirclePayload,
   type ResolveDuplicatePayload,
@@ -25,9 +26,11 @@ import companyProgramCohortsApi, {
 interface CompanyProgramCohortsState {
   isLoading: boolean
   isSaving: boolean
+  plenaryEventOptionsLoading: boolean
   error: string | null
   cohorts: CompanyProgramCohortRecord[]
   selectedCohort: CompanyProgramCohortRecord | null
+  plenaryEventOptions: PlenaryEventOptionRecord[]
   participants: CompanyProgramCohortParticipantRecord[]
   joinRequests: CompanyProgramCohortJoinRequestRecord[]
   circles: CommonInterestCircleRecord[]
@@ -47,9 +50,11 @@ export const useCompanyProgramCohortsStore = defineStore('company-program-cohort
   state: (): CompanyProgramCohortsState => ({
     isLoading: false,
     isSaving: false,
+    plenaryEventOptionsLoading: false,
     error: null,
     cohorts: [],
     selectedCohort: null,
+    plenaryEventOptions: [],
     participants: [],
     joinRequests: [],
     circles: [],
@@ -117,6 +122,25 @@ export const useCompanyProgramCohortsStore = defineStore('company-program-cohort
         throw error
       } finally {
         this.isLoading = false
+      }
+    },
+
+    async loadPlenaryEventOptions() {
+      this.plenaryEventOptionsLoading = true
+      this.error = null
+
+      try {
+        const response = await companyProgramCohortsApi.listAvailablePlenaryEvents()
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to load plenary event options')
+        }
+        this.plenaryEventOptions = response.data || []
+        return this.plenaryEventOptions
+      } catch (error: any) {
+        this.error = errorMessage(error, 'Failed to load plenary event options')
+        throw error
+      } finally {
+        this.plenaryEventOptionsLoading = false
       }
     },
 

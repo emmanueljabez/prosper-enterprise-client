@@ -6,10 +6,12 @@ import { useCompanyLocationCatalogStore } from '@/store/modules/company-location
 import type {
   CompanyProgramCohortRecord,
   CreateCompanyProgramCohortPayload,
+  PlenaryEventOptionRecord,
   PlenaryEventType,
   UpdateCompanyProgramCohortPayload,
 } from '@/http/requests/app/companyProgramCohorts'
 import { useAppToast } from '@/composables/services/toastService'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Button } from '~/components/ui/button'
 import { Checkbox } from '~/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
@@ -63,6 +65,10 @@ const emit = defineEmits<{
 const cohortsStore = useCompanyProgramCohortsStore()
 const locationCatalogStore = useCompanyLocationCatalogStore()
 const {
+  plenaryEventOptions,
+  plenaryEventOptionsLoading,
+} = storeToRefs(cohortsStore)
+const {
   activeRegions,
   activeChapters,
   regionsLoading,
@@ -74,6 +80,7 @@ const NO_REGION = '__NO_REGION__'
 const NO_CHAPTER = '__NO_CHAPTER__'
 const CURRENT_REGION = '__CURRENT_REGION__'
 const CURRENT_CHAPTER = '__CURRENT_CHAPTER__'
+const NO_PLENARY_EVENT = '__NO_PLENARY_EVENT__'
 const selectedRegionId = ref(NO_REGION)
 const selectedChapterId = ref(NO_CHAPTER)
 const selectedProgramId = ref('')
@@ -99,6 +106,11 @@ const form = reactive<CohortFormModel>({
 const isEditing = computed(() => Boolean(props.cohort?.id))
 const title = computed(() => isEditing.value ? 'Edit cohort' : 'Create cohort')
 const submitLabel = computed(() => isEditing.value ? 'Save cohort' : 'Create cohort')
+const shouldShowProgramSelector = computed(() =>
+  !isEditing.value
+  && !props.programId
+  && props.programOptions.length > 1,
+)
 const effectiveProgramId = computed(() =>
   isEditing.value
     ? props.cohort?.companyProgramId || props.programId || ''
@@ -109,11 +121,34 @@ const dialogOpen = computed({
   set: value => emit('update:open', value),
 })
 
+const selectedPlenaryEventId = computed({
+  get: () => form.plenaryEventId || NO_PLENARY_EVENT,
+  set: value => {
+    if (!value || value === NO_PLENARY_EVENT) {
+      form.plenaryEventType = 'NONE'
+      form.plenaryEventId = ''
+      return
+    }
+
+    form.plenaryEventType = 'SUMMIT_EVENT'
+    form.plenaryEventId = value
+  },
+})
+
+const formatPlenaryEventLabel = (event: PlenaryEventOptionRecord) => {
+  const date = event.startDate ? new Date(event.startDate) : null
+  const dateLabel = date && !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Date not set'
+  return `${event.title} - ${dateLabel}`
+}
+
 const toLocalDateTime = (value?: string | null) => {
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
-  return date.toISOString().slice(0, 16)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`
 }
 
 const toIsoOrNull = (value: string) => value ? new Date(value).toISOString() : null
@@ -275,6 +310,14 @@ const loadLocationCatalog = async () => {
   }
 }
 
+const loadPlenaryEventOptions = async () => {
+  try {
+    await cohortsStore.loadPlenaryEventOptions()
+  } catch (plenaryError: any) {
+    toast.error(plenaryError?.response?.data?.message || plenaryError?.message || 'Failed to load Summit events')
+  }
+}
+
 const buildPayload = (): CreateCompanyProgramCohortPayload | UpdateCompanyProgramCohortPayload => ({
   name: form.name.trim(),
   code: (form.code.trim() || generateCode(form.name) || 'COHORT').toUpperCase(),
@@ -329,10 +372,13 @@ const submit = async () => {
   }
 }
 
-watch(() => props.open, isOpen => {
+watch(() => props.open, async isOpen => {
   if (isOpen) {
     resetForm()
-    loadLocationCatalog()
+    await Promise.all([
+      loadLocationCatalog(),
+      loadPlenaryEventOptions(),
+    ])
   }
 })
 
@@ -394,11 +440,11 @@ watch([activeRegions, activeChapters], () => {
 
       <div class="max-h-[70vh] space-y-5 overflow-y-auto pr-1">
         <div class="grid gap-4 md:grid-cols-2">
-          <div v-if="!isEditing && programOptions.length" class="grid gap-2 md:col-span-2">
-            <label class="text-sm font-medium">Program</label>
+          <div v-if="shouldShowProgramSelector" class="grid gap-2 md:col-span-2">
+            <label class="text-sm font-medium">Partner program</label>
             <Select v-model="selectedProgramId">
               <SelectTrigger>
-                <SelectValue placeholder="Select company program" />
+                <SelectValue placeholder="Select partner program" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem v-for="program in programOptions" :key="program.id" :value="program.id">
@@ -450,12 +496,20 @@ watch([activeRegions, activeChapters], () => {
 
           <div class="grid gap-2">
             <label class="text-sm font-medium">Starts</label>
-            <Input v-model="form.startsAt" type="datetime-local" />
+            <DatePicker
+              v-model="form.startsAt"
+              :include-time="true"
+              placeholder="Select cohort start"
+            />
           </div>
 
           <div class="grid gap-2">
             <label class="text-sm font-medium">Ends</label>
-            <Input v-model="form.endsAt" type="datetime-local" />
+            <DatePicker
+              v-model="form.endsAt"
+              :include-time="true"
+              placeholder="Select cohort end"
+            />
           </div>
         </div>
 
@@ -476,7 +530,12 @@ watch([activeRegions, activeChapters], () => {
           <div class="mt-4 grid gap-4 md:grid-cols-2">
             <div class="grid gap-2">
               <label class="text-sm font-medium">Join expires</label>
-              <Input v-model="form.selfJoinExpiresAt" type="datetime-local" :disabled="!form.selfJoinEnabled" />
+              <DatePicker
+                v-model="form.selfJoinExpiresAt"
+                :include-time="true"
+                placeholder="Select intake deadline"
+                :disabled="!form.selfJoinEnabled"
+              />
             </div>
 
             <div class="grid gap-2">
@@ -504,26 +563,26 @@ watch([activeRegions, activeChapters], () => {
           <p class="text-xs text-muted-foreground">Separate tags with commas. These tags seed suggested circles.</p>
         </div>
 
-        <div class="grid gap-4 md:grid-cols-2">
-          <div class="grid gap-2">
-            <label class="text-sm font-medium">Plenary source</label>
-            <Select v-model="form.plenaryEventType">
-              <SelectTrigger>
-                <SelectValue placeholder="Select plenary source" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="NONE">No linked plenary</SelectItem>
-                <SelectItem value="SUMMIT_EVENT">Summit event</SelectItem>
-                <SelectItem value="EXTERNAL_EVENT">External event</SelectItem>
-                <SelectItem value="MANUAL_EVENT">Manual event</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div class="grid gap-2">
-            <label class="text-sm font-medium">Plenary event ID</label>
-            <Input v-model="form.plenaryEventId" placeholder="Optional event reference" />
-          </div>
+        <div class="grid gap-2">
+          <label class="text-sm font-medium">Linked plenary event</label>
+          <Select v-model="selectedPlenaryEventId" :disabled="plenaryEventOptionsLoading">
+            <SelectTrigger>
+              <SelectValue :placeholder="plenaryEventOptionsLoading ? 'Loading Summit events...' : 'Select Summit event'" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem :value="NO_PLENARY_EVENT">No linked plenary</SelectItem>
+              <SelectItem
+                v-for="event in plenaryEventOptions"
+                :key="event.id"
+                :value="event.id"
+              >
+                {{ formatPlenaryEventLabel(event) }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <p class="text-xs text-muted-foreground">
+            Link this cohort to a Summit event so plenary scheduling and attendance can be tracked.
+          </p>
         </div>
 
         <div class="rounded-lg border p-4">

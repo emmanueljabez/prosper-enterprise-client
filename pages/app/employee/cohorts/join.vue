@@ -18,8 +18,9 @@ import { ArrowLeft, CheckCircle2, Link, RefreshCw } from 'lucide-vue-next'
 definePageMeta({
   title: 'Join Cohort',
   description: 'Join a company program cohort with a code',
-  requiresAuth: true,
-  permissions: ['mentors:view'],
+  layout: false,
+  auth: false,
+  requiresAuth: false,
 })
 
 const route = useRoute()
