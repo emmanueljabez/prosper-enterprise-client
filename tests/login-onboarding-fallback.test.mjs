@@ -29,6 +29,24 @@ assert.match(
 
 assert.match(
   loginSource,
+  /let shouldEvaluateOnboardingRedirect = true/,
+  'Login should track whether onboarding status was actually loaded.',
+)
+
+assert.match(
+  loginSource,
+  /shouldEvaluateOnboardingRedirect = false/,
+  'Login should skip onboarding redirect evaluation when onboarding status endpoint is unavailable.',
+)
+
+assert.match(
+  loginSource,
+  /if \(shouldEvaluateOnboardingRedirect && companyOnboardingStore\.requiresOnboarding\)/,
+  'Login should only redirect to onboarding after successfully loading onboarding status.',
+)
+
+assert.match(
+  loginSource,
   /router\.push\('\/app\/admin'\)/,
   'Login should route corporate admins to the admin workspace after the fallback.',
 )

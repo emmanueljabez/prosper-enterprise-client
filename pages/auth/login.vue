@@ -91,16 +91,19 @@ const login = handleSubmit(async (values) => {
       } else if (['company', 'company_admin', 'corporate_admin'].includes(String(role || '').toLowerCase())) {
         const companyId = authStore.loggedInUser?.companyId || result.profile?.company?.id || result.profile?.companyId || result.company?.companyId
         if (companyId) {
+          let shouldEvaluateOnboardingRedirect = true
+
           try {
             await companyOnboardingStore.loadOnboardingStatus(companyId)
           } catch (onboardingError) {
             if (!isMissingOnboardingEndpoint(onboardingError)) {
               throw onboardingError
             }
+            shouldEvaluateOnboardingRedirect = false
             console.warn('Company onboarding status endpoint returned 404 during login; continuing to admin workspace.')
           }
 
-          if (companyOnboardingStore.requiresOnboarding) {
+          if (shouldEvaluateOnboardingRedirect && companyOnboardingStore.requiresOnboarding) {
             router.push('/app/admin/onboarding')
             return
           }
