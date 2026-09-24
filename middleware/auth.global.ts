@@ -11,6 +11,11 @@ const PUBLIC_PATHS = new Set(['/', '/landing', '/pricing', '/forgot-password', '
 
 console.log('Auth global middleware loaded')
 
+const isMissingOnboardingEndpoint = (error: unknown) => {
+  const maybeError = error as { response?: { status?: number }, status?: number, statusCode?: number }
+  return maybeError.response?.status === 404 || maybeError.status === 404 || maybeError.statusCode === 404
+}
+
 export default defineNuxtRouteMiddleware(async (to, from) => {
   // Skip public routes (including OAuth callbacks)
   if (
@@ -40,7 +45,16 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
     if (isCompanyAdmin && companyId) {
       if (to.path !== '/app/admin/onboarding') {
-        await onboardingStore.loadOnboardingStatus(companyId)
+        try {
+          await onboardingStore.loadOnboardingStatus(companyId)
+        } catch (onboardingError) {
+          if (!isMissingOnboardingEndpoint(onboardingError)) {
+            throw onboardingError
+          }
+          console.warn('Company onboarding status endpoint returned 404; continuing without onboarding redirect.')
+          return
+        }
+
         if (onboardingStore.requiresOnboarding) {
           return navigateTo('/app/admin/onboarding')
         }
