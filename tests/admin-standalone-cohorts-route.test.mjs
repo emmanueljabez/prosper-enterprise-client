@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 
 const listPageUrl = new URL('../pages/app/admin/cohorts/index.vue', import.meta.url)
-const workspacePageUrl = new URL('../pages/app/admin/cohorts/[cohortId].vue', import.meta.url)
+const workspacePageUrl = new URL('../pages/app/admin/cohorts/[cohortId]/index.vue', import.meta.url)
+const shadowingWorkspacePageUrl = new URL('../pages/app/admin/cohorts/[cohortId].vue', import.meta.url)
 const circlesRouteUrl = new URL('../pages/app/admin/cohorts/[cohortId]/circles.vue', import.meta.url)
 const legacyWorkspaceUrl = new URL('../pages/app/admin/programs/[programId]/cohorts/[cohortId].vue', import.meta.url)
 const programDetailUrl = new URL('../pages/app/admin/programs/[programId]/index.vue', import.meta.url)
@@ -13,6 +14,7 @@ const roleManagerUrl = new URL('../utils/roleManager.ts', import.meta.url)
 
 assert.equal(existsSync(listPageUrl), true, 'Standalone admin cohorts list should exist at /app/admin/cohorts.')
 assert.equal(existsSync(workspacePageUrl), true, 'Standalone admin cohort workspace should exist at /app/admin/cohorts/:cohortId.')
+assert.equal(existsSync(shadowingWorkspacePageUrl), false, 'Cohort workspace must be nested under [cohortId]/index.vue so circles can render as a standalone child route.')
 assert.equal(existsSync(circlesRouteUrl), true, 'Standalone circles workspace route should exist.')
 assert.equal(existsSync(legacyWorkspaceUrl), true, 'Legacy nested cohort route should remain as a redirect for old links.')
 

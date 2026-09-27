@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 
-const pageUrl = new URL('../pages/app/admin/cohorts/[cohortId].vue', import.meta.url)
+const pageUrl = new URL('../pages/app/admin/cohorts/[cohortId]/index.vue', import.meta.url)
 
 assert.equal(existsSync(pageUrl), true, 'Admin cohort workspace route should exist.')
 

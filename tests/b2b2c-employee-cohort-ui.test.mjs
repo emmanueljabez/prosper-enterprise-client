@@ -8,7 +8,7 @@ const navUrl = new URL('../navigation/vertical/employee.ts', import.meta.url)
 const roleManagerUrl = new URL('../utils/roleManager.ts', import.meta.url)
 const storeUrl = new URL('../store/modules/company-program-cohorts.ts', import.meta.url)
 const authMiddlewareUrl = new URL('../middleware/auth.global.ts', import.meta.url)
-const adminDetailUrl = new URL('../pages/app/admin/cohorts/[cohortId].vue', import.meta.url)
+const adminDetailUrl = new URL('../pages/app/admin/cohorts/[cohortId]/index.vue', import.meta.url)
 
 assert.equal(existsSync(indexUrl), true, 'Employee cohort list route should exist.')
 assert.equal(existsSync(detailUrl), true, 'Employee cohort detail route should exist.')

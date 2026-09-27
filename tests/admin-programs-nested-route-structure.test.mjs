@@ -3,7 +3,8 @@ import { existsSync, readFileSync } from 'node:fs'
 
 const programIndex = new URL('../pages/app/admin/programs/[programId]/index.vue', import.meta.url)
 const flatProgramPage = new URL('../pages/app/admin/programs/[programId].vue', import.meta.url)
-const standaloneCohortWorkspace = new URL('../pages/app/admin/cohorts/[cohortId].vue', import.meta.url)
+const standaloneCohortWorkspace = new URL('../pages/app/admin/cohorts/[cohortId]/index.vue', import.meta.url)
+const shadowingStandaloneCohortWorkspace = new URL('../pages/app/admin/cohorts/[cohortId].vue', import.meta.url)
 const legacyCohortWorkspace = new URL('../pages/app/admin/programs/[programId]/cohorts/[cohortId].vue', import.meta.url)
 
 assert.ok(
@@ -18,7 +19,12 @@ assert.ok(
 
 assert.ok(
   existsSync(standaloneCohortWorkspace),
-  'Admin cohort workspace must live at pages/app/admin/cohorts/[cohortId].vue.',
+  'Admin cohort workspace must live at pages/app/admin/cohorts/[cohortId]/index.vue.',
+)
+
+assert.ok(
+  !existsSync(shadowingStandaloneCohortWorkspace),
+  'Flat pages/app/admin/cohorts/[cohortId].vue shadows nested circles routes and must not exist.',
 )
 
 assert.ok(
