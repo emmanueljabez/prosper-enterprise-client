@@ -58,7 +58,7 @@ definePageMeta({
   title: 'Cohort Workspace',
   description: 'Operate a company program cohort',
   requiresAuth: true,
-  permissions: ['admin:program-cohorts'],
+  permissions: ['admin:programs'],
 })
 
 type CircleFormModel = {

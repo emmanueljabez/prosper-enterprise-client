@@ -7,7 +7,7 @@ assert.equal(existsSync(pageUrl), true, 'Admin cohort workspace route should exi
 
 const pageSource = readFileSync(pageUrl, 'utf8')
 
-assert.match(pageSource, /permissions:\s*\['admin:program-cohorts'\]/, 'Cohort workspace should use cohort admin access.')
+assert.match(pageSource, /permissions:\s*\['admin:programs'\]/, 'Cohort workspace should use stable program admin access.')
 assert.match(pageSource, /loadCohort/, 'Workspace should load the selected cohort.')
 assert.match(pageSource, /loadParticipants/, 'Workspace should load cohort participants.')
 assert.match(pageSource, /loadJoinRequests/, 'Workspace should load cohort join requests.')
@@ -52,7 +52,8 @@ assert.match(pageSource, /placeParticipantInCircle\(addMenteesCircle\.id,\s*part
 assert.match(pageSource, /moveMembership/, 'Workspace should move circle members.')
 assert.match(pageSource, /removeMembership/, 'Workspace should remove circle members.')
 assert.match(pageSource, /finalizeCircles/, 'Workspace should finalize circles.')
-assert.match(pageSource, /activeTab = 'circles'/, 'Workspace should include a circles tab.')
+assert.match(pageSource, /openCirclesWorkspace[\s\S]*\/app\/admin\/cohorts\/\$\{cohortId\.value\}\/circles/, 'Workspace should open the standalone circles route.')
+assert.match(pageSource, /@click="openCirclesWorkspace"/, 'Workspace should expose the standalone circles route from the cohort sections.')
 assert.match(pageSource, /Unplaced participants/, 'Circle workspace should expose unplaced participants.')
 assert.match(pageSource, /Confirm circles as final/, 'Circle workspace should expose finalization action.')
 assert.match(pageSource, /value > 1 \? value : value \* 100/, 'Dashboard percentages should accept backend percent values and fractional fallback values.')

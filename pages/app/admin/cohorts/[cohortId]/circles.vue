@@ -9,7 +9,7 @@ definePageMeta({
   title: 'Cohort Circles',
   description: 'Form and finalize cohort circles',
   requiresAuth: true,
-  permissions: ['admin:program-cohorts'],
+  permissions: ['admin:programs'],
 })
 
 const route = useRoute()

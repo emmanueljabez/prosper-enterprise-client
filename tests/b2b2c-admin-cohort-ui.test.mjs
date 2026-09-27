@@ -45,5 +45,7 @@ assert.match(editorSource, /Partner program/, 'Cohort editor should use Partner 
 assert.match(authTypesSource, /MANAGE_PROGRAM_COHORTS:\s*'admin:program-cohorts'/, 'Auth permission constants should include program cohort management.')
 assert.match(roleManagerSource, /admin:program-cohorts/, 'Role manager should register cohort permission.')
 assert.match(roleManagerSource, /'\/app\/admin\/programs\/\*':\s*\['admin:programs'[\s\S]*\]/, 'Existing program routes should remain accessible to program admins.')
+assert.match(roleManagerSource, /'\/app\/admin\/cohorts':\s*\['admin:programs'\]/, 'Standalone cohort list should use the stable program admin route permission.')
+assert.match(roleManagerSource, /'\/app\/admin\/cohorts\/\*':\s*\['admin:programs'\]/, 'Standalone cohort workspace should use the stable program admin route permission.')
 
 console.log('B2B2C admin cohort list UI verified.')

@@ -30,7 +30,7 @@ definePageMeta({
   title: 'Cohorts',
   description: 'Manage company cohort cycles across programs',
   requiresAuth: true,
-  permissions: ['admin:program-cohorts'],
+  permissions: ['admin:programs'],
 })
 
 const ALL_FILTER = 'ALL'

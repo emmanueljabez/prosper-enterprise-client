@@ -39,7 +39,7 @@ export const corporateAdminNavigation: NavigationItem[] = [
         title: 'Cohorts',
         icon: CircleDot,
         url: '/app/admin/cohorts',
-        permission: 'admin:program-cohorts',
+        permission: 'admin:programs',
       },
       {
         title: 'Billing',

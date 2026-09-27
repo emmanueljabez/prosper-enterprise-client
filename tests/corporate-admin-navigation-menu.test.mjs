@@ -44,8 +44,8 @@ assert.match(
 
 assert.match(
   coreSection,
-  /title:\s*'Cohorts'[\s\S]*?url:\s*'\/app\/admin\/cohorts'[\s\S]*?permission:\s*'admin:program-cohorts'/,
-  'Cohorts should expose the standalone cohort route and permission.',
+  /title:\s*'Cohorts'[\s\S]*?url:\s*'\/app\/admin\/cohorts'[\s\S]*?permission:\s*'admin:programs'/,
+  'Cohorts should expose the standalone cohort route through the stable program admin permission.',
 )
 
 assert.match(
