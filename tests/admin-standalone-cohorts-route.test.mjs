@@ -38,21 +38,21 @@ assert.match(
 )
 assert.match(
   navSource,
-  /title:\s*'Cohorts'[\s\S]*url:\s*'\/app\/admin\/cohorts'[\s\S]*permission:\s*'admin:program-cohorts'/,
-  'Corporate admin navigation should expose standalone Cohorts.',
+  /title:\s*'Cohorts'[\s\S]*url:\s*'\/app\/admin\/cohorts'[\s\S]*permission:\s*'admin:programs'/,
+  'Corporate admin navigation should expose standalone Cohorts to existing program admins.',
 )
 assert.match(
   roleManagerSource,
-  /'\/app\/admin\/cohorts':\s*\['admin:program-cohorts'\]/,
-  'Standalone cohort list should have route access rules.',
+  /'\/app\/admin\/cohorts':\s*\['admin:programs'\]/,
+  'Standalone cohort list should remain accessible through the stable program admin permission.',
 )
 assert.match(
   roleManagerSource,
-  /'\/app\/admin\/cohorts\/\*':\s*\['admin:program-cohorts'\]/,
-  'Standalone cohort workspace should have route access rules.',
+  /'\/app\/admin\/cohorts\/\*':\s*\['admin:programs'\]/,
+  'Standalone cohort workspace should remain accessible through the stable program admin permission.',
 )
 
-assert.match(listPageSource, /permissions:\s*\['admin:program-cohorts'\]/, 'Standalone cohort list should use the cohort permission.')
+assert.match(listPageSource, /permissions:\s*\['admin:programs'\]/, 'Standalone cohort list should use the stable program admin permission.')
 assert.match(listPageSource, /loadCompanyCohorts\(companyId\.value\)/, 'Standalone cohort list should load cohorts by company.')
 assert.match(listPageSource, /loadCompanyPrograms/, 'Standalone cohort list should load programs for create and filtering.')
 assert.match(listPageSource, /selectedProgramFilter/, 'Standalone cohort list should support program filtering.')
@@ -73,7 +73,7 @@ assert.match(
 assert.match(listPageSource, /navigateTo\(`\/app\/admin\/cohorts\/\$\{cohort\.id\}`\)/, 'Standalone cohort rows should open the standalone workspace.')
 assert.doesNotMatch(listPageSource, /class="cohort-card/, 'Standalone cohort list should not use card grid items for the primary listing.')
 
-assert.match(workspacePageSource, /permissions:\s*\['admin:program-cohorts'\]/, 'Standalone cohort workspace should use the cohort permission.')
+assert.match(workspacePageSource, /permissions:\s*\['admin:programs'\]/, 'Standalone cohort workspace should use the stable program admin permission.')
 assert.match(workspacePageSource, /const cohortId = computed\(\(\) => String\(route\.params\.cohortId \|\| ''\)\)/, 'Workspace should read cohortId from the standalone route.')
 assert.match(workspacePageSource, /selectedCohort\.value\?\.companyProgramId/, 'Workspace should derive the parent program from the loaded cohort.')
 assert.match(workspacePageSource, /router\.push\('\/app\/admin\/cohorts'\)/, 'Workspace back action should return to standalone cohorts.')
