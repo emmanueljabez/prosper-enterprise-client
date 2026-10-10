@@ -44,8 +44,8 @@ import {
 } from 'lucide-vue-next'
 
 definePageMeta({
-  title: 'Employees',
-  description: 'Manage employees, whitelist, and company-funded session allocations',
+  title: 'Mentees',
+  description: 'Manage mentees, invitations, and company-funded session allocations',
   requiresAuth: true,
   permissions: ['admin:users'],
 })
@@ -226,7 +226,7 @@ const companyJoinLinkRecord = computed(() => companyJoinLink.value)
 
 const employeeDisplayName = (profile: any) => {
   const fullName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim()
-  return fullName || profile?.username || profile?.email || 'Employee'
+  return fullName || profile?.username || profile?.email || 'Mentee'
 }
 
 const employeeSecondary = (profile: any) =>
@@ -310,7 +310,7 @@ const exportEmployeesCsv = () => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `employees-${new Date().toISOString().slice(0, 10)}.csv`
+  link.download = `mentees-${new Date().toISOString().slice(0, 10)}.csv`
   link.click()
   URL.revokeObjectURL(url)
 }
@@ -443,14 +443,14 @@ const lookupVisibleAllocations = async () => {
     const response = await companySessionAllocationsApi.lookup(companyId.value, employeeProfileIds.value)
 
     if (!response.success || !response.data) {
-      throw new Error(response.message || 'Failed to load employee session allocations')
+      throw new Error(response.message || 'Failed to load mentee session allocations')
     }
 
     allocationsByProfileId.value = Object.fromEntries(
       (response.data.allocations || []).map(allocation => [allocation.profileId, allocation]),
     )
   } catch (error: any) {
-    allocationError.value = error?.response?.data?.message || error?.message || 'Failed to load employee session allocations'
+    allocationError.value = error?.response?.data?.message || error?.message || 'Failed to load mentee session allocations'
     toast.error(allocationError.value)
   } finally {
     allocationLookupLoading.value = false
@@ -553,12 +553,12 @@ const submitAllocationChange = async () => {
   }
 
   if (!activeCompanySubscriptionId.value) {
-    toast.error('Purchase company-funded sessions before allocating them to employees')
+    toast.error('Purchase company-funded sessions before allocating them to mentees')
     return
   }
 
   if (!selectedEmployee.value?.id) {
-    toast.error('Select an employee first')
+    toast.error('Select a mentee first')
     return
   }
 
@@ -566,7 +566,7 @@ const submitAllocationChange = async () => {
   const currentAllocation = allocationsByProfileId.value[selectedEmployee.value.id]
 
   if (allocationMode.value === 'withdraw' && quantity > Number(currentAllocation?.availableBalance || 0)) {
-    toast.error('You can only withdraw from the employee\'s unused balance')
+    toast.error('You can only withdraw from the mentee\'s unused balance')
     return
   }
 
@@ -589,8 +589,8 @@ const submitAllocationChange = async () => {
 
     toast.success(
       allocationMode.value === 'allocate'
-        ? 'Employee sessions allocated successfully'
-        : 'Unused employee sessions returned to the company wallet',
+        ? 'Mentee sessions allocated successfully'
+        : 'Unused mentee sessions returned to the company wallet',
     )
 
     closeAllocationDialog()
@@ -599,7 +599,7 @@ const submitAllocationChange = async () => {
       lookupVisibleAllocations(),
     ])
   } catch (error: any) {
-    toast.error(error?.response?.data?.message || error?.message || 'Failed to update employee allocation')
+    toast.error(error?.response?.data?.message || error?.message || 'Failed to update mentee allocation')
   } finally {
     allocationActionId.value = ''
   }
@@ -676,9 +676,9 @@ watch(employeeProfileIds, async () => {
     <div class="space-y-5">
       <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 class="text-3xl font-bold tracking-tight text-slate-900">Employee Management</h1>
+          <h1 class="text-3xl font-bold tracking-tight text-slate-900">Mentee Management</h1>
           <p class="mt-1 text-base text-muted-foreground">
-            Manage and monitor your workforce mentorship programs.
+            Invite, import, allocate sessions, and monitor mentees across mentorship programs.
           </p>
         </div>
 
@@ -692,11 +692,11 @@ watch(employeeProfileIds, async () => {
           <DropdownMenuContent align="end" class="w-56">
             <DropdownMenuItem @click="addEmployeeDialogOpen = true">
               <UserPlus class="h-4 w-4" />
-              Invite Employee
+              Invite Mentee
             </DropdownMenuItem>
             <DropdownMenuItem @click="router.push('/app/admin/users/import')">
               <Upload class="h-4 w-4" />
-              Import Employees
+              Import Mentee
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem @click="openQrDialog">
@@ -725,7 +725,7 @@ watch(employeeProfileIds, async () => {
         <Card class="border-[#ead4df]">
           <CardHeader class="space-y-2 pb-2">
             <div class="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              <span>Total Employees</span>
+              <span>Total Mentees</span>
               <Users class="h-4 w-4 text-[#8f1f75]" />
             </div>
             <CardTitle class="text-4xl">{{ totalEmployees }}</CardTitle>
@@ -751,7 +751,7 @@ watch(employeeProfileIds, async () => {
               <GitBranch class="h-4 w-4 text-[#8f1f75]" />
             </div>
             <CardTitle class="text-4xl">{{ assignedMentors }}</CardTitle>
-            <CardDescription class="text-sm text-[#8f1f75]">Based on employee profile mentor links</CardDescription>
+            <CardDescription class="text-sm text-[#8f1f75]">Based on mentee profile mentor links</CardDescription>
           </CardHeader>
         </Card>
 
@@ -762,7 +762,7 @@ watch(employeeProfileIds, async () => {
               <BarChart3 class="h-4 w-4 text-[#8f1f75]" />
             </div>
             <CardTitle class="text-4xl">{{ averageSessions }}</CardTitle>
-            <CardDescription class="text-sm">Consumed sessions per employee</CardDescription>
+            <CardDescription class="text-sm">Consumed sessions per mentee</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -770,7 +770,7 @@ watch(employeeProfileIds, async () => {
       <Alert>
         <Wallet class="h-4 w-4" />
         <AlertDescription>
-          Company-funded sessions are reserved immediately when allocated. Wallet available: <strong>{{ walletAvailableSessions }}</strong>, reserved for employees: <strong>{{ walletReservedSessions }}</strong>.
+          Company-funded sessions are reserved immediately when allocated. Wallet available: <strong>{{ walletAvailableSessions }}</strong>, reserved for mentees: <strong>{{ walletReservedSessions }}</strong>.
         </AlertDescription>
       </Alert>
 
@@ -787,7 +787,7 @@ watch(employeeProfileIds, async () => {
       <Alert v-if="!hasActiveCompanyWallet" variant="destructive">
         <AlertCircle class="h-4 w-4" />
         <AlertDescription>
-          No active company session wallet found. Purchase company-funded sessions before allocating them to employees.
+          No active company session wallet found. Purchase company-funded sessions before allocating them to mentees.
         </AlertDescription>
       </Alert>
 
@@ -881,7 +881,7 @@ watch(employeeProfileIds, async () => {
 
           <div v-else-if="!filteredEmployeeRows.length" class="rounded-lg border border-dashed p-8 text-center">
             <Users class="mx-auto h-8 w-8 text-muted-foreground" />
-            <p class="mt-3 text-sm text-muted-foreground">No employees matched the selected filters.</p>
+            <p class="mt-3 text-sm text-muted-foreground">No mentees matched the selected filters.</p>
           </div>
 
           <Table v-else>
@@ -989,7 +989,7 @@ watch(employeeProfileIds, async () => {
 
         <CardContent class="flex flex-col gap-3 border-t border-[#ead4df] p-5 md:flex-row md:items-center md:justify-between">
           <p class="text-sm text-muted-foreground">
-            Showing {{ filteredEmployeeRows.length }} of {{ profilesPagination.totalElements || filteredEmployeeRows.length }} employees
+            Showing {{ filteredEmployeeRows.length }} of {{ profilesPagination.totalElements || filteredEmployeeRows.length }} mentees
           </p>
           <div class="flex items-center gap-2">
             <Button
@@ -998,7 +998,7 @@ watch(employeeProfileIds, async () => {
               @click="loadMoreEmployees"
               :disabled="profilesLoading || allocationLookupLoading"
             >
-              Load More Employees
+              Load More Mentees
             </Button>
           </div>
         </CardContent>
@@ -1146,7 +1146,7 @@ watch(employeeProfileIds, async () => {
             <div class="mt-1 text-muted-foreground">{{ employeeSecondary(selectedEmployee) }}</div>
             <div class="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
               <span>Wallet available: {{ walletAvailableSessions }}</span>
-              <span>Employee unused balance: {{ allocationsByProfileId[selectedEmployee?.id]?.availableBalance || 0 }}</span>
+              <span>Mentee unused balance: {{ allocationsByProfileId[selectedEmployee?.id]?.availableBalance || 0 }}</span>
             </div>
           </div>
 
@@ -1252,20 +1252,20 @@ watch(employeeProfileIds, async () => {
     <Dialog v-model:open="addEmployeeDialogOpen">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Invite employee</DialogTitle>
+          <DialogTitle>Invite mentee</DialogTitle>
           <DialogDescription>
-            Add an employee email to your company invite list. They can join your workforce and receive company-funded sessions.
+            Add a mentee email to your company invite list. They can join your mentorship program and receive company-funded sessions.
           </DialogDescription>
         </DialogHeader>
 
         <div class="space-y-4 py-2">
           <div class="space-y-2">
-            <Label for="employee-email">Employee email</Label>
+            <Label for="employee-email">Mentee email</Label>
             <Input
               id="employee-email"
               v-model="newEmployeeEmail"
               type="email"
-              placeholder="employee@company.com"
+              placeholder="mentee@company.com"
               @keyup.enter="addEmployee"
             />
           </div>
@@ -1274,7 +1274,7 @@ watch(employeeProfileIds, async () => {
         <DialogFooter>
           <Button variant="outline" @click="closeAddEmployeeDialog">Cancel</Button>
           <Button :disabled="isSubmittingEmployeeInvite" @click="addEmployee">
-            {{ isSubmittingEmployeeInvite ? 'Inviting...' : 'Invite Employee' }}
+            {{ isSubmittingEmployeeInvite ? 'Inviting...' : 'Invite Mentee' }}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -41,7 +41,7 @@ assert.match(
 
 assert.match(
   source,
-  /Manage Billing|Buy Sessions/,
+  /Manage Billing|Top Up Wallet/,
   'Corporate admin dashboard wallet summary should include a billing utility action.',
 )
 

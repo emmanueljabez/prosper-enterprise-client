@@ -14,6 +14,7 @@ import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarProvider,
@@ -301,6 +302,9 @@ watch(
           <section class="menu-wrap">
             <template v-for="(group, groupIndex) in navigationGroups" :key="group.title">
               <SidebarGroup class="px-0">
+                <SidebarGroupLabel class="sidebar-group-label">
+                  {{ group.title }}
+                </SidebarGroupLabel>
                 <SidebarMenu class="gap-1">
                   <SidebarMenuItem v-for="subItem in group.children || []" :key="subItem.title">
                     <NuxtLink
@@ -440,8 +444,18 @@ watch(
 
 .menu-divider {
   height: 1px;
-  margin: 12px 16px;
+  margin: 10px 16px 12px;
   background: #e4e9f2;
+}
+
+.sidebar-group-label {
+  padding: 0 28px 6px;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #a6adba;
+  text-transform: uppercase;
 }
 
 .nav-link {

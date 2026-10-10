@@ -19,8 +19,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~
 import { ArrowLeft, RefreshCw, Search, Trash2, UserPlus, Users } from 'lucide-vue-next'
 
 definePageMeta({
-  title: 'Program Employees',
-  description: 'Manage the employees enrolled in a company program',
+  title: 'Program Mentees',
+  description: 'Manage the mentees enrolled in a program',
   requiresAuth: true,
   permissions: ['admin:users'],
 })
@@ -84,12 +84,12 @@ const selectedCount = computed(() => selectedProfileIds.value.length)
 
 const employeeName = (profile: any) => {
   const fullName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim()
-  return fullName || profile?.username || profile?.email || 'Employee'
+  return fullName || profile?.username || profile?.email || 'Mentee'
 }
 
 const employeeSecondary = (profile: any) => {
   const bits = [profile?.email, profile?.industry || profile?.location].filter(Boolean)
-  return bits.join(' • ') || 'Company employee'
+  return bits.join(' • ') || 'Company mentee'
 }
 
 const participantStatusTone = (status: CompanyProgramParticipantStatus) => ({
@@ -164,7 +164,7 @@ const loadParticipants = async () => {
       status: participantStatus.value,
     })
   } catch (error: any) {
-    toast.error(error?.response?.data?.message || error?.message || 'Failed to load program employees')
+    toast.error(error?.response?.data?.message || error?.message || 'Failed to load program mentees')
   }
 }
 
@@ -194,7 +194,7 @@ const enrollSelectedEmployees = async () => {
   }
 
   if (!selectedProfileIds.value.length) {
-    toast.error('Select at least one employee to enroll')
+    toast.error('Select at least one mentee to enroll')
     return
   }
 
@@ -208,7 +208,7 @@ const enrollSelectedEmployees = async () => {
 }
 
 const removeParticipant = async (participantId: string) => {
-  if (!confirm('Remove this employee from the program?')) {
+  if (!confirm('Remove this mentee from the program?')) {
     return
   }
 
@@ -265,11 +265,11 @@ watch(participantStatus, async () => {
       <div class="space-y-1">
         <Button variant="ghost" class="w-fit px-0 text-muted-foreground" @click="router.push('/app/admin/programs')">
           <ArrowLeft class="mr-2 h-4 w-4" />
-          Back to Company Programs
+          Back to Programs
         </Button>
-        <h1 class="text-2xl font-semibold tracking-tight">{{ selectedProgram?.name || 'Program Employees' }}</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">{{ selectedProgram?.name || 'Program Mentees' }}</h1>
         <p class="text-sm text-muted-foreground">
-          Manage the employees enrolled in this company program.
+          Manage the mentees enrolled in this program.
         </p>
       </div>
 
@@ -295,7 +295,7 @@ watch(participantStatus, async () => {
     <div class="grid gap-4 md:grid-cols-3">
       <Card>
         <CardHeader class="pb-2">
-          <CardDescription>Employees Loaded</CardDescription>
+          <CardDescription>Mentees Loaded</CardDescription>
           <CardTitle class="text-3xl">{{ availableEmployees.length }}</CardTitle>
         </CardHeader>
       </Card>
@@ -316,13 +316,13 @@ watch(participantStatus, async () => {
     <div class="grid gap-6 xl:grid-cols-[1.1fr,1fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Available Employees</CardTitle>
-          <CardDescription>Select employees from your company and enroll them into this program.</CardDescription>
+          <CardTitle>Available Mentees</CardTitle>
+          <CardDescription>Select mentees from your company and enroll them into this program.</CardDescription>
         </CardHeader>
         <CardContent class="space-y-4">
           <div class="relative">
             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input v-model="employeeSearch" class="pl-9" placeholder="Search employees by name or email" />
+            <Input v-model="employeeSearch" class="pl-9" placeholder="Search mentees by name or email" />
           </div>
 
           <div v-if="profilesLoading" class="space-y-3">
@@ -332,7 +332,7 @@ watch(participantStatus, async () => {
           </div>
 
           <div v-else-if="!availableEmployees.length" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-            No employee profiles matched this search.
+            No mentee profiles matched this search.
           </div>
 
           <div v-else class="space-y-2">
@@ -362,7 +362,7 @@ watch(participantStatus, async () => {
       <Card>
         <CardHeader>
           <CardTitle>Current Roster</CardTitle>
-          <CardDescription>Track who is already attached to this company program.</CardDescription>
+          <CardDescription>Track who is already attached to this program.</CardDescription>
         </CardHeader>
         <CardContent class="space-y-4">
           <Alert v-if="participantsError" variant="destructive">
@@ -372,7 +372,7 @@ watch(participantStatus, async () => {
           <div class="grid gap-3 md:grid-cols-[1fr,180px]">
             <div class="relative">
               <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input v-model="participantSearch" class="pl-9" placeholder="Search enrolled employees" />
+              <Input v-model="participantSearch" class="pl-9" placeholder="Search enrolled mentees" />
             </div>
 
             <Select v-model="participantStatus">
@@ -398,14 +398,14 @@ watch(participantStatus, async () => {
           <div v-else-if="!participants.length" class="rounded-lg border border-dashed p-8 text-center">
             <Users class="mx-auto h-8 w-8 text-muted-foreground" />
             <p class="mt-3 text-sm text-muted-foreground">
-              No employees are enrolled in this program yet.
+              No mentees are enrolled in this program yet.
             </p>
           </div>
 
           <Table v-else>
             <TableHeader>
               <TableRow>
-                <TableHead>Employee</TableHead>
+                <TableHead>Mentee</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Consent</TableHead>
                 <TableHead>Enrolled</TableHead>
@@ -418,7 +418,7 @@ watch(participantStatus, async () => {
                   <div class="space-y-1">
                     <div class="font-medium">{{ participant.profileName }}</div>
                     <div class="text-xs text-muted-foreground">
-                      {{ participant.profileEmail || participant.department || 'Company employee' }}
+                      {{ participant.profileEmail || participant.department || 'Company mentee' }}
                     </div>
                   </div>
                 </TableCell>

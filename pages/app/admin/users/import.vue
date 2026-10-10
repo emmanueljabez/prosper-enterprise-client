@@ -14,8 +14,8 @@ import { useCompanyStore } from '@/store/modules/company'
 import { useAuthStore } from '@/store/modules/auth'
 
 definePageMeta({
-  title: 'Import Employees',
-  description: 'Import employees via CSV or JSON with validation',
+  title: 'Import Mentees',
+  description: 'Import mentees via CSV or JSON with validation',
   requiresAuth: true,
   permissions: ['admin:users']
 })
@@ -233,8 +233,8 @@ const startOver = () => {
   <div class="container mx-auto px-4 py-6 space-y-6">
     <div class="flex items-center justify-between">
       <div class="space-y-1">
-        <h1 class="text-3xl font-bold tracking-tight">Import Employees</h1>
-        <p class="text-muted-foreground">Upload a CSV, JSON, or Excel file to bulk import employees</p>
+        <h1 class="text-3xl font-bold tracking-tight">Import Mentees</h1>
+        <p class="text-muted-foreground">Upload a CSV, JSON, or Excel file to bulk import mentees</p>
       </div>
       <Button variant="outline" class="gap-2" @click="router.push('/app/admin/employees')"><ArrowLeft class="h-4 w-4" /> Back</Button>
     </div>
@@ -341,7 +341,7 @@ const startOver = () => {
           </div>
           <div class="flex items-center gap-2">
             <input id="reqApproval" type="checkbox" v-model="options.requireApprovalForNew" class="h-4 w-4" />
-            <label for="reqApproval" class="text-sm">Mark new employees as pending_approval</label>
+            <label for="reqApproval" class="text-sm">Mark new mentees as pending_approval</label>
           </div>
         </div>
         <div class="flex items-center justify-between">
@@ -361,7 +361,7 @@ const startOver = () => {
         <ul class="text-sm list-disc pl-5 text-muted-foreground">
           <li>Duplicates will be matched by email and updated</li>
           <li>New records will be created</li>
-          <li v-if="options.requireApprovalForNew">New employees will be marked as pending_approval</li>
+          <li v-if="options.requireApprovalForNew">New mentees will be marked as pending_approval</li>
         </ul>
         <div class="flex items-center justify-between">
           <Button variant="outline" @click="step = 3" :disabled="companyStore.isLoading">Back</Button>
@@ -439,7 +439,7 @@ const startOver = () => {
 
         <div class="flex items-center justify-between">
           <Button variant="outline" @click="startOver">Import Another File</Button>
-          <Button @click="router.push('/app/admin/employees')">Go to Employees</Button>
+          <Button @click="router.push('/app/admin/employees')">Go to Mentees</Button>
         </div>
       </CardContent>
     </Card>

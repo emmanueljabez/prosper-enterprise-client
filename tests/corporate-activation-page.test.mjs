@@ -9,7 +9,7 @@ const layoutSource = readFileSync(new URL('../layouts/default.vue', import.meta.
 const authStoreSource = readFileSync(new URL('../store/modules/auth.ts', import.meta.url), 'utf8')
 const companySignupStoreSource = readFileSync(new URL('../store/modules/company-signup.ts', import.meta.url), 'utf8')
 
-assert.match(activateSource, /Continue Payment|Buy Sessions/, 'Activation page should support invoice continuation and new purchase.')
+assert.match(activateSource, /Continue Payment|Top Up Wallet/, 'Activation page should support invoice continuation and new wallet top-up.')
 assert.match(activateSource, /AuthSplitShell/, 'First-time company activation should use the shared auth shell.')
 assert.match(activateSource, /normalizePaymentUrl/, 'Activation should normalize stale invoice links back to the current app origin.')
 assert.match(activateSource, /pendingInvoiceSessionCount/, 'Activation should derive the pending session count from the company subscription payload.')

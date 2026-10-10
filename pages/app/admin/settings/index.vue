@@ -182,18 +182,18 @@ const getCorporatePlanActionLabel = (plan: SubscriptionPlan) => {
   }
 
   if (isCurrentCorporatePlan(plan)) {
-    return 'Buy More Sessions'
+    return 'Top Up Wallet'
   }
 
   if (isPendingCorporatePlan(plan)) {
-    return 'Buy Sessions'
+    return 'Top Up Wallet'
   }
 
   if (!managedCompanySubscription.value || !managedCompanyPlan.value) {
-    return 'Buy Sessions'
+    return 'Top Up Wallet'
   }
 
-  return managedCompanyPlan.value.id === plan.id ? 'Buy More Sessions' : 'Select Offer'
+  return managedCompanyPlan.value.id === plan.id ? 'Top Up Wallet' : 'Select Offer'
 }
 
 const handleCorporatePlanAction = (plan: SubscriptionPlan) => {
@@ -1110,7 +1110,7 @@ onMounted(async () => {
           <div>
             <CardTitle>Recommended Programs</CardTitle>
             <CardDescription>
-              Select the programs {{ companyContext.companyName }} wants employees to prioritize in their learning portal.
+              Select the programs {{ companyContext.companyName }} wants mentees to prioritize in their learning portal.
             </CardDescription>
           </div>
           <Badge variant="outline">
@@ -1186,7 +1186,7 @@ onMounted(async () => {
           <div v-else class="rounded-xl border border-dashed p-10 text-center">
             <p class="text-lg font-semibold">No live programs available</p>
             <p class="mt-2 text-sm text-muted-foreground">
-              Once live programs are available, you can select the ones your employees should prioritize.
+              Once live programs are available, you can select the ones your mentees should prioritize.
             </p>
           </div>
 
@@ -1219,7 +1219,7 @@ onMounted(async () => {
           <div>
             <CardTitle>Plans</CardTitle>
             <CardDescription>
-              Purchase company-funded sessions for {{ companyContext.companyName }}. Every successful payment tops up one shared wallet that admins can allocate across employees.
+              Purchase company-funded sessions for {{ companyContext.companyName }}. Every successful payment tops up one shared wallet that admins can allocate across mentees.
             </CardDescription>
           </div>
           <Button variant="outline" @click="router.push('/app/admin/billing')">
@@ -1360,7 +1360,7 @@ onMounted(async () => {
                 Company-wide wallet
               </span>
               <span class="rounded-full bg-gray-100 px-2 py-1">
-                Immediate employee reservation
+                Immediate mentee reservation
               </span>
               <span class="rounded-full bg-gray-100 px-2 py-1">
                 Invoice-first billing
@@ -1418,7 +1418,7 @@ onMounted(async () => {
         </Button>
         <Button variant="outline" @click="router.push('/app/admin/employees')">
           <Users class="mr-2 h-4 w-4" />
-          Manage Employee Sessions
+          Manage Mentee Sessions
         </Button>
       </div>
 
@@ -1430,7 +1430,7 @@ onMounted(async () => {
         <CreditCard class="mx-auto h-12 w-12 text-muted-foreground" />
         <p class="mt-4 text-lg font-semibold">No company subscription yet</p>
         <p class="mt-2 text-sm text-muted-foreground">
-          Purchase company-funded sessions to create a shared wallet and allocate them across employees.
+          Purchase company-funded sessions to create a shared wallet and allocate them across mentees.
         </p>
       </div>
 
@@ -1467,7 +1467,7 @@ onMounted(async () => {
 
           <Card>
             <CardHeader>
-              <CardDescription>Reserved For Employees</CardDescription>
+              <CardDescription>Reserved For Mentees</CardDescription>
               <CardTitle>{{ managedWalletReservedSessions }} sessions</CardTitle>
             </CardHeader>
             <CardContent>

@@ -214,12 +214,12 @@ const formatDateRange = (startsAt?: string | null, endsAt?: string | null) => {
 
 const employeeName = (profile: any) => {
   const fullName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim()
-  return fullName || profile?.username || profile?.email || 'Employee'
+  return fullName || profile?.username || profile?.email || 'Mentee'
 }
 
 const employeeSecondary = (profile: any) => {
   const bits = [profile?.email, profile?.industry || profile?.location].filter(Boolean)
-  return bits.join(' | ') || 'Company employee'
+  return bits.join(' | ') || 'Company mentee'
 }
 
 const formatRating = (value?: number | string | null) => value ?? '-'
@@ -273,7 +273,7 @@ const loadParticipants = async () => {
     })
     syncSelectedMentors()
   } catch (error: any) {
-    toast.error(error?.response?.data?.message || error?.message || 'Failed to load program employees')
+    toast.error(error?.response?.data?.message || error?.message || 'Failed to load program mentees')
   }
 }
 
@@ -315,7 +315,7 @@ const enrollSelectedEmployees = async () => {
   }
 
   if (!selectedProfileIds.value.length) {
-    toast.error('Select at least one employee to enroll')
+    toast.error('Select at least one mentee to enroll')
     return
   }
 
@@ -336,7 +336,7 @@ const openEnrollEmployeesDialog = async () => {
 }
 
 const removeParticipant = async (participantId: string) => {
-  if (!confirm('Remove this employee from the program?')) {
+  if (!confirm('Remove this mentee from the program?')) {
     return
   }
 
@@ -483,9 +483,9 @@ watch(showEnrollEmployeesDialog, isOpen => {
       <div class="space-y-1">
         <Button variant="ghost" class="w-fit px-0 text-muted-foreground" @click="router.push('/app/admin/programs')">
           <ArrowLeft class="mr-2 h-4 w-4" />
-          Back to Company Programs
+          Back to Programs
         </Button>
-        <h1 class="text-2xl font-semibold tracking-tight">{{ selectedProgram?.name || 'Company Program' }}</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">{{ selectedProgram?.name || 'Program' }}</h1>
         <p class="text-sm text-muted-foreground">
           Operate this program from one workspace.
         </p>
@@ -552,11 +552,11 @@ watch(showEnrollEmployeesDialog, isOpen => {
             <DropdownMenuSeparator />
             <DropdownMenuItem @click="activeTab = 'employees'">
               <Users class="mr-2 h-4 w-4" />
-              Manage employees
+              Manage mentees
             </DropdownMenuItem>
             <DropdownMenuItem @click="activeTab = 'matching'">
               <GitBranch class="mr-2 h-4 w-4" />
-              Mentor matching
+              One-to-one matching
             </DropdownMenuItem>
             <DropdownMenuItem @click="activeTab = 'journey'">
               <Target class="mr-2 h-4 w-4" />
@@ -613,7 +613,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
       <div class="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader class="pb-2">
-            <CardDescription>Employees</CardDescription>
+            <CardDescription>Mentees</CardDescription>
             <CardTitle class="text-3xl">{{ participantsPagination.totalItems }}</CardTitle>
           </CardHeader>
         </Card>
@@ -655,7 +655,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
               :class="{ 'program-view-tab--active': activeTab === 'employees' }"
               @click="activeTab = 'employees'"
             >
-              Employees
+              Mentees
               <span>{{ participantsPagination.totalItems || participants.length }}</span>
             </button>
             <button
@@ -664,7 +664,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
               :class="{ 'program-view-tab--active': activeTab === 'matching' }"
               @click="activeTab = 'matching'"
             >
-              Mentor Matching
+              One-to-One Matching
               <span>{{ unassignedCount }}</span>
             </button>
             <button
@@ -766,7 +766,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
               </CardHeader>
               <CardContent class="overview-metrics">
                 <div class="overview-metric">
-                  <span>Total employees</span>
+                  <span>Total mentees</span>
                   <strong>{{ participantsPagination.totalItems }}</strong>
                 </div>
                 <div class="overview-metric">
@@ -839,12 +839,12 @@ watch(showEnrollEmployeesDialog, isOpen => {
           <Card>
             <CardHeader class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <CardTitle>Enrolled Employees</CardTitle>
-                <CardDescription>Track who is already attached to this company program.</CardDescription>
+                <CardTitle>Enrolled Mentees</CardTitle>
+                <CardDescription>Track who is already attached to this program.</CardDescription>
               </div>
               <Button @click="openEnrollEmployeesDialog" :disabled="participantsSaving || !programId">
                 <UserPlus class="mr-2 h-4 w-4" />
-                Add employees
+                Add mentees
               </Button>
             </CardHeader>
             <CardContent class="space-y-4">
@@ -855,7 +855,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
               <div class="grid gap-3 md:grid-cols-[1fr,180px]">
                 <div class="relative">
                   <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input v-model="participantSearch" class="pl-9" placeholder="Search enrolled employees" />
+                  <Input v-model="participantSearch" class="pl-9" placeholder="Search enrolled mentees" />
                 </div>
 
                 <Select v-model="participantStatus">
@@ -880,13 +880,13 @@ watch(showEnrollEmployeesDialog, isOpen => {
 
               <div v-else-if="!participants.length" class="rounded-lg border border-dashed p-8 text-center">
                 <Users class="mx-auto h-8 w-8 text-muted-foreground" />
-                <p class="mt-3 text-sm text-muted-foreground">No employees are enrolled in this program yet.</p>
+                <p class="mt-3 text-sm text-muted-foreground">No mentees are enrolled in this program yet.</p>
               </div>
 
               <Table v-else>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Employee</TableHead>
+                    <TableHead>Mentee</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Match Workspace</TableHead>
                     <TableHead>Consent</TableHead>
@@ -900,7 +900,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
                       <div class="space-y-1">
                         <div class="font-medium">{{ participant.profileName }}</div>
                         <div class="text-xs text-muted-foreground">
-                          {{ participant.profileEmail || participant.department || 'Company employee' }}
+                          {{ participant.profileEmail || participant.department || 'Company mentee' }}
                         </div>
                       </div>
                     </TableCell>
@@ -945,14 +945,14 @@ watch(showEnrollEmployeesDialog, isOpen => {
           <Dialog :open="showEnrollEmployeesDialog" @update:open="showEnrollEmployeesDialog = $event">
             <DialogContent class="sm:max-w-3xl">
               <DialogHeader>
-                <DialogTitle>Add employees to this program</DialogTitle>
-                <DialogDescription>Select one or more employees to enroll in this company program.</DialogDescription>
+                <DialogTitle>Add mentees to this program</DialogTitle>
+                <DialogDescription>Select one or more mentees to enroll in this program.</DialogDescription>
               </DialogHeader>
 
               <div class="space-y-4">
                 <div class="relative">
                   <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input v-model="employeeSearch" class="pl-9" placeholder="Search employees by name or email" />
+                  <Input v-model="employeeSearch" class="pl-9" placeholder="Search mentees by name or email" />
                 </div>
 
                 <div v-if="profilesLoading" class="space-y-3">
@@ -962,7 +962,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
                 </div>
 
                 <div v-else-if="!enrollableEmployees.length" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  No available employees matched this search.
+                  No available mentees matched this search.
                 </div>
 
                 <div v-else class="max-h-[380px] overflow-auto rounded-lg border">
@@ -970,7 +970,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
                     <TableHeader>
                       <TableRow>
                         <TableHead class="w-12">Select</TableHead>
-                        <TableHead>Employee</TableHead>
+                        <TableHead>Mentee</TableHead>
                         <TableHead>Details</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1004,12 +1004,12 @@ watch(showEnrollEmployeesDialog, isOpen => {
           <Alert>
             <AlertDescription>
               <div class="space-y-1">
-                <p class="text-sm font-semibold text-foreground">How Mentor Matching Works</p>
+                <p class="text-sm font-semibold text-foreground">How One-to-One Matching Works</p>
                 <p class="text-sm text-muted-foreground">
-                  Use this workspace to evaluate mentor candidates, assign or reassign mentors to enrolled employees, and keep pairings aligned with program progress.
+                  Use this workspace to evaluate mentor candidates, assign or reassign mentors to enrolled mentees, and keep pairings aligned with program progress.
                 </p>
                 <p class="text-xs text-muted-foreground">
-                  Employee selection window: {{ selectedProgram?.employeeSelectionWindowHours || 48 }}h · Shortlist: {{ selectedProgram?.employeeSelectionShortlistSize || 5 }} mentors · Session milestones {{ selectedProgram?.requiresMentorForSessionSteps === false ? 'do not require' : 'require' }} mentor assignment.
+                  Mentee selection window: {{ selectedProgram?.employeeSelectionWindowHours || 48 }}h · Shortlist: {{ selectedProgram?.employeeSelectionShortlistSize || 5 }} mentors · Session milestones {{ selectedProgram?.requiresMentorForSessionSteps === false ? 'do not require' : 'require' }} mentor assignment.
                 </p>
               </div>
             </AlertDescription>
@@ -1066,7 +1066,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
             <Card>
               <CardHeader>
                 <CardTitle>Assignment Workspace</CardTitle>
-                <CardDescription>Assign mentors to employees one by one and override when needed.</CardDescription>
+                <CardDescription>Assign mentors to mentees one by one and override when needed.</CardDescription>
               </CardHeader>
               <CardContent class="space-y-4">
                 <Alert v-if="participantsError" variant="destructive">
@@ -1081,13 +1081,13 @@ watch(showEnrollEmployeesDialog, isOpen => {
 
                 <div v-else-if="!visibleParticipants.length" class="rounded-lg border border-dashed p-8 text-center">
                   <ShieldCheck class="mx-auto h-8 w-8 text-muted-foreground" />
-                  <p class="mt-3 text-sm text-muted-foreground">No employees matched the current filter for this program.</p>
+                  <p class="mt-3 text-sm text-muted-foreground">No mentees matched the current filter for this program.</p>
                 </div>
 
                 <Table v-else>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee</TableHead>
+                      <TableHead>Mentee</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Match Workspace</TableHead>
                       <TableHead>Current Mentor</TableHead>
@@ -1101,7 +1101,7 @@ watch(showEnrollEmployeesDialog, isOpen => {
                         <div class="space-y-1">
                           <div class="font-medium">{{ participant.profileName }}</div>
                           <div class="text-xs text-muted-foreground">
-                            {{ participant.profileEmail || participant.department || 'Company employee' }}
+                            {{ participant.profileEmail || participant.department || 'Company mentee' }}
                           </div>
                         </div>
                       </TableCell>

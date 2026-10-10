@@ -30,7 +30,7 @@ import {
 } from 'lucide-vue-next'
 
 definePageMeta({
-  title: 'Billing & Session Wallet',
+  title: 'Finance',
   description: 'Manage your corporate mentoring budget and session allocations.',
   requiresAuth: true,
   permissions: ['admin:billing'],
@@ -372,7 +372,8 @@ onMounted(async () => {
   <div class="billing-dashboard mx-auto max-w-[1280px] space-y-5 px-4 py-5 md:px-6">
     <header class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div class="space-y-1">
-        <h1 class="text-xl font-semibold tracking-[-0.01em] text-[#1f2430] md:text-2xl">Billing &amp; Session Wallet</h1>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8f5f82]">Billing &amp; Session Wallet</p>
+        <h1 class="text-xl font-semibold tracking-[-0.01em] text-[#1f2430] md:text-2xl">Finance</h1>
         <p class="text-sm text-[#687386]">
           Manage your corporate mentoring budget and session allocations.
         </p>
@@ -463,7 +464,7 @@ onMounted(async () => {
               </p>
             </div>
             <Badge variant="outline" class="border-[#e3dbe8] bg-[#f8f6fb] text-[10px] uppercase tracking-[0.12em] text-[#5b6270]">
-              {{ projectedUsage?.activeEmployees || 0 }} active employees
+              {{ projectedUsage?.activeEmployees || 0 }} active mentees
             </Badge>
           </div>
 

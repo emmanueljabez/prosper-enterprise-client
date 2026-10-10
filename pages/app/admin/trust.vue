@@ -162,7 +162,7 @@ const updateStatus = async (alertId: string, status: ReviewAlertStatus) => {
 const triggerRematch = async (alertId: string) => {
   if (!companyId.value) return
 
-  if (!confirm('Remove the current mentor assignment for this alert and move the employee back into rematch?')) {
+  if (!confirm('Remove the current mentor assignment for this alert and move the mentee back into rematch?')) {
     return
   }
 
@@ -208,7 +208,7 @@ onMounted(() => {
       <div>
         <h1 class="text-2xl font-semibold tracking-tight">Trust & Safety</h1>
         <p class="text-sm text-muted-foreground">
-          Operate low-score and fit-risk alerts while keeping access to sensitive employee data auditable.
+          Operate low-score and fit-risk alerts while keeping access to sensitive mentee data auditable.
         </p>
       </div>
 
@@ -335,7 +335,7 @@ onMounted(() => {
           <TableHeader>
             <TableRow>
               <TableHead>Alert</TableHead>
-              <TableHead>Employee</TableHead>
+              <TableHead>Mentee</TableHead>
               <TableHead>Mentor</TableHead>
               <TableHead>Program</TableHead>
               <TableHead>Status</TableHead>
@@ -357,8 +357,8 @@ onMounted(() => {
                 </div>
               </TableCell>
               <TableCell>
-                <div class="font-medium">{{ alert.participantName || 'Employee' }}</div>
-                <div class="text-xs text-muted-foreground">{{ alert.participantEmail || alert.participantStatus || 'No employee detail' }}</div>
+                <div class="font-medium">{{ alert.participantName || 'Mentee' }}</div>
+                <div class="text-xs text-muted-foreground">{{ alert.participantEmail || alert.participantStatus || 'No mentee detail' }}</div>
               </TableCell>
               <TableCell>{{ alert.mentorName || 'Unassigned' }}</TableCell>
               <TableCell>{{ alert.companyProgramName || 'Program' }}</TableCell>
@@ -411,7 +411,7 @@ onMounted(() => {
     <Card>
       <CardHeader>
         <CardTitle>Access Audit</CardTitle>
-        <CardDescription>Recent access to employee rosters, consent workspaces, and review operations.</CardDescription>
+        <CardDescription>Recent access to mentee rosters, consent workspaces, and review operations.</CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
         <div v-if="accessAuditLoading" class="space-y-3">

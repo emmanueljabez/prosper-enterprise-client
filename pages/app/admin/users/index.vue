@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({
-  title: 'Users',
-  description: 'Redirecting to employees workspace',
+  title: 'Mentees',
+  description: 'Redirecting to mentees workspace',
   requiresAuth: true,
   permissions: ['admin:users'],
 })

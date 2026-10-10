@@ -201,7 +201,7 @@ onMounted(() => {
             <TableRow>
               <TableHead>Signal</TableHead>
               <TableHead>Program</TableHead>
-              <TableHead>Employee</TableHead>
+              <TableHead>Mentee</TableHead>
               <TableHead>Mentor</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Raised</TableHead>
@@ -220,7 +220,7 @@ onMounted(() => {
                 </div>
               </TableCell>
               <TableCell>{{ alert.companyProgramName || 'Program' }}</TableCell>
-              <TableCell>{{ alert.participantName || 'Employee' }}</TableCell>
+              <TableCell>{{ alert.participantName || 'Mentee' }}</TableCell>
               <TableCell>{{ alert.mentorName || 'Unassigned' }}</TableCell>
               <TableCell>
                 <div class="space-y-1">

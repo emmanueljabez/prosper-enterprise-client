@@ -19,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~
 import { Download, RefreshCw } from 'lucide-vue-next'
 
 definePageMeta({
-  title: 'Program Report',
+  title: 'Program Tracking',
   description: 'Row-based company program report',
   requiresAuth: true,
   permissions: ['admin:reports'],
@@ -74,7 +74,7 @@ watch(companyId, value => {
 <template>
   <div class="container mx-auto flex flex-col gap-6 px-4 py-6">
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <h1 class="text-2xl font-semibold tracking-tight">Program Report</h1>
+      <h1 class="text-2xl font-semibold tracking-tight">Program Tracking</h1>
       <div class="flex gap-2">
         <Button variant="outline" @click="loadReport" :disabled="isLoading">
           <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoading }" />

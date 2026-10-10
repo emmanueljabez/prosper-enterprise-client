@@ -25,7 +25,7 @@ import {
 } from 'lucide-vue-next'
 
 definePageMeta({
-  title: 'Mentoring',
+  title: 'Mentors',
   description: 'Corporate mentor pool and matching operations',
   requiresAuth: true,
   permissions: ['admin:mentors'],
@@ -185,20 +185,20 @@ onMounted(() => {
     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div>
         <p class="text-sm font-medium text-muted-foreground">Corporate Admin</p>
-        <h1 class="text-2xl font-semibold tracking-tight">Mentoring</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">Mentors</h1>
         <p class="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Manage the mentor pool used by company programs, matching reviews, and employee mentoring journeys.
+          Review mentor capacity, expertise, availability, and matching readiness for company programs.
         </p>
       </div>
 
       <div class="flex flex-wrap gap-2">
         <Button variant="outline" @click="openProgramWorkspace">
           <Users class="h-4 w-4" />
-          Company Programs
+          Programs
         </Button>
         <Button @click="openMatchingWorkspace">
           <GitBranch class="h-4 w-4" />
-          Mentor Matching
+          One-to-One Matching
         </Button>
       </div>
     </div>
@@ -362,7 +362,7 @@ onMounted(() => {
                 </div>
 
                 <Button variant="outline" class="w-full" @click="openMatchingWorkspace">
-                  Review matches
+                  Review matching
                   <ArrowRight class="h-4 w-4" />
                 </Button>
               </div>
@@ -386,7 +386,7 @@ onMounted(() => {
           <div v-else-if="!visibleMentors.length" class="rounded-lg border border-dashed p-8 text-center">
             <h3 class="text-lg font-medium">No company mentors yet</h3>
             <p class="mt-2 text-sm text-muted-foreground">
-              Assign mentors through Mentor Matching or create company programs to build this list.
+              Assign mentors through One-to-One Matching or create programs to build this list.
             </p>
             <Button class="mt-4" @click="openMatchingWorkspace">
               <Plus class="h-4 w-4" />
@@ -442,7 +442,7 @@ onMounted(() => {
                 <TableCell>{{ formatRating(mentor.averageRating) }}</TableCell>
                 <TableCell class="text-right">
                   <Button variant="ghost" size="sm" @click="openMatchingWorkspace">
-                    Review matches
+                    Review matching
                     <ArrowRight class="h-4 w-4" />
                   </Button>
                 </TableCell>
