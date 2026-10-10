@@ -103,7 +103,7 @@ const templateDurationLabel = (template: JourneyTemplateRecord) => {
 }
 
 const templateDescription = (template: JourneyTemplateRecord) =>
-  template.description || 'Structured mentorship pathway for guided employee growth.'
+  template.description || 'Structured mentorship pathway for guided mentee growth.'
 
 const templateSurfaceStyle = (template: JourneyTemplateRecord) => {
   if (template.coverImageUrl) {
@@ -212,7 +212,7 @@ onMounted(() => {
 
     <section class="grid grid-cols-1 gap-4 md:grid-cols-3">
       <article class="rounded-xl border border-[#e8e6eb] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-        <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-[#8f5f82]">Active Templates</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-[#8f5f82]">Published Templates</p>
         <p class="mt-2 text-2xl font-semibold text-[#181c22]">{{ activeTemplateCount }}</p>
         <p class="mt-1 text-xs font-semibold text-[#1f7a36]">{{ templates.length ? `Across ${templates.length} total templates` : 'Start by creating your first template' }}</p>
       </article>
@@ -275,10 +275,10 @@ onMounted(() => {
 
           <div class="mt-6 flex flex-wrap gap-2">
             <Button class="bg-white px-5 text-sm font-semibold text-[#1e2430] hover:bg-white/90" @click="openTemplate(featuredTemplate.id, 'edit')">
-              Edit Structure
+              Edit Journey
             </Button>
             <Button variant="outline" class="border-white/35 bg-white/10 px-5 text-sm font-medium text-white hover:bg-white/20" @click="openTemplate(featuredTemplate.id, 'view')">
-              View Details
+              Preview Journey
             </Button>
           </div>
         </div>
@@ -323,7 +323,7 @@ onMounted(() => {
 
           <div class="flex items-center justify-between border-t border-[#eceff3] px-4 py-3">
             <Badge :variant="template.active === false ? 'outline' : 'default'" class="text-[11px] uppercase tracking-[0.08em]">
-              {{ template.active === false ? 'Inactive' : 'Active' }}
+              {{ template.active === false ? 'Archived' : 'Published' }}
             </Badge>
 
             <div class="flex items-center gap-1">

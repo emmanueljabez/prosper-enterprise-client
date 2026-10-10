@@ -10,18 +10,25 @@ import {
   BookOpen,
   GitBranch,
   Route,
+  Layers3,
+  Wallet,
 } from 'lucide-vue-next'
 
 export const corporateAdminNavigation: NavigationItem[] = [
   {
-    title: 'Core',
+    title: 'Dashboard',
     children: [
       {
-        title: 'Dashboard',
+        title: 'Overview',
         icon: LayoutDashboard,
         url: '/app/admin',
         permission: null,
       },
+    ],
+  },
+  {
+    title: 'People',
+    children: [
       {
         title: 'Mentees',
         icon: Users,
@@ -29,11 +36,96 @@ export const corporateAdminNavigation: NavigationItem[] = [
         permission: 'admin:users',
       },
       {
+        title: 'Mentors',
+        icon: UserCheck,
+        url: '/app/admin/mentors',
+        permission: 'admin:mentors',
+      },
+    ],
+  },
+  {
+    title: 'People Management',
+    children: [
+      {
+        title: 'Cohorts & Circles',
+        icon: Users,
+        url: '/app/admin/cohorts',
+        permission: 'admin:programs',
+      },
+      {
+        title: 'Alumni',
+        icon: UserCheck,
+        url: '/app/admin/alumni',
+        permission: 'admin:users',
+      },
+    ],
+  },
+  {
+    title: 'Program Management',
+    children: [
+      {
         title: 'Programs',
         icon: BookOpen,
         url: '/app/admin/programs',
         permission: 'admin:programs',
       },
+      {
+        title: 'Topics',
+        icon: Layers3,
+        url: '/app/admin/topics',
+        permission: 'admin:programs',
+      },
+      {
+        title: 'Program Content',
+        icon: BookOpen,
+        url: '/app/admin/content',
+        permission: 'admin:programs',
+      },
+    ],
+  },
+  {
+    title: 'Session Management',
+    children: [
+      {
+        title: 'Plenary Sessions',
+        icon: CalendarCheck2,
+        url: '/app/admin/sessions/plenary',
+        permission: 'admin:reports',
+      },
+      {
+        title: 'Group Sessions',
+        icon: CalendarCheck2,
+        url: '/app/admin/sessions/group',
+        permission: 'admin:reports',
+      },
+      {
+        title: 'One-to-One Sessions',
+        icon: CalendarCheck2,
+        url: '/app/admin/sessions/one-to-one',
+        permission: 'admin:reports',
+      },
+    ],
+  },
+  {
+    title: 'Mentors & Matching',
+    children: [
+      {
+        title: 'One-to-One Matching',
+        icon: GitBranch,
+        url: '/app/admin/matches',
+        permission: 'admin:programs',
+      },
+      {
+        title: 'Bulk Matching',
+        icon: GitBranch,
+        url: '/app/admin/matches/bulk',
+        permission: 'admin:programs',
+      },
+    ],
+  },
+  {
+    title: 'Finance',
+    children: [
       {
         title: 'Billing',
         icon: CreditCard,
@@ -41,27 +133,31 @@ export const corporateAdminNavigation: NavigationItem[] = [
         permission: 'admin:billing',
       },
       {
-        title: 'Mentors',
-        icon: UserCheck,
-        url: '/app/admin/mentors',
-        permission: 'admin:mentors',
+        title: 'Session Wallet',
+        icon: Wallet,
+        url: '/app/admin/billing/wallet',
+        permission: 'admin:billing',
       },
+    ],
+  },
+  {
+    title: 'Reports',
+    children: [
       {
-        title: 'Sessions',
-        icon: CalendarCheck2,
-        url: '/app/admin/sessions',
+        title: 'Tracking',
+        icon: BarChart3,
+        url: '/app/admin/reports',
         permission: 'admin:reports',
       },
+    ],
+  },
+  {
+    title: 'Resources',
+    children: [
       {
         title: 'Journey Templates',
         icon: Route,
         url: '/app/admin/journey-templates',
-        permission: 'admin:programs',
-      },
-      {
-        title: 'Mentor Matching',
-        icon: GitBranch,
-        url: '/app/admin/matches',
         permission: 'admin:programs',
       },
     ],
@@ -69,12 +165,6 @@ export const corporateAdminNavigation: NavigationItem[] = [
   {
     title: 'Administration',
     children: [
-      {
-        title: 'Reports',
-        icon: BarChart3,
-        url: '/app/admin/reports',
-        permission: 'admin:reports',
-      },
       {
         title: 'Settings',
         icon: Settings,

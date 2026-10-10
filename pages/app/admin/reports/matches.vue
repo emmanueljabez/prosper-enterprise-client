@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~
 import { Download, RefreshCw } from 'lucide-vue-next'
 
 definePageMeta({
-  title: 'Mentor Match Report',
+  title: 'Matching Tracking',
   description: 'Row-based mentor matching report',
   requiresAuth: true,
   permissions: ['admin:reports'],
@@ -47,7 +47,7 @@ const loadReport = async () => {
 const exportCsv = () => {
   downloadReportCsv(
     reportFilename('mentor-match-report'),
-    ['Participant ID', 'Program', 'Employee', 'Email', 'Participant Status', 'Matching Mode', 'Match Status', 'Mentor', 'Mentor Email', 'Shortlist Count', 'Selection Deadline', 'Assigned At', 'Resolved At'],
+    ['Mentee ID', 'Program', 'Mentee', 'Email', 'Mentee Status', 'Matching Mode', 'Match Status', 'Mentor', 'Mentor Email', 'Shortlist Count', 'Selection Deadline', 'Assigned At', 'Resolved At'],
     matchRows.value.map(row => [
       row.participantId,
       row.companyProgramName,
@@ -76,7 +76,7 @@ watch(companyId, value => {
 <template>
   <div class="container mx-auto flex flex-col gap-6 px-4 py-6">
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <h1 class="text-2xl font-semibold tracking-tight">Mentor Match Report</h1>
+      <h1 class="text-2xl font-semibold tracking-tight">Matching Tracking</h1>
       <div class="flex gap-2">
         <Button variant="outline" @click="loadReport" :disabled="isLoading">
           <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoading }" />
@@ -102,7 +102,7 @@ watch(companyId, value => {
         <TableHeader>
           <TableRow>
             <TableHead>Program</TableHead>
-            <TableHead>Employee</TableHead>
+            <TableHead>Mentee</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Matching Mode</TableHead>
             <TableHead>Match Status</TableHead>

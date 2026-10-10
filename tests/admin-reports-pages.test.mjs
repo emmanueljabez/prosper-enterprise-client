@@ -9,19 +9,19 @@ const reportsIndexSource = read('../pages/app/admin/reports/index.vue')
 const roleManagerSource = read('../utils/roleManager.ts')
 
 const expectedReports = [
-  ['Program Report', '/app/admin/reports/programs', '../pages/app/admin/reports/programs.vue', 'loadProgramReport'],
-  ['Participant Report', '/app/admin/reports/participants', '../pages/app/admin/reports/participants.vue', 'loadParticipantReport'],
-  ['Mentor Match Report', '/app/admin/reports/matches', '../pages/app/admin/reports/matches.vue', 'loadMatchReport'],
-  ['Session Report', '/app/admin/reports/sessions', '../pages/app/admin/reports/sessions.vue', 'loadSessionReport'],
-  ['Pulse Coverage Report', '/app/admin/reports/pulses', '../pages/app/admin/reports/pulses.vue', 'loadPulseCoverageReport'],
-  ['Risk Signals Report', '/app/admin/reports/risk-signals', '../pages/app/admin/reports/risk-signals.vue', 'loadRiskSignalsReport'],
-  ['Billing Transactions Report', '/app/admin/reports/billing-transactions', '../pages/app/admin/reports/billing-transactions.vue', 'loadBillingTransactionsReport'],
+  ['Program Tracking', '/app/admin/reports/programs', '../pages/app/admin/reports/programs.vue', 'loadProgramReport'],
+  ['Mentee Tracking', '/app/admin/reports/participants', '../pages/app/admin/reports/participants.vue', 'loadParticipantReport'],
+  ['Matching Tracking', '/app/admin/reports/matches', '../pages/app/admin/reports/matches.vue', 'loadMatchReport'],
+  ['Session Tracking', '/app/admin/reports/sessions', '../pages/app/admin/reports/sessions.vue', 'loadSessionReport'],
+  ['Pulse Tracking', '/app/admin/reports/pulses', '../pages/app/admin/reports/pulses.vue', 'loadPulseCoverageReport'],
+  ['Risk Signals Tracking', '/app/admin/reports/risk-signals', '../pages/app/admin/reports/risk-signals.vue', 'loadRiskSignalsReport'],
+  ['Finance Tracking', '/app/admin/reports/billing-transactions', '../pages/app/admin/reports/billing-transactions.vue', 'loadBillingTransactionsReport'],
 ]
 
 assert.match(
   corporateNavigationSource,
-  /title:\s*'Reports'[\s\S]*?url:\s*'\/app\/admin\/reports'[\s\S]*?permission:\s*'admin:reports'/,
-  'Corporate admin Reports sidebar item should link to the reports index, not analytics.',
+  /title:\s*'Tracking'[\s\S]*?url:\s*'\/app\/admin\/reports'[\s\S]*?permission:\s*'admin:reports'/,
+  'Corporate admin Tracking sidebar item should link to the reports index, not analytics.',
 )
 
 assert.match(

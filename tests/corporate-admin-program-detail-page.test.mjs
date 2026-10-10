@@ -67,13 +67,13 @@ assert.match(
 )
 assert.match(
   detailSource,
-  /class="program-view-tab"[\s\S]*activeTab = 'employees'[\s\S]*Employees/,
-  'Detail page should include an employees segmented tab.',
+  /class="program-view-tab"[\s\S]*activeTab = 'employees'[\s\S]*Mentees/,
+  'Detail page should include a mentees segmented tab.',
 )
 assert.match(
   detailSource,
-  /class="program-view-tab"[\s\S]*activeTab = 'matching'[\s\S]*Mentor Matching/,
-  'Detail page should include a mentor matching segmented tab.',
+  /class="program-view-tab"[\s\S]*activeTab = 'matching'[\s\S]*One-to-One Matching/,
+  'Detail page should include a one-to-one matching segmented tab.',
 )
 assert.match(
   detailSource,
@@ -86,18 +86,18 @@ assert.doesNotMatch(
   'Program detail page should not include a Settings tab.',
 )
 assert.match(detailSource, /loadCompanyProgram\(programId\.value\)/, 'Detail page should load the selected program by id.')
-assert.match(detailSource, /enrollProgramParticipants\(programId\.value,\s*selectedProfileIds\.value\)/, 'Detail page should support adding employees.')
-assert.match(detailSource, /loadProgramParticipants\(\{[\s\S]*companyProgramId:\s*programId\.value/, 'Detail page should list program employees.')
-assert.match(detailSource, /removeProgramParticipant\(participantId\)/, 'Detail page should support removing employees.')
-assert.match(detailSource, /showEnrollEmployeesDialog\.value\s*=\s*true/, 'Detail page should open an add-employees modal from the employees tab.')
-assert.match(detailSource, /Dialog,\s*DialogContent,\s*DialogDescription,\s*DialogFooter,\s*DialogHeader,\s*DialogTitle/, 'Detail page should import dialog primitives for employee enrollment.')
+assert.match(detailSource, /enrollProgramParticipants\(programId\.value,\s*selectedProfileIds\.value\)/, 'Detail page should support adding mentees.')
+assert.match(detailSource, /loadProgramParticipants\(\{[\s\S]*companyProgramId:\s*programId\.value/, 'Detail page should list program mentees.')
+assert.match(detailSource, /removeProgramParticipant\(participantId\)/, 'Detail page should support removing mentees.')
+assert.match(detailSource, /showEnrollEmployeesDialog\.value\s*=\s*true/, 'Detail page should open an add-mentees modal from the mentees tab.')
+assert.match(detailSource, /Dialog,\s*DialogContent,\s*DialogDescription,\s*DialogFooter,\s*DialogHeader,\s*DialogTitle/, 'Detail page should import dialog primitives for mentee enrollment.')
 assert.match(detailSource, /<Dialog[^>]*:open="showEnrollEmployeesDialog"/, 'Employees enrollment should be driven through a modal dialog.')
-assert.match(detailSource, /Add employees/, 'Employees tab should expose an Add employees action button.')
+assert.match(detailSource, /Add mentees/, 'Mentees tab should expose an Add mentees action button.')
 assert.match(detailSource, /loadMentorCandidates\(programId\.value/, 'Detail page should include mentor matching data for the selected program.')
 assert.match(detailSource, /assignMentorToParticipant\(participantId,\s*mentorId\)/, 'Detail page should support assigning mentors.')
 assert.match(detailSource, /navigateTo\(`\/app\/admin\/programs\/\$\{programId\.value\}\/edit`\)/, 'Detail page actions should navigate to a full program edit page.')
 assert.match(detailSource, /const openEditProgramPage = \(\) => \{[\s\S]*navigateTo\(`\/app\/admin\/programs\/\$\{programId\.value\}\/edit`\)/, 'Detail page should provide an edit-page navigation handler.')
-assert.match(detailSource, /How Mentor Matching Works/, 'Mentor Matching tab should explain its role in operating program pairings.')
+assert.match(detailSource, /How One-to-One Matching Works/, 'One-to-One Matching tab should explain its role in operating program pairings.')
 assert.match(editSource, /CompanyProgramEditor/, 'Program edit page should use the shared company program editor.')
 assert.match(editSource, /mode="edit"/, 'Program edit page should render editor in edit mode.')
 assert.match(editSource, /updateCompanyProgram\(programId\.value,\s*payload\)/, 'Program edit page should persist updates through updateCompanyProgram.')

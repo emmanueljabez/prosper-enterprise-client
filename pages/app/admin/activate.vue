@@ -53,7 +53,7 @@ const hasPendingInvoiceCountChanged = computed(() =>
 const selectedPlanId = computed(() => companySignupStore.pendingSelection?.planId || corporatePlan.value?.id || '')
 const ctaLabel = computed(() => {
   if (!pendingInvoice.value) {
-    return 'Buy Sessions'
+    return 'Top Up Wallet'
   }
 
   return hasPendingInvoiceCountChanged.value ? 'Update Sessions and Continue' : 'Continue Payment'
@@ -190,7 +190,7 @@ const purchase = async () => {
       </h1>
       <p class="mt-4 max-w-2xl text-sm leading-6 text-[#475467]">
         Your company admin account is ready. Purchase the initial session balance to unlock the
-        corporate workspace and start allocating sessions across employees and programs.
+        corporate workspace and start allocating sessions across mentees and programs.
       </p>
 
       <div class="mt-8 grid gap-6 rounded-[24px] bg-[#f7faf8] p-6">

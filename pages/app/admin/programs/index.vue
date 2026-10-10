@@ -22,7 +22,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { CalendarRange, Layers3, MoreHorizontal, PauseCircle, Pencil, PlayCircle, Plus, RefreshCw, Search, StopCircle, Target, Trophy, Users } from 'lucide-vue-next'
 
 definePageMeta({
-  title: 'Company Programs',
+  title: 'Programs',
   description: 'Create and manage corporate mentorship programs',
   requiresAuth: true,
   permissions: ['admin:programs'],
@@ -224,16 +224,16 @@ onMounted(() => {
   <div class="container mx-auto space-y-6 px-4 py-6">
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Company Programs</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">Programs</h1>
         <p class="text-sm text-muted-foreground">
-          Launch mentorship programs for your company and control their lifecycle from one workspace.
+          Launch mentorship programs and control their lifecycle from one workspace.
         </p>
       </div>
 
       <div class="flex gap-2">
         <Button @click="navigateTo('/app/admin/programs/new')">
           <Plus class="mr-2 h-4 w-4" />
-          New Company Program
+          New Program
         </Button>
       </div>
     </div>
@@ -282,7 +282,7 @@ onMounted(() => {
                 :class="{ 'program-view-tab--active': activeProgramTab === 'company' }"
                 @click="selectProgramTab('company')"
               >
-                Our programs
+                Programs
                 <span>{{ companyProgramsStore.pagination.totalItems || companyProgramsStore.programs.length }}</span>
               </button>
               <button
@@ -291,7 +291,7 @@ onMounted(() => {
                 :class="{ 'program-view-tab--active': activeProgramTab === 'prosper' }"
                 @click="selectProgramTab('prosper')"
               >
-                Prosper Mentor Programs
+                Prosper Mentor Program Catalog
                 <span>{{ companyProgramsStore.catalogPrograms.length }}</span>
               </button>
             </div>
@@ -363,7 +363,7 @@ onMounted(() => {
             <div v-else-if="!companyProgramsStore.programs.length" class="rounded-lg border border-dashed p-8 text-center">
               <h3 class="text-lg font-medium">No programs yet</h3>
               <p class="mt-2 text-sm text-muted-foreground">
-                Create your first company program to start structuring mentorship beyond one-off bookings.
+                Create your first program to start structuring mentorship beyond one-off bookings.
               </p>
             </div>
 
@@ -439,7 +439,7 @@ onMounted(() => {
                         </DropdownMenuItem>
                         <DropdownMenuItem @click="navigateTo(`/app/admin/programs/${program.id}?tab=employees`)">
                           <Users class="mr-2 h-4 w-4" />
-                          Employees
+                          Mentees
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           :disabled="companyProgramsStore.isSaving"
@@ -598,7 +598,7 @@ onMounted(() => {
     <Dialog v-model:open="showProgramDialog">
       <DialogContent class="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit company program</DialogTitle>
+          <DialogTitle>Edit program</DialogTitle>
           <DialogDescription>
             Build an employer-facing journey from one or more Prosper programs, then attach matching and guidance.
           </DialogDescription>
@@ -622,7 +622,7 @@ onMounted(() => {
         <DialogHeader>
           <DialogTitle>Attach journey template</DialogTitle>
           <DialogDescription>
-            Choose the guided journey this program should run. New employee enrollments get a live milestone plan automatically.
+            Choose the guided journey this program should run. New mentee enrollments get a live milestone plan automatically.
           </DialogDescription>
         </DialogHeader>
 

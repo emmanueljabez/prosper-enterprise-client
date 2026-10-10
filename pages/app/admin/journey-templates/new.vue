@@ -50,7 +50,7 @@ const saveTemplate = async (payload: JourneyTemplateUpsertPayload) => {
         <CardHeader>
           <CardTitle>Template Builder</CardTitle>
           <CardDescription>
-            Start with the outcome you want employees to reach, then model the milestones and step dependencies that should unlock along the way.
+            Start with the outcome you want mentees to reach, then model the milestones and step dependencies that should unlock along the way.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -73,11 +73,11 @@ const saveTemplate = async (payload: JourneyTemplateUpsertPayload) => {
           <CardContent class="space-y-3 text-sm text-muted-foreground">
             <div class="flex items-start gap-3">
               <Layers3 class="mt-0.5 h-4 w-4 text-foreground" />
-              <p>Templates sit above session booking. They define the milestone structure employees move through across a company program.</p>
+              <p>Templates sit above session booking. They define the milestone structure mentees move through across a program.</p>
             </div>
             <div class="flex items-start gap-3">
               <Route class="mt-0.5 h-4 w-4 text-foreground" />
-              <p>Step order plus dependencies decide which milestones become ready next when employees complete reflections, action items, and mentor sessions.</p>
+              <p>Step order plus dependencies decide which milestones become ready next when mentees complete reflections, action items, and mentor sessions.</p>
             </div>
             <div class="flex items-start gap-3">
               <GitBranch class="mt-0.5 h-4 w-4 text-foreground" />

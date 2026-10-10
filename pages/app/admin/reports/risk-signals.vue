@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~
 import { Download, RefreshCw } from 'lucide-vue-next'
 
 definePageMeta({
-  title: 'Risk Signals Report',
+  title: 'Risk Signals Tracking',
   description: 'Row-based review alert and rematch signal report',
   requiresAuth: true,
   permissions: ['admin:reports'],
@@ -47,7 +47,7 @@ const loadReport = async () => {
 const exportCsv = () => {
   downloadReportCsv(
     reportFilename('risk-signals-report'),
-    ['Alert ID', 'Alert Type', 'Severity', 'Status', 'Program', 'Employee', 'Employee Email', 'Mentor', 'Question', 'Score', 'Details', 'Created At'],
+    ['Alert ID', 'Alert Type', 'Severity', 'Status', 'Program', 'Mentee', 'Mentee Email', 'Mentor', 'Question', 'Score', 'Details', 'Created At'],
     riskSignalRows.value.map(row => [
       row.id,
       humanizeReportValue(row.alertType),
@@ -75,7 +75,7 @@ watch(companyId, value => {
 <template>
   <div class="container mx-auto flex flex-col gap-6 px-4 py-6">
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <h1 class="text-2xl font-semibold tracking-tight">Risk Signals Report</h1>
+      <h1 class="text-2xl font-semibold tracking-tight">Risk Signals Tracking</h1>
       <div class="flex gap-2">
         <Button variant="outline" @click="loadReport" :disabled="isLoading">
           <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoading }" />
@@ -104,7 +104,7 @@ watch(companyId, value => {
             <TableHead>Severity</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Program</TableHead>
-            <TableHead>Employee</TableHead>
+            <TableHead>Mentee</TableHead>
             <TableHead>Mentor</TableHead>
             <TableHead>Question</TableHead>
             <TableHead>Score</TableHead>

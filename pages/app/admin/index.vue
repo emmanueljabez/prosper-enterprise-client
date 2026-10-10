@@ -52,8 +52,8 @@ import {
 } from 'lucide-vue-next'
 
 definePageMeta({
-  title: 'Corporate Admin Dashboard',
-  description: 'Organizational oversight and platform management',
+  title: 'Overview',
+  description: 'Operational command centre for mentorship delivery',
   requiresAuth: true,
   permissions: ['admin:dashboard:view'],
 })
@@ -591,11 +591,11 @@ const companyId = computed(() => {
 
 const getProfileDisplayName = (profile: DashboardProfile) => {
   const combined = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim()
-  return combined || profile.username || profile.email || 'Employee'
+  return combined || profile.username || profile.email || 'Mentee'
 }
 
 const getProfileMeta = (profile: DashboardProfile) => {
-  return profile.industry || profile.location || profile.email || 'Employee profile'
+  return profile.industry || profile.location || profile.email || 'Mentee profile'
 }
 
 const stats = computed<CompanyDashboardStats>(() => ({
@@ -834,7 +834,7 @@ const topKpis = computed<DashboardKpi[]>(() => [
     id: 'capacity',
     title: 'Capacity Utilization',
     value: `${capacityUtilizationRate.value}%`,
-    subtitle: `${formatNumber(occupiedConfiguredSeats.value)} active employees across ${formatNumber(totalConfiguredSeats.value)} program seats`,
+    subtitle: `${formatNumber(occupiedConfiguredSeats.value)} active mentees across ${formatNumber(totalConfiguredSeats.value)} program seats`,
     progress: capacityUtilizationRate.value,
     tone: 'brand',
     deltaText: capacityDelta.value.text,
@@ -847,7 +847,7 @@ const topKpis = computed<DashboardKpi[]>(() => [
     id: 'mentor-coverage',
     title: 'Mentor Coverage',
     value: `${mentorCoverageRate.value}%`,
-    subtitle: `${formatNumber(assignedInFlightParticipantCount.value)} assigned of ${formatNumber(inFlightParticipantCount.value)} active employees`,
+    subtitle: `${formatNumber(assignedInFlightParticipantCount.value)} assigned of ${formatNumber(inFlightParticipantCount.value)} active mentees`,
     progress: mentorCoverageRate.value,
     tone: 'success',
     deltaText: mentorCoverageDelta.value.text,
@@ -891,7 +891,7 @@ const dashboardAlerts = computed<DashboardAlert[]>(() => {
     alerts.push({
       id: 'session-load-gap',
       title: 'Partial session coverage',
-      message: `Session data failed for ${formatNumber(sessionLoadSummary.value.failedEmployees)} ${pluralize(sessionLoadSummary.value.failedEmployees, 'employee')}. Counts may be understated until those requests succeed.`,
+      message: `Session data failed for ${formatNumber(sessionLoadSummary.value.failedEmployees)} ${pluralize(sessionLoadSummary.value.failedEmployees, 'mentee')}. Counts may be understated until those requests succeed.`,
       icon: AlertTriangle,
       variant: 'destructive',
     })
@@ -1032,8 +1032,8 @@ const employeeFunnelCards = computed(() =>
       { label: 'Verification rate', value: `${verificationRate.value}%` },
     ]
     : [
-      { label: 'Active employees', value: formatNumber(inFlightParticipantCount.value) },
-      { label: 'Completed employees', value: formatNumber(completedParticipantCount.value) },
+      { label: 'Active mentees', value: formatNumber(inFlightParticipantCount.value) },
+      { label: 'Completed mentees', value: formatNumber(completedParticipantCount.value) },
     ],
 )
 const hasEmployeeFunnelData = computed(() => employeeFunnelGraph.value.links.some(link => link.value > 0))
@@ -1162,7 +1162,7 @@ const loadProgramParticipants = async (companyProgramId: string, dateFilter: Das
     })
 
     if (!response.success || !response.data) {
-      throw new Error(response.message || 'Failed to load program employees.')
+      throw new Error(response.message || 'Failed to load program mentees.')
     }
 
     participants.push(...(response.data.participants || []))
@@ -1366,9 +1366,9 @@ onMounted(() => {
   <div class="corporate-admin-dashboard container mx-auto space-y-5 px-4 py-5">
     <div class="space-y-3">
       <div class="space-y-1">
-        <h1 class="text-xl font-semibold tracking-[-0.01em] text-[#1f2430] md:text-2xl">Corporate Admin Dashboard</h1>
+        <h1 class="text-xl font-semibold tracking-[-0.01em] text-[#1f2430] md:text-2xl">Overview</h1>
         <p class="text-sm text-[#687386]">
-          A unified dashboard for program delivery, employee journey health, and intervention priorities.
+          A unified command centre for program delivery, mentee journey health, and intervention priorities.
         </p>
         <p v-if="lastRefreshedAt" class="text-xs text-[#8b95a4]">
           Last refreshed {{ formatDateTime(lastRefreshedAt) }}
@@ -1499,7 +1499,7 @@ onMounted(() => {
               <div>
                 <CardTitle class="text-sm font-semibold text-[#1f2430]">Session Wallet</CardTitle>
                 <CardDescription class="text-xs text-[#7c8595]">
-                  Company-funded sessions available for employee allocation.
+                  Company-funded sessions available for mentee allocation.
                 </CardDescription>
               </div>
               <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e9f6f1] text-[#00856f]">
@@ -1538,7 +1538,7 @@ onMounted(() => {
             </div>
 
             <Button class="h-9 w-full rounded-md bg-[#00856f] text-white hover:bg-[#006f5d]" @click="openBillingWorkspace">
-              {{ managedCompanyWallet ? 'Manage Billing' : 'Buy Sessions' }}
+              {{ managedCompanyWallet ? 'Manage Billing' : 'Top Up Wallet' }}
               <ArrowRight class="ml-2 h-4 w-4" />
             </Button>
           </CardContent>
@@ -1555,7 +1555,7 @@ onMounted(() => {
               </span>
             </div>
             <p class="mt-3 text-2xl font-semibold text-[#1f2430]">{{ formatNumber(registeredEmployeesCount) }}</p>
-            <p class="mt-1 text-xs text-[#7c8595]">Employees listed in company workspace</p>
+            <p class="mt-1 text-xs text-[#7c8595]">Mentees listed in company workspace</p>
           </CardContent>
         </Card>
 
@@ -1568,7 +1568,7 @@ onMounted(() => {
               </span>
             </div>
             <p class="mt-3 text-2xl font-semibold text-[#1f2430]">{{ formatNumber(participatingEmployeesCount) }}</p>
-            <p class="mt-1 text-xs text-[#7c8595]">Employees active in mentoring programs</p>
+            <p class="mt-1 text-xs text-[#7c8595]">Mentees active in mentoring programs</p>
           </CardContent>
         </Card>
 
@@ -1641,7 +1641,7 @@ onMounted(() => {
         <Card class="dashboard-card">
           <CardHeader class="dashboard-card__header">
             <div class="flex items-center justify-between gap-3">
-              <CardTitle class="dashboard-section-title">Employee Onboarding</CardTitle>
+              <CardTitle class="dashboard-section-title">Mentee Onboarding</CardTitle>
               <span class="inline-flex items-center gap-2 text-xs font-medium text-[#6f7888]">
                 <span class="h-2.5 w-2.5 rounded-full bg-[#9a4884]" />
                 Real-time status
@@ -1756,7 +1756,7 @@ onMounted(() => {
           <CardHeader class="dashboard-card__header">
             <CardTitle class="dashboard-section-title">
               <UserPlus class="h-5 w-5 text-[#9a4884]" />
-              Employee Funnel
+              Mentee Funnel
             </CardTitle>
             <CardDescription class="dashboard-section-description">{{ employeeFunnelDescription }}</CardDescription>
           </CardHeader>
@@ -1871,7 +1871,7 @@ onMounted(() => {
             </div>
 
             <div class="flex gap-2">
-              <Button variant="outline" class="border-[#d6dbe4] text-[#4f5968] hover:bg-[#f8f7fb]" @click="openEmployeesWorkspace">Open Employees</Button>
+              <Button variant="outline" class="border-[#d6dbe4] text-[#4f5968] hover:bg-[#f8f7fb]" @click="openEmployeesWorkspace">Open Mentees</Button>
             </div>
           </CardContent>
         </Card>
@@ -1890,10 +1890,10 @@ onMounted(() => {
           <CardHeader class="dashboard-card__header">
             <CardTitle class="dashboard-section-title">
               <UserCheck class="h-5 w-5 text-[#9a4884]" />
-              Most Active Employees
+              Most Active Mentees
             </CardTitle>
             <CardDescription class="dashboard-section-description">
-              Employees driving session throughput and momentum.
+              Mentees driving session throughput and momentum.
             </CardDescription>
           </CardHeader>
           <CardContent class="dashboard-card__content">
@@ -1919,7 +1919,7 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-            <p v-else class="text-sm text-muted-foreground">No employee session activity yet.</p>
+            <p v-else class="text-sm text-muted-foreground">No mentee session activity yet.</p>
           </CardContent>
         </Card>
 
@@ -1930,7 +1930,7 @@ onMounted(() => {
               Mentor Performance
             </CardTitle>
             <CardDescription class="dashboard-section-description">
-              Mentors who are supporting the most employees across your company programs.
+              Mentors who are supporting the most mentees across your programs.
             </CardDescription>
           </CardHeader>
           <CardContent class="dashboard-card__content">
@@ -1964,7 +1964,7 @@ onMounted(() => {
             Recent Registrations
           </CardTitle>
           <CardDescription class="dashboard-section-description">
-            Latest employee profiles added to the company workspace.
+            Latest mentee profiles added to the company workspace.
           </CardDescription>
         </CardHeader>
         <CardContent class="dashboard-card__content">
@@ -1986,7 +1986,7 @@ onMounted(() => {
               <p class="mt-3 text-xs text-muted-foreground">Joined {{ formatDate(profile.createdAt) }}</p>
             </div>
           </div>
-          <p v-else class="text-sm text-muted-foreground">No employee profiles found.</p>
+          <p v-else class="text-sm text-muted-foreground">No mentee profiles found.</p>
         </CardContent>
       </Card>
 

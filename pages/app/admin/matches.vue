@@ -15,8 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '~
 import { GitBranch, RefreshCw, Search, ShieldCheck, UserCheck, UserRoundPlus, XCircle } from 'lucide-vue-next'
 
 definePageMeta({
-  title: 'Mentor Matches',
-  description: 'Assign mentors to company program employees',
+  title: 'One-to-One Matching',
+  description: 'Assign mentors to company program mentees',
   requiresAuth: true,
   permissions: ['admin:programs'],
 })
@@ -209,9 +209,9 @@ watch(participants, () => {
   <div class="container mx-auto space-y-6 px-4 py-6">
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Mentor Matches</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">One-to-One Matching</h1>
         <p class="text-sm text-muted-foreground">
-          Review the mentor pool for a company program and assign mentors to employees manually.
+          Review mentor candidates for a program and assign mentors to mentees manually.
         </p>
       </div>
 
@@ -230,7 +230,7 @@ watch(participants, () => {
     <div class="grid gap-4 md:grid-cols-4">
       <Card>
         <CardHeader class="pb-2">
-          <CardDescription>Employees</CardDescription>
+        <CardDescription>Mentees</CardDescription>
           <CardTitle class="text-3xl">{{ participants.length }}</CardTitle>
         </CardHeader>
       </Card>
@@ -276,7 +276,7 @@ watch(participants, () => {
             </SelectContent>
           </Select>
 
-          <Input v-model="participantSearch" placeholder="Filter employees" />
+          <Input v-model="participantSearch" placeholder="Filter mentees" />
         </div>
 
         <div v-if="selectedProgram" class="rounded-lg border bg-muted/30 p-4 text-sm">
@@ -345,8 +345,8 @@ watch(participants, () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Assignment Workspace</CardTitle>
-          <CardDescription>Assign mentors to employees one by one and override when needed.</CardDescription>
+          <CardTitle>Matching Workspace</CardTitle>
+          <CardDescription>Assign mentors to mentees one by one and override when needed.</CardDescription>
         </CardHeader>
         <CardContent class="space-y-4">
           <Alert v-if="participantsError" variant="destructive">
@@ -362,14 +362,14 @@ watch(participants, () => {
           <div v-else-if="!visibleParticipants.length" class="rounded-lg border border-dashed p-8 text-center">
             <ShieldCheck class="mx-auto h-8 w-8 text-muted-foreground" />
             <p class="mt-3 text-sm text-muted-foreground">
-              No employees matched the current filter for this program.
+              No mentees matched the current filter for this program.
             </p>
           </div>
 
           <Table v-else>
             <TableHeader>
               <TableRow>
-                <TableHead>Employee</TableHead>
+                <TableHead>Mentee</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Current Mentor</TableHead>
                 <TableHead>Choose Mentor</TableHead>
@@ -382,7 +382,7 @@ watch(participants, () => {
                   <div class="space-y-1">
                     <div class="font-medium">{{ participant.profileName }}</div>
                     <div class="text-xs text-muted-foreground">
-                      {{ participant.profileEmail || participant.department || 'Company employee' }}
+                      {{ participant.profileEmail || participant.department || 'Company mentee' }}
                     </div>
                   </div>
                 </TableCell>

@@ -35,7 +35,7 @@ import { useAuthStore } from '~/store/modules/auth'
 import { useCompanySessionsStore } from '~/store/modules/company-sessions'
 
 definePageMeta({
-  title: 'Mentoring Sessions',
+  title: 'One-to-One Sessions',
   description: 'Operational view of mentorship sessions across your company programs',
   requiresAuth: true,
   permissions: ['admin:reports'],
@@ -197,7 +197,7 @@ const normalizeSession = (session: CompanySessionRecord): SessionRow => {
 
   return {
     id: session.id,
-    employeeName: session.employeeName || 'Employee',
+    employeeName: session.employeeName || 'Mentee',
     employeeEmail: session.employeeEmail || null,
     mentorName: session.mentorName || 'Mentor',
     department: session.department || 'General',
@@ -348,6 +348,18 @@ const pageItems = computed<PaginationItem[]>(() => {
   return [1, 'ellipsis', current, current + 1, 'ellipsis', total]
 })
 
+const hasActiveSessionFilters = computed(() =>
+  statusFilter.value !== 'all_statuses'
+  || departmentFilter.value !== 'all_departments'
+  || timeRange.value !== 'last_30_days',
+)
+
+const clearFilters = () => {
+  timeRange.value = 'last_30_days'
+  statusFilter.value = 'all_statuses'
+  departmentFilter.value = 'all_departments'
+}
+
 const statusTone = (status: DisplayStatus) => {
   if (status === 'Completed') return 'text-[#15803d]'
   if (status === 'Canceled') return 'text-[#cf2b2b]'
@@ -374,7 +386,7 @@ const departmentTone = (department: string) => {
 }
 
 const exportCsv = () => {
-  const header = ['Employee', 'Mentor', 'Topic', 'Department', 'Status', 'Start', 'End', 'Rating']
+  const header = ['Mentee', 'Mentor', 'Topic', 'Department', 'Status', 'Start', 'End', 'Rating']
   const lines = pagedSessions.value.map(row => [
     row.employeeName,
     row.mentorName,
@@ -421,7 +433,7 @@ const recentCancellations = computed(() => {
 
   return backendRows.slice(0, 3).map(item => {
     const reason = item.cancellationReason?.trim() || 'Session Canceled'
-    const title = `${reason}: ${item.employeeName || 'Employee'}`
+    const title = `${reason}: ${item.employeeName || 'Mentee'}`
     const sessionLabel = item.title?.trim() || 'Mentorship session'
     const subtitle = `${sessionLabel} • ${relativeTime(item.cancelledAt)}`
 
@@ -543,7 +555,7 @@ onMounted(() => {
     <header class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div class="space-y-1">
         <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-[#8f5f82]">Overview</p>
-        <h1 class="text-xl font-semibold tracking-[-0.01em] text-[#1f2430] md:text-2xl">Mentoring Sessions</h1>
+        <h1 class="text-xl font-semibold tracking-[-0.01em] text-[#1f2430] md:text-2xl">One-to-One Sessions</h1>
       </div>
 
       <div class="flex flex-wrap items-center gap-3">
@@ -655,9 +667,19 @@ onMounted(() => {
 
       <div v-else-if="!pagedSessions.length" class="flex flex-col items-center gap-2 px-6 py-16 text-center">
         <CalendarX2 class="h-10 w-10 text-[#c4ccd8]" />
-        <p class="text-lg font-semibold text-[#2d3139]">No sessions match these filters.</p>
-        <p class="text-sm text-[#8b93a0]">Adjust filters or refresh to load recent scheduling activity.</p>
-        <Button variant="outline" class="mt-2" @click="refreshSessions">Refresh Sessions</Button>
+        <template v-if="hasActiveSessionFilters">
+          <p class="text-lg font-semibold text-[#2d3139]">No sessions match these filters.</p>
+          <p class="text-sm text-[#8b93a0]">Clear filters to return to the default one-to-one session view.</p>
+          <Button variant="outline" class="mt-2" @click="clearFilters">Clear Filters</Button>
+        </template>
+        <template v-else>
+          <p class="text-lg font-semibold text-[#2d3139]">No one-to-one sessions scheduled yet.</p>
+          <p class="text-sm text-[#8b93a0]">Sessions are created from programs, cohorts, mentor matches, or direct scheduling.</p>
+          <div class="mt-2 flex flex-wrap justify-center gap-2">
+            <Button variant="outline" @click="navigateTo('/app/admin/programs')">Go to Programs</Button>
+            <Button @click="navigateTo('/app/sessions')">Schedule New</Button>
+          </div>
+        </template>
       </div>
 
       <template v-else>
