@@ -11,7 +11,6 @@ import {
   GitBranch,
   Route,
   Layers3,
-  Wallet,
 } from 'lucide-vue-next'
 
 export const corporateAdminNavigation: NavigationItem[] = [
@@ -130,12 +129,6 @@ export const corporateAdminNavigation: NavigationItem[] = [
         title: 'Billing',
         icon: CreditCard,
         url: '/app/admin/billing',
-        permission: 'admin:billing',
-      },
-      {
-        title: 'Session Wallet',
-        icon: Wallet,
-        url: '/app/admin/billing/wallet',
         permission: 'admin:billing',
       },
     ],

@@ -53,6 +53,11 @@ assert.match(
   /title:\s*'Billing'[\s\S]*?url:\s*'\/app\/admin\/billing'[\s\S]*?permission:\s*'admin:billing'/,
   'Billing should stay in Finance with its existing route and permission.',
 )
+assert.doesNotMatch(
+  source,
+  /title:\s*'Session Wallet'|url:\s*'\/app\/admin\/billing\/wallet'/,
+  'Session Wallet should not appear as a separate sidebar link.',
+)
 
 assert.match(
   source,

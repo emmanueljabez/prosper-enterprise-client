@@ -17,7 +17,7 @@ const expectedGroups = [
   ['Program Management', [['Programs', '/app/admin/programs'], ['Topics', '/app/admin/topics'], ['Program Content', '/app/admin/content']]],
   ['Session Management', [['Plenary Sessions', '/app/admin/sessions/plenary'], ['Group Sessions', '/app/admin/sessions/group'], ['One-to-One Sessions', '/app/admin/sessions/one-to-one']]],
   ['Mentors & Matching', [['One-to-One Matching', '/app/admin/matches'], ['Bulk Matching', '/app/admin/matches/bulk']]],
-  ['Finance', [['Billing', '/app/admin/billing'], ['Session Wallet', '/app/admin/billing/wallet']]],
+  ['Finance', [['Billing', '/app/admin/billing']]],
   ['Reports', [['Tracking', '/app/admin/reports']]],
   ['Resources', [['Journey Templates', '/app/admin/journey-templates']]],
   ['Administration', [['Settings', '/app/admin/settings']]],
@@ -65,5 +65,6 @@ for (const [groupTitle, items] of expectedGroups) {
 }
 
 assert.doesNotMatch(navigationSource, /title:\s*'Core'/, 'Corporate admin navigation should no longer use the generic Core group.')
+assert.doesNotMatch(navigationSource, /title:\s*'Session Wallet'|url:\s*'\/app\/admin\/billing\/wallet'/, 'Corporate admin navigation should not show Session Wallet as a separate sidebar item.')
 
 console.log('Enterprise admin navigation structure verified.')
