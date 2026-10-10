@@ -10,7 +10,9 @@ assert.match(source, /<CompanyProgramEditor\b/, 'Cohorts page should use the bac
 assert.match(source, /submit-label="Create cohort"/, 'Cohorts page should label the save action as cohort creation.')
 assert.match(source, /createCompanyProgram\(companyId\.value, payload\)/, 'Cohorts page should save through the existing company program create flow.')
 assert.match(source, /navigateTo\(`\/app\/admin\/programs\/\$\{created\.id\}`\)/, 'Cohorts page should send users to the created cohort detail when an id is returned.')
+assert.match(source, /navigateTo\('\/app\/admin\/programs'\)/, 'Cohorts page should keep a working path back to the programs list.')
 assert.match(source, /navigateTo\('\/app\/admin\/employees'\)/, 'Cohorts page should keep a working path to manage mentees.')
 assert.match(source, /navigateTo\('\/app\/admin\/matches'\)/, 'Cohorts page should keep a working path to matching setup.')
+assert.match(source, /navigateTo\('\/app\/admin\/reports'\)/, 'Cohorts page should keep a working path to reports.')
 
 console.log('Admin cohorts page verified.')
